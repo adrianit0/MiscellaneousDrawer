@@ -32,5 +32,5 @@ El usuario pidió un instalador `.sh` que, a partir del proyecto, instale el pro
 ## Consecuencias
 
 - Las pruebas del instalador (`InstallerTest`) ejecutan los scripts de verdad, con `HOME` temporal y un `jpackage` falso, solo en Linux; en Windows se comprueban el lanzador y el contenido de los scripts.
-- No hay actualización automática: se actualiza con `git pull` y `scripts/install.sh`, o con un JAR nuevo. Las actualizaciones siguen fuera de alcance.
+- No hay actualización automática: se actualiza con `git pull` y `scripts/install.sh`, o con un JAR nuevo. Las actualizaciones siguen fuera de alcance. ADR-0010 las añade más tarde: la instalación conserva esta disposición y la actualización solo sustituye su JAR.
 - El instalador no instala Java ni Node.js: si faltan, lo dice y termina.

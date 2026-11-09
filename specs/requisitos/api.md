@@ -18,6 +18,9 @@ La interfaz habla con el servidor solo a través de esta API JSON, bajo `/api`.
 | GET | /api/events | Canal de presencia (C-04) |
 | POST | /api/presence/bye | Aviso de cierre de ventana (C-05) |
 | POST | /api/shutdown | Apagado ordenado (C-06, C-10) |
+| GET | /api/update | Versión, build y commit instalados, y si la actualización está disponible y por qué (R-10, R-14) |
+| POST | /api/update/check | Buscar una versión nueva (R-13). 409 `update_unavailable` o `update_not_configured` sin conectar (R-11, R-14) |
+| POST | /api/update/apply | Descargar y verificar el build indicado (`{"build": N}`) y reiniciar (R-32, R-42, R-43). Solo acepta el build de la última búsqueda verificada (409 `update_stale`) y responde antes de apagar, cuando la descarga ya está comprobada |
 | * | /api/apps/{id}/… | Rutas de la mini app (P-06). 503 `app_unavailable` si la mini app está en `failed` (P-07) |
 
 Respuesta de `GET /api/catalog`:

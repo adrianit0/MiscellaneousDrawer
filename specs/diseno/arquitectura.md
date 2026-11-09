@@ -18,10 +18,13 @@ Contexto de uso: un único usuario, una única máquina con Ubuntu 22.04 y sesio
 
 - `scripts/install.sh` y `scripts/uninstall.sh`, lanzador `.desktop` con icono e imagen de `jpackage` (C-11 a C-15, ADR-0009).
 
+### Actualizaciones (Sprint 2)
+
+- Cada push a `master` publica en GitHub un JAR firmado, y «Ajustes → Actualizaciones» lo busca e instala con dos botones (R-01 a R-47, ADR-0010).
+
 ### Fuera de la base
 
 - La funcionalidad de cualquier mini app: cada una tendrá su especificación y su sprint.
-- Actualizaciones: llegarán en un sprint propio, como en LiteDD. Mientras tanto se actualiza reinstalando.
 - Lo que la plataforma aún no ofrece ([mini-apps.md](mini-apps.md), «Fuera de la plataforma, por ahora»).
 - Tema claro y otros idiomas.
 
@@ -38,6 +41,7 @@ Contexto de uso: un único usuario, una única máquina con Ubuntu 22.04 y sesio
 │  http        servidor Javalin, seguridad local, errores A-02            │
 │  lifecycle   instancia, ventana, presencia, apagado                     │
 │  settings    config.json y estado de interfaz del shell                 │
+│  update      búsqueda e instalación de versiones (única salida: GitHub) │
 │  catalog     AppCatalog (declaración), AppRegistry (ejecución),         │
 │              /api/catalog, /api/app-state                               │
 │  platform    MiniApp, AppManifest, AppContext, AppRoutes, Store, ApiError│
@@ -52,6 +56,7 @@ Contexto de uso: un único usuario, una única máquina con Ubuntu 22.04 y sesio
 | `http` | Servidor en 127.0.0.1, ficheros estáticos, token, Host, Origin, CSP y formato de errores |
 | `lifecycle` | Línea de comandos, `instance.json`, ventana de Chrome, presencia y apagado |
 | `settings` | `config.json` (D-05) y tabla `setting` (D-04) |
+| `update` | Búsqueda, verificación e instalación de versiones publicadas en GitHub (R-01 a R-47, ADR-0010). Es la única salida de la máquina y ninguna mini app la usa (P-18) |
 | `catalog` | Lista de mini apps, su arranque aislado, su estado y sus rutas por mini app del shell |
 | `platform` | Contrato público para las mini apps y acceso a SQLite (`Store`) |
 | `apps.<id>` | Una mini app; solo depende de `platform` (P-18) |
@@ -100,12 +105,13 @@ Ver [requisitos/ciclo-de-vida.md](../requisitos/ciclo-de-vida.md). En resumen:
 - `scripts/dev.sh` arranca el backend en 47800 y Vite en 5174 con recarga en caliente.
 - `./mvnw -Pdist package` genera además el JAR único `target/dist/cajonsastre.jar`, con la interfaz y las dependencias, que se ejecuta con `java -jar` en cualquier sistema.
 - `scripts/install.sh` compila ese JAR (o recibe uno ya compilado), genera en la propia máquina la imagen de `jpackage` con runtime propio y la instala con su comando y su lanzador (C-11 a C-14, ADR-0009). `scripts/uninstall.sh` la quita sin tocar los datos (C-15).
+- Cada push a `master` ejecuta `.github/workflows/release.yml`: `./mvnw -Pdist verify` en `ubuntu-22.04` con el número de build y el commit, y `scripts/release.sh`, que publica la release `build-N` con el JAR, el manifiesto y su firma (R-01 a R-06). Una instalación se actualiza sustituyendo solo su JAR (R-40 a R-47).
 
 ## Convenciones de código
 
 - Código, identificadores, tablas y rutas de API en inglés. Paquete raíz Java: `dev.cajonsastre`.
 - Textos de interfaz, especificaciones y mensajes de commit en español.
-- Prefijos de requisitos del shell: S (seguridad), A (API), P (plataforma), N (navegación), L (lanzador), U (interfaz), C (ciclo de vida), D (datos). Cada mini app elige un prefijo propio de dos o más letras al especificarse, para no chocar con estos.
+- Prefijos de requisitos del shell: S (seguridad), A (API), P (plataforma), N (navegación), L (lanzador), U (interfaz), C (ciclo de vida), D (datos), R (actualizaciones). Cada mini app elige un prefijo propio de dos o más letras al especificarse, para no chocar con estos.
 
 ## Método de desarrollo
 
@@ -120,7 +126,8 @@ cajonsastre/
 ├── mvnw, mvnw.cmd, .mvn/, pom.xml
 ├── specs/
 │   ├── constitucion.md       principios que no se negocian
-│   ├── requisitos/           seguridad, api, plataforma, navegacion, interfaz, ciclo-de-vida, datos
+│   ├── requisitos/           seguridad, api, plataforma, navegacion, interfaz, ciclo-de-vida, datos,
+│   │                         actualizaciones
 │   ├── diseno/               arquitectura, mini-apps, modelo-datos
 │   ├── sprints/              sprint-00.md …
 │   └── decisiones/           ADR-0001-….md
@@ -130,7 +137,8 @@ cajonsastre/
 ├── src/test/java/dev/cajonsastre/
 ├── frontend/                 src/shell, src/platform, src/apps/<id>
 ├── packaging/                cajonsastre.desktop (plantilla del lanzador)
-└── scripts/                  dev.sh, install.sh, uninstall.sh
+├── scripts/                  dev.sh, install.sh, uninstall.sh, release.sh
+└── .github/workflows/        release.yml (publicación de versiones)
 ```
 
 ### Flujo de un sprint

@@ -25,6 +25,7 @@ CajonSastre es un único proceso Java. El ciclo de vida sigue el de LiteDD (inst
 | Datos de cada mini app | `~/.local/share/cajonsastre/apps/<id>/` (su base es `data.db`) |
 | Copias | `~/.local/share/cajonsastre/backups/` |
 | Registro, instancia en marcha y perfil de Chrome | `~/.local/state/cajonsastre/` |
+| Registro de la última actualización (R-44) | `~/.local/state/cajonsastre/update.log` |
 
 Cada carpeta respeta `XDG_DATA_HOME`, `XDG_CONFIG_HOME` y `XDG_STATE_HOME` si están definidas.
 
