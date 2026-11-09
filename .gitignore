@@ -1,0 +1,25 @@
+# Build
+target/
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# Datos, configuración y registros de CajonSastre (S-34)
+*.db
+*.db-wal
+*.db-shm
+*.zip
+*.log
+config.json
+instance.json
+backups/
+.env
+.env.*
+*.pem
+
+# IDE y sistema
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,41 @@
+# Requisitos de la API HTTP local
+
+La interfaz habla con el servidor solo a través de esta API JSON, bajo `/api`.
+
+| ID | Regla |
+|---|---|
+| A-01 | JSON en UTF-8. Los nombres de campo van en inglés y en camelCase. |
+| A-02 | Los errores usan el código HTTP adecuado y el cuerpo `{"code", "message", "details"}`. `message` va en español y es apto para mostrarse. |
+| A-03 | Toda ruta exige el token de sesión (S-12), salvo `GET /api/health`. |
+| A-04 | `/api/apps/<id>/…` pertenece por entero a la mini app `<id>` (P-06). El shell no define rutas ahí; las suyas por mini app van en `/api/catalog` y `/api/app-state/<id>`. |
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | /api/health | Firma, versión y build de la aplicación (C-01) |
+| GET | /api/catalog | Mini apps con su manifiesto, estado y, si falló, el mensaje (P-04) |
+| GET, PUT | /api/app-state/{id} | Documento de estado de interfaz de una mini app: un objeto JSON de hasta 64 KB (P-14). 404 `app_not_found` si no está en el catálogo; 400 `invalid_state` si no es un objeto o es mayor |
+| GET, PUT | /api/settings | Estado de interfaz del shell (tabla `setting`) y, en la clave `config`, los ajustes de `config.json` (D-04, D-05). Las claves cumplen `[A-Za-z0-9._-]{1,100}` |
+| GET | /api/events | Canal de presencia (C-04) |
+| POST | /api/presence/bye | Aviso de cierre de ventana (C-05) |
+| POST | /api/shutdown | Apagado ordenado (C-06, C-10) |
+| * | /api/apps/{id}/… | Rutas de la mini app (P-06). 503 `app_unavailable` si la mini app está en `failed` (P-07) |
+
+Respuesta de `GET /api/catalog`:
+
+```json
+{
+  "apps": [
+    {
+      "id": "tasks",
+      "name": "Tareas",
+      "description": "Gestor de tareas",
+      "icon": "tasks",
+      "color": "green",
+      "category": "productivity",
+      "keywords": ["pendientes", "listas"],
+      "status": "planned",
+      "error": null
+    }
+  ]
+}
+```
