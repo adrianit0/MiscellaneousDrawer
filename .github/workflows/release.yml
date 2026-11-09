@@ -1,0 +1,47 @@
+# ADR-0010: cada push a master ejecuta las pruebas y, si pasan, publica el JAR firmado (R-01 a R-05).
+# El número de ejecución es el número de build (R-02): renombrar este fichero lo reiniciaría y las
+# instalaciones dejarían de ver versiones nuevas (R-31).
+name: Release
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - 'specs/**'
+      - 'README.md'
+      - 'CLAUDE.md'
+      - 'LICENSE'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # La lista de commits sale de la release anterior (R-03).
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Pruebas y JAR
+        run: ./mvnw -B -Pdist verify -Dcajonsastre.build="$GITHUB_RUN_NUMBER" -Dcajonsastre.commit="$GITHUB_SHA"
+
+      - name: Publicar
+        run: scripts/release.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CAJONSASTRE_RELEASE_KEY: ${{ secrets.CAJONSASTRE_RELEASE_KEY }}
