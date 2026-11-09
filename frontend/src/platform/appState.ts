@@ -49,6 +49,11 @@ export class AppStateDoc {
     return this.loaded;
   }
 
+  /** R-41: queda algo sin guardar. */
+  get pending(): boolean {
+    return this.dirty;
+  }
+
   get(key: string): unknown {
     return this.doc[key];
   }
@@ -112,6 +117,11 @@ export function appStateDoc(appId: string): AppStateDoc {
 /** P-14: al cerrar la ventana se guarda lo pendiente de todas las mini apps. */
 export function flushAppStates(keepalive = true): Promise<void[]> {
   return Promise.all([...docs.values()].map((d) => d.flush(keepalive)));
+}
+
+/** R-41: mini apps cuyo estado sigue sin guardar, por ejemplo tras un flush que falló. */
+export function unsavedAppStates(): string[] {
+  return [...docs.values()].filter((d) => d.pending).map((d) => d.appId);
 }
 
 /** Solo para las pruebas. */

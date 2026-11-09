@@ -23,6 +23,9 @@ interface UiState {
   /** U-07 */
   contactLost: boolean;
   setContactLost: (lost: boolean) => void;
+  /** R-45: se pidió actualizar y el servidor se está reiniciando. */
+  updating: boolean;
+  setUpdating: (updating: boolean) => void;
 }
 
 let nextNotice = 1;
@@ -41,4 +44,6 @@ export const useUi = create<UiState>((set, get) => ({
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   contactLost: false,
   setContactLost: (contactLost) => set({ contactLost }),
+  updating: false,
+  setUpdating: (updating) => set({ updating }),
 }));

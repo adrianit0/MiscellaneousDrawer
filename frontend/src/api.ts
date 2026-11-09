@@ -82,9 +82,39 @@ export interface CatalogApp extends AppManifest {
 export interface AppConfig {
   port: number;
   autoShutdownMinutes: number | null;
+  /** R-11: null, sin conexión a GitHub. */
+  updateRepository: string | null;
 }
 
 export type Settings = Record<string, unknown> & { config?: AppConfig };
+
+/** R-10, R-14: GET /api/update. */
+export interface UpdateStatus {
+  version: string;
+  /** 0 en un JAR compilado a mano (R-06). */
+  build: number;
+  commit: string;
+  available: boolean;
+  /** Por qué no está disponible. */
+  reason: string | null;
+}
+
+/** R-03: una versión publicada, ya verificada por el servidor. */
+export interface UpdateRelease {
+  build: number;
+  version: string;
+  commit: string;
+  date: string;
+  size: number;
+  sha256: string;
+  commits: string[];
+}
+
+/** R-13: POST /api/update/check. */
+export interface UpdateCheck {
+  newer: boolean;
+  latest: UpdateRelease;
+}
 
 export const api = {
   /** C-01, U-07: ¿responde CajonSastre? */
@@ -96,6 +126,18 @@ export const api = {
       return body.app === 'CajonSastre';
     } catch {
       return false;
+    }
+  },
+
+  /** R-45: build del servidor en marcha; null si no se sabe. */
+  async appBuild(): Promise<number | null> {
+    try {
+      const res = await fetch('/api/health', { cache: 'no-store' });
+      if (!res.ok) return null;
+      const body = (await res.json()) as { build?: unknown };
+      return typeof body.build === 'number' ? body.build : null;
+    } catch {
+      return null;
     }
   },
 
@@ -139,5 +181,20 @@ export const api = {
 
   saveAppState(appId: string, doc: Record<string, unknown>, options: RequestOptions = {}): Promise<unknown> {
     return request('PUT', `/api/app-state/${encodeURIComponent(appId)}`, doc, options);
+  },
+
+  /** R-10, R-14: no contacta con GitHub. */
+  updateStatus(): Promise<UpdateStatus> {
+    return request<UpdateStatus>('GET', '/api/update');
+  },
+
+  /** R-12, R-13: solo al pulsar «Buscar actualizaciones». */
+  checkUpdate(): Promise<UpdateCheck> {
+    return request<UpdateCheck>('POST', '/api/update/check');
+  },
+
+  /** R-40, R-43 */
+  applyUpdate(build: number): Promise<{ restarting: boolean }> {
+    return request<{ restarting: boolean }>('POST', '/api/update/apply', { build });
   },
 };

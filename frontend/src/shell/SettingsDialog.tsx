@@ -1,14 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, ApiError, type AppConfig } from '../api';
 import { useUi } from './uiStore';
+import { UpdateSettings } from './UpdateSettings';
 
-const CATEGORIES = [{ id: 'general', label: 'General' }] as const;
+/** U-06: categorías, en este orden. */
+const CATEGORIES = [
+  { id: 'general', label: 'General' },
+  { id: 'updates', label: 'Actualizaciones' },
+] as const;
 
-/** U-06: «Ajustes». */
+type Category = (typeof CATEGORIES)[number]['id'];
+
+const DEFAULT_CONFIG: AppConfig = { port: 47800, autoShutdownMinutes: null, updateRepository: null };
+
+/** U-06: «Ajustes». «Guardar» guarda los ajustes de todas las categorías y cierra. */
 export function SettingsDialog() {
   const [config, setConfig] = useState<AppConfig | null>(null);
+  const [category, setCategory] = useState<Category>('general');
   const [port, setPort] = useState('');
   const [autoShutdown, setAutoShutdown] = useState('');
+  const [repository, setRepository] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const firstField = useRef<HTMLInputElement>(null);
@@ -18,10 +29,11 @@ export function SettingsDialog() {
     api
       .settings()
       .then((s) => {
-        const c = s.config ?? { port: 47800, autoShutdownMinutes: null };
+        const c = { ...DEFAULT_CONFIG, ...s.config };
         setConfig(c);
         setPort(String(c.port));
         setAutoShutdown(c.autoShutdownMinutes === null ? '' : String(c.autoShutdownMinutes));
+        setRepository(c.updateRepository ?? '');
       })
       .catch((e: Error) => setError(e.message));
   }, []);
@@ -35,6 +47,8 @@ export function SettingsDialog() {
     const next: AppConfig = {
       port: Number(port),
       autoShutdownMinutes: autoShutdown.trim() === '' ? null : Number(autoShutdown),
+      // R-11: vacía es lo mismo que ninguna.
+      updateRepository: repository.trim() === '' ? null : repository.trim(),
     };
     setSaving(true);
     setError(null);
@@ -50,6 +64,8 @@ export function SettingsDialog() {
       setSaving(false);
     }
   };
+
+  const title = CATEGORIES.find((c) => c.id === category)!.label;
 
   return (
     <div className="overlay">
@@ -75,7 +91,7 @@ export function SettingsDialog() {
           <ul className="settings-categories" aria-label="Categorías">
             {CATEGORIES.map((c) => (
               <li key={c.id}>
-                <button type="button" aria-current="true">
+                <button type="button" aria-current={c.id === category ? 'true' : undefined} onClick={() => setCategory(c.id)}>
                   {c.label}
                 </button>
               </li>
@@ -83,14 +99,15 @@ export function SettingsDialog() {
           </ul>
           <form
             className="settings-content"
+            aria-label={title}
             onSubmit={(e) => {
               e.preventDefault();
               void save();
             }}
           >
-            <h3>General</h3>
+            <h3>{title}</h3>
             {!config && !error && <p className="muted">Cargando…</p>}
-            {config && (
+            {config && category === 'general' && (
               <>
                 <label className="field">
                   <span>Puerto</span>
@@ -118,6 +135,9 @@ export function SettingsDialog() {
                   <small className="muted">Vacío: sigue en marcha aunque la ventana se pierda sin cerrarse.</small>
                 </label>
               </>
+            )}
+            {config && category === 'updates' && (
+              <UpdateSettings repository={repository} saved={config.updateRepository} onChange={setRepository} />
             )}
             {error && (
               <p className="error-text" role="alert">

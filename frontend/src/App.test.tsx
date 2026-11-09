@@ -298,7 +298,7 @@ describe('U-06 «Ajustes»', () => {
     fireEvent.change(within(dialog).getByLabelText(/Apagado automático/), { target: { value: '30' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Ajustes' })).toBeNull());
-    expect(server.config).toEqual({ port: 47900, autoShutdownMinutes: 30 });
+    expect(server.config).toEqual({ port: 47900, autoShutdownMinutes: 30, updateRepository: null });
     expect(screen.getByText('Ajustes guardados. El puerto nuevo se usará al siguiente arranque.')).toBeTruthy();
   });
 

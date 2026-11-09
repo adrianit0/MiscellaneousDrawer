@@ -1,4 +1,4 @@
-import type { CatalogApp } from '../api';
+import type { AppConfig, CatalogApp, UpdateCheck, UpdateStatus } from '../api';
 import { resetAppStates } from '../platform/appState';
 import { useCatalog } from '../shell/catalogStore';
 import { resetNav } from '../shell/navStore';
@@ -18,7 +18,11 @@ export interface FakeServer {
   calls: Call[];
   catalog: CatalogApp[] | { error: string };
   settings: Record<string, unknown>;
-  config: { port: number; autoShutdownMinutes: number | null };
+  config: AppConfig;
+  /** R-06, R-45: build que devuelve /api/health. */
+  build: number;
+  /** R-10 a R-14, R-40: lo que responden las rutas de actualización y los builds pedidos. */
+  update: { status: UpdateStatus; check: UpdateCheck | { error: string }; applied: number[] };
   appStates: Record<string, Record<string, unknown>>;
   /** Rutas de las mini apps: /api/apps/... */
   appRoutes: Handler;
@@ -52,7 +56,13 @@ export function installFakeServer(init: Partial<Omit<FakeServer, 'calls' | 'call
     calls: [],
     catalog: [],
     settings: {},
-    config: { port: 47800, autoShutdownMinutes: null },
+    config: { port: 47800, autoShutdownMinutes: null, updateRepository: null },
+    build: 0,
+    update: {
+      status: { version: '0.1.0', build: 0, commit: '', available: false, reason: 'Las actualizaciones solo funcionan en la instalación de Ubuntu.' },
+      check: { error: 'No hay ninguna versión publicada en ese repositorio' },
+      applied: [],
+    },
     appStates: {},
     appRoutes: () => undefined,
     ...init,
@@ -66,7 +76,7 @@ export function installFakeServer(init: Partial<Omit<FakeServer, 'calls' | 'call
     const call = { method, url, body, headers };
     server.calls.push(call);
 
-    if (url === '/api/health') return json(200, { app: 'CajonSastre', version: 'test', build: 0 });
+    if (url === '/api/health') return json(200, { app: 'CajonSastre', version: 'test', build: server.build });
     if (url === '/api/events') return new Response(new ReadableStream({ start() {} }), { status: 200 });
     if (url === '/api/presence/bye') return json(200, { ok: true });
     if (url === '/api/catalog') {
@@ -80,6 +90,13 @@ export function installFakeServer(init: Partial<Omit<FakeServer, 'calls' | 'call
         if (changes.config) {
           const config = changes.config as FakeServer['config'];
           if (config.port < 1024) return json(400, { code: 'invalid_settings', message: 'El puerto debe estar entre 1024 y 65535', details: null });
+          if (config.updateRepository !== null && !/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/?$/.test(config.updateRepository)) {
+            return json(400, {
+              code: 'invalid_settings',
+              message: 'La URL del repositorio debe ser https://github.com/<propietario>/<repositorio>',
+              details: null,
+            });
+          }
           server.config = config;
           delete changes.config;
         }
@@ -91,6 +108,15 @@ export function installFakeServer(init: Partial<Omit<FakeServer, 'calls' | 'call
     if (state) {
       if (method === 'PUT') server.appStates[state[1]] = body as Record<string, unknown>;
       return json(200, server.appStates[state[1]] ?? {});
+    }
+    if (url === '/api/update') return json(200, server.update.status);
+    if (url === '/api/update/check') {
+      const check = server.update.check;
+      return 'error' in check ? json(502, { code: 'update_http', message: check.error, details: null }) : json(200, check);
+    }
+    if (url === '/api/update/apply') {
+      server.update.applied.push((body as { build: number }).build);
+      return json(200, { restarting: true });
     }
     if (url.startsWith('/api/apps/')) {
       const r = server.appRoutes(call);
@@ -108,7 +134,7 @@ export function resetShell() {
   resetNav();
   resetAppStates();
   useCatalog.setState({ apps: [], status: 'loading', error: null });
-  useUi.setState({ notices: [], paletteOpen: false, settingsOpen: false, contactLost: false });
+  useUi.setState({ notices: [], paletteOpen: false, settingsOpen: false, contactLost: false, updating: false });
   useRouter.setState({ route: HOME });
   document.title = '';
 }
