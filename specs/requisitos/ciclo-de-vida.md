@@ -27,3 +27,24 @@ CajonSastre es un único proceso Java. El ciclo de vida sigue el de LiteDD (inst
 | Registro, instancia en marcha y perfil de Chrome | `~/.local/state/cajonsastre/` |
 
 Cada carpeta respeta `XDG_DATA_HOME`, `XDG_CONFIG_HOME` y `XDG_STATE_HOME` si están definidas.
+
+## Instalación en Ubuntu
+
+La instalación es por usuario y no necesita `sudo` (ADR-0009).
+
+| ID | Requisito |
+|---|---|
+| C-11 | `scripts/install.sh` instala la aplicación, el comando `cajonsastre` y un lanzador con icono en las rutas de la tabla siguiente. El lanzador se llama «Cajón de sastre», no abre terminal y declara `StartupWMClass=cajonsastre` para que el escritorio asocie la ventana (C-03) a su icono. No toca los datos, los ajustes ni el registro, ni nada de LiteDD (C-08). |
+| C-12 | Sin argumentos, el instalador compila el proyecto con `./mvnw -Pdist package` sin pruebas, lo que exige un JDK 21 y Node.js 24 o posterior. Con la ruta de un JAR único (`scripts/install.sh cajonsastre.jar`, generado en cualquier sistema con `./mvnw -Pdist package` en `target/dist/cajonsastre.jar`), lo instala sin Maven ni Node.js. Java 21 o posterior se busca en `JAVA_HOME`, `/usr/lib/jvm/*` y el `PATH`, sin exigir que sea el Java por defecto del sistema. Más de un argumento, o uno que empiece por `-`, muestra el uso y termina con código 2; un JAR que no existe o la falta de lo necesario terminan con código 1 y dicen qué falta. |
+| C-13 | Si hay `jpackage` junto a un Java 21 o posterior, el instalador genera con él una imagen de aplicación con runtime propio y las opciones `-Xmx384m -XX:+UseSerialGC`, y la instala. Si no lo hay o falla, instala el JAR y un comando que lo ejecuta con el Java encontrado y las mismas opciones. |
+| C-14 | Si Cajón de sastre está en marcha, el instalador lo apaga con `--stop` (C-06) antes de sustituirlo. Reinstalar sustituye la aplicación anterior entera, y si la compilación o la imagen fallan, la instalación anterior queda intacta. |
+| C-15 | `scripts/uninstall.sh` apaga la instancia en marcha y borra la aplicación, el comando, el lanzador y el icono. Conserva datos, ajustes, copias, registro y perfil de Chrome, y dice dónde están. |
+
+| Contenido | Ruta |
+|---|---|
+| Aplicación (imagen de jpackage o JAR) | `~/.local/opt/cajonsastre/` |
+| Comando | `~/.local/bin/cajonsastre`, enlace a `~/.local/opt/cajonsastre/bin/cajonsastre` |
+| Lanzador | `~/.local/share/applications/cajonsastre.desktop` |
+| Icono | `~/.local/share/icons/hicolor/scalable/apps/cajonsastre.svg` |
+
+El lanzador y el icono respetan `XDG_DATA_HOME` si está definida.

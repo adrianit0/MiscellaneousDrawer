@@ -38,6 +38,7 @@
     <maven-resources-plugin.version>3.5.0</maven-resources-plugin.version>
     <maven-surefire-plugin.version>3.6.0</maven-surefire-plugin.version>
     <exec-maven-plugin.version>3.6.4</exec-maven-plugin.version>
+    <maven-shade-plugin.version>3.6.2</maven-shade-plugin.version>
 
     <!-- -Dskip.frontend omite npm ci, build y pruebas de la interfaz -->
     <skip.frontend>false</skip.frontend>
@@ -209,6 +210,55 @@
   </build>
 
   <profiles>
+    <!--
+      ./mvnw -Pdist package: JAR único con la interfaz y las dependencias en target/dist/cajonsastre.jar.
+      scripts/install.sh lo instala y genera la imagen de jpackage en el equipo de destino (ADR-0009).
+    -->
+    <profile>
+      <id>dist</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-shade-plugin</artifactId>
+            <version>${maven-shade-plugin.version}</version>
+            <executions>
+              <execution>
+                <phase>package</phase>
+                <goals><goal>shade</goal></goals>
+                <configuration>
+                  <outputFile>${project.build.directory}/dist/cajonsastre.jar</outputFile>
+                  <createDependencyReducedPom>false</createDependencyReducedPom>
+                  <filters>
+                    <filter>
+                      <artifact>*:*</artifact>
+                      <excludes>
+                        <exclude>module-info.class</exclude>
+                        <exclude>META-INF/versions/*/module-info.class</exclude>
+                        <exclude>META-INF/*.SF</exclude>
+                        <exclude>META-INF/*.DSA</exclude>
+                        <exclude>META-INF/*.RSA</exclude>
+                        <exclude>META-INF/MANIFEST.MF</exclude>
+                      </excludes>
+                    </filter>
+                  </filters>
+                  <transformers>
+                    <!-- Une los META-INF/services: driver de SQLite, proveedor de SLF4J, Jetty -->
+                    <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                    <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                      <mainClass>dev.cajonsastre.Main</mainClass>
+                      <manifestEntries>
+                        <Multi-Release>true</Multi-Release>
+                      </manifestEntries>
+                    </transformer>
+                  </transformers>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
     <!-- -DskipTests también omite las pruebas de la interfaz -->
     <profile>
       <id>skip-frontend-tests</id>

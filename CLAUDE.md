@@ -14,6 +14,8 @@ Instrucciones operativas para trabajar en CajonSastre. La fuente de verdad es `s
 | Arrancar con la interfaz empaquetada | `./mvnw verify` y después `./mvnw -Dskip.frontend exec:java -Dexec.mainClass=dev.cajonsastre.Main -Dexec.args=--no-window` → http://127.0.0.1:47800/ |
 | Apagar la instancia en marcha | `./mvnw -Dskip.frontend exec:java -Dexec.mainClass=dev.cajonsastre.Main -Dexec.args=--stop` |
 | Datos aislados para pruebas manuales | `XDG_DATA_HOME`, `XDG_CONFIG_HOME` y `XDG_STATE_HOME` apuntando a una carpeta temporal |
+| JAR único | `./mvnw -Pdist package` → `target/dist/cajonsastre.jar` |
+| Instalar en Ubuntu | `scripts/install.sh` (compila) o `scripts/install.sh cajonsastre.jar`; `scripts/uninstall.sh` (ADR-0009) |
 
 Plataforma: se desarrolla en Windows 10 y se ejecuta en Ubuntu 22.04 (ADR-0004). El build y las pruebas deben pasar en los dos.
 
@@ -48,7 +50,7 @@ Plataforma: se desarrolla en Windows 10 y se ejecuta en Ubuntu 22.04 (ADR-0004).
   - `apps/<id>/`: el servidor de cada mini app.
 - `src/main/resources/db/shell/` y `db/apps/<id>/`: migraciones SQLite del shell y de cada mini app.
 - `frontend/src/`: `shell/` (disposición, navegación, lanzador), `platform/` (API pública para las mini apps), `apps/<id>/` (interfaz de cada mini app).
-- `scripts/`: arranque en desarrollo.
+- `scripts/`: arranque en desarrollo, instalación y desinstalación en Ubuntu. `packaging/`: plantilla del lanzador `.desktop`.
 
 ## Añadir una mini app
 

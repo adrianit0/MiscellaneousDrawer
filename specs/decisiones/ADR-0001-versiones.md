@@ -40,6 +40,7 @@ Se usan versiones exactas, sin rangos, las mismas que LiteDD en la fecha de este
 | maven-resources-plugin | 3.5.0 |
 | maven-surefire-plugin | 3.6.0 |
 | exec-maven-plugin | 3.6.4 |
+| maven-shade-plugin | 3.6.2 (solo en el perfil `dist`, ADR-0009) |
 
 ### Interfaz (`frontend/package.json`)
 

@@ -30,13 +30,39 @@ Todo se guarda en la máquina local y la aplicación no se conecta a internet.
 - Node.js 24 o superior (solo para compilar)
 - Para la ventana de aplicación: Google Chrome (si no está, se usa el navegador por defecto)
 
+## Instalar en Ubuntu
+
+La instalación es para el usuario actual y no necesita `sudo`. Desde la carpeta del proyecto:
+
+```bash
+sudo apt install openjdk-21-jdk
+```
+
+```bash
+scripts/install.sh
+```
+
+Compila el proyecto (hace falta además Node.js 24 o superior) y deja:
+
+- la aplicación en `~/.local/opt/cajonsastre/`, con su propio runtime de Java si el JDK incluye `jpackage`;
+- el comando `cajonsastre` en `~/.local/bin/`;
+- el icono «Cajón de sastre» en «Mostrar aplicaciones», que se puede anclar al dock.
+
+Si en ese equipo no se puede compilar, se genera el JAR en otro con `./mvnw -Pdist package`, se copia `target/dist/cajonsastre.jar` a la carpeta del proyecto y se instala sin Maven ni Node.js (basta con Java 21):
+
+```bash
+scripts/install.sh cajonsastre.jar
+```
+
+Para actualizar, se vuelve a ejecutar el instalador: apaga la aplicación si está en marcha y la sustituye. Para desinstalarla, `scripts/uninstall.sh`; los datos y los ajustes se conservan.
+
 ## Compilar y probar
 
 ```bash
 ./mvnw verify
 ```
 
-Compila el backend y la interfaz y ejecuta todas las pruebas. Con `-Dskip.frontend` se omite la interfaz.
+Compila el backend y la interfaz y ejecuta todas las pruebas. Con `-Dskip.frontend` se omite la interfaz. `./mvnw -Pdist package` genera además el JAR único `target/dist/cajonsastre.jar`, que se ejecuta con `java -jar`.
 
 ## Desarrollo
 
@@ -46,7 +72,7 @@ scripts/dev.sh
 
 Arranca el servidor en `http://127.0.0.1:47800/` y la interfaz con recarga en caliente en `http://127.0.0.1:5174/`.
 
-Opciones de línea de comandos. El comando `cajonsastre` llegará con la instalación; mientras tanto se pasan con `./mvnw -Dskip.frontend exec:java -Dexec.mainClass=dev.cajonsastre.Main -Dexec.args="…"`.
+Opciones de línea de comandos. Sin instalar, se pasan con `./mvnw -Dskip.frontend exec:java -Dexec.mainClass=dev.cajonsastre.Main -Dexec.args="…"`.
 
 ```text
 cajonsastre                 arranca y abre la ventana; si ya está en marcha, solo abre la ventana

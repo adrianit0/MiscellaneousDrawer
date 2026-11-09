@@ -14,10 +14,14 @@ Contexto de uso: un único usuario, una única máquina con Ubuntu 22.04 y sesio
 - Catálogo inicial con dos mini apps en preparación: «Base de datos» y «Tareas» (ADR-0008).
 - Ciclo de vida: instancia única, ventana propia, presencia, apagado ordenado y `--stop`.
 
+### Instalación (Sprint 1)
+
+- `scripts/install.sh` y `scripts/uninstall.sh`, lanzador `.desktop` con icono e imagen de `jpackage` (C-11 a C-15, ADR-0009).
+
 ### Fuera de la base
 
 - La funcionalidad de cualquier mini app: cada una tendrá su especificación y su sprint.
-- Instalación en Ubuntu (`install.sh`, lanzador `.desktop`, imagen `jpackage`) y actualizaciones: llegarán en un sprint propio, como en LiteDD.
+- Actualizaciones: llegarán en un sprint propio, como en LiteDD. Mientras tanto se actualiza reinstalando.
 - Lo que la plataforma aún no ofrece ([mini-apps.md](mini-apps.md), «Fuera de la plataforma, por ahora»).
 - Tema claro y otros idiomas.
 
@@ -94,6 +98,8 @@ Ver [requisitos/ciclo-de-vida.md](../requisitos/ciclo-de-vida.md). En resumen:
 
 - `./mvnw verify` compila backend e interfaz y ejecuta todas las pruebas. La interfaz se construye con `npm ci && npm run build` y se copia a `web/` dentro del JAR.
 - `scripts/dev.sh` arranca el backend en 47800 y Vite en 5174 con recarga en caliente.
+- `./mvnw -Pdist package` genera además el JAR único `target/dist/cajonsastre.jar`, con la interfaz y las dependencias, que se ejecuta con `java -jar` en cualquier sistema.
+- `scripts/install.sh` compila ese JAR (o recibe uno ya compilado), genera en la propia máquina la imagen de `jpackage` con runtime propio y la instala con su comando y su lanzador (C-11 a C-14, ADR-0009). `scripts/uninstall.sh` la quita sin tocar los datos (C-15).
 
 ## Convenciones de código
 
@@ -123,7 +129,8 @@ cajonsastre/
 ├── src/main/resources/db/apps/<id>/     migraciones de cada mini app
 ├── src/test/java/dev/cajonsastre/
 ├── frontend/                 src/shell, src/platform, src/apps/<id>
-└── scripts/                  dev.sh
+├── packaging/                cajonsastre.desktop (plantilla del lanzador)
+└── scripts/                  dev.sh, install.sh, uninstall.sh
 ```
 
 ### Flujo de un sprint

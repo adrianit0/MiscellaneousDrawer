@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Cajón de sastre
+Comment=Mini apps de utilidad en una misma ventana
+Exec=@BIN@
+Icon=@ICON@
+Terminal=false
+Categories=Utility;
+StartupNotify=false
+StartupWMClass=cajonsastre
