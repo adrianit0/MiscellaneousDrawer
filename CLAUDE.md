@@ -16,6 +16,7 @@ Instrucciones operativas para trabajar en CajonSastre. La fuente de verdad es `s
 | Datos aislados para pruebas manuales | `XDG_DATA_HOME`, `XDG_CONFIG_HOME` y `XDG_STATE_HOME` apuntando a una carpeta temporal |
 | JAR único | `./mvnw -Pdist package` → `target/dist/cajonsastre.jar` |
 | Instalar en Ubuntu | `scripts/install.sh` (compila) o `scripts/install.sh cajonsastre.jar`; `scripts/uninstall.sh` (ADR-0009) |
+| Publicar una versión | Push a `master`: `.github/workflows/release.yml` ejecuta `./mvnw -Pdist verify` y `scripts/release.sh` publica `build-N` (ADR-0010). No renombrar el workflow: reiniciaría el número de build |
 
 Plataforma: se desarrolla en Windows 10 y se ejecuta en Ubuntu 22.04 (ADR-0004). El build y las pruebas deben pasar en los dos.
 
@@ -47,10 +48,11 @@ Plataforma: se desarrolla en Windows 10 y se ejecuta en Ubuntu 22.04 (ADR-0004).
   - `platform/`: contrato público para las mini apps (`MiniApp`, `AppManifest`, `AppContext`, `AppRoutes`, `Store`, `ApiError`).
   - `catalog/`: `AppCatalog` (donde se declaran las mini apps), `AppRegistry` (arranque aislado y rutas), `/api/catalog`, `/api/app-state`.
   - `http/`, `lifecycle/`, `settings/`: servidor, ciclo de vida y ajustes del shell.
+  - `update/`: actualización desde GitHub, la única salida de la máquina (R-01 a R-47, ADR-0010). Ninguna mini app la usa.
   - `apps/<id>/`: el servidor de cada mini app.
 - `src/main/resources/db/shell/` y `db/apps/<id>/`: migraciones SQLite del shell y de cada mini app.
 - `frontend/src/`: `shell/` (disposición, navegación, lanzador), `platform/` (API pública para las mini apps), `apps/<id>/` (interfaz de cada mini app).
-- `scripts/`: arranque en desarrollo, instalación y desinstalación en Ubuntu. `packaging/`: plantilla del lanzador `.desktop`.
+- `scripts/`: arranque en desarrollo, instalación y desinstalación en Ubuntu, y publicación (`release.sh`). `packaging/`: plantilla del lanzador `.desktop`. `.github/workflows/`: publicación de versiones.
 
 ## Añadir una mini app
 

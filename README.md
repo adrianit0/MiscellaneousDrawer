@@ -22,7 +22,7 @@ En esta versión están la base de la aplicación y el catálogo de las mini app
 | Alt+W | Cerrar la mini app activa |
 | Alt+←, Alt+→ | Atrás y adelante |
 
-Todo se guarda en la máquina local y la aplicación no se conecta a internet.
+Todo se guarda en la máquina local. La aplicación solo se conecta a internet para buscar e instalar actualizaciones, y solo cuando se pulsa un botón (ver «Actualizar»).
 
 ## Requisitos
 
@@ -54,7 +54,25 @@ Si en ese equipo no se puede compilar, se genera el JAR en otro con `./mvnw -Pdi
 scripts/install.sh cajonsastre.jar
 ```
 
-Para actualizar, se vuelve a ejecutar el instalador: apaga la aplicación si está en marcha y la sustituye. Para desinstalarla, `scripts/uninstall.sh`; los datos y los ajustes se conservan.
+Volver a ejecutar el instalador apaga la aplicación si está en marcha y la sustituye. Para desinstalarla, `scripts/uninstall.sh`; los datos y los ajustes se conservan.
+
+## Actualizar
+
+Cada cambio que llega a la rama `master` publica en GitHub una versión firmada, siempre que pasen todas las pruebas. Para instalarla desde la aplicación:
+
+1. En «Ajustes → Actualizaciones», escribe la URL del repositorio (`https://github.com/<propietario>/<repositorio>`) y pulsa «Guardar».
+2. Vuelve a «Ajustes → Actualizaciones» y pulsa «Buscar actualizaciones». Si hay una versión nueva, se muestran su build, su fecha y sus cambios.
+3. «Actualizar» pide confirmación, descarga la versión, comprueba su firma y su hash y reinicia la aplicación. La ventana se recarga sola.
+
+La aplicación solo contacta con GitHub al pulsar esos botones, no envía ningún dato tuyo y nunca se actualiza sola. Solo funciona en la instalación de Ubuntu. Si la versión nueva no arranca en 60 s, vuelve a la anterior y lo explica en `~/.local/state/cajonsastre/update.log`. Actualizar solo sustituye la aplicación: los cambios en el instalador o en el lanzador siguen exigiendo `scripts/install.sh`.
+
+La primera vez hay que instalar a mano una versión que ya traiga el actualizador, por ejemplo el `cajonsastre.jar` de la última release:
+
+```bash
+scripts/install.sh cajonsastre.jar
+```
+
+Para publicar, el repositorio necesita el secreto de GitHub Actions `CAJONSASTRE_RELEASE_KEY` con la clave privada Ed25519 cuya pública está en `src/main/resources/dev/cajonsastre/update/release-key.pub`. La clave privada nunca entra en el repositorio.
 
 ## Compilar y probar
 
@@ -90,6 +108,7 @@ cajonsastre --stop          apaga la instancia en marcha
 | Datos de cada mini app | `~/.local/share/cajonsastre/apps/<id>/` |
 | Copias previas a cada migración | `~/.local/share/cajonsastre/backups/` |
 | Registro | `~/.local/state/cajonsastre/cajonsastre.log` (rota a 5 MB, 3 ficheros) |
+| Registro de la última actualización | `~/.local/state/cajonsastre/update.log` |
 
 ## Especificación
 
