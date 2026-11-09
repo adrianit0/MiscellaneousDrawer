@@ -59,6 +59,11 @@ public final class DataPaths {
         return stateDir().resolve("instance.json");
     }
 
+    /** R-44: registro de la última actualización. */
+    public static Path updateLog() {
+        return stateDir().resolve("update.log");
+    }
+
     /** C-03 */
     public static Path chromeProfile() {
         return stateDir().resolve("chrome");

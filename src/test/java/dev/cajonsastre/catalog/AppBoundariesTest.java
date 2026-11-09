@@ -95,6 +95,12 @@ class AppBoundariesTest {
     }
 
     @Test
+    void s15_p18_a_mini_app_cannot_use_the_updater_to_go_out(@TempDir Path apps) throws IOException {
+        write(apps, "notes/NotesApp.java", "package dev.cajonsastre.apps.notes;\nimport dev.cajonsastre.update.UpdateClient;");
+        assertThat(violations(apps)).containsExactly("notes/NotesApp.java: usa dev.cajonsastre.update.UpdateClient");
+    }
+
+    @Test
     void p18_a_package_named_like_another_app_prefix_is_not_its_own(@TempDir Path apps) throws IOException {
         write(apps, "task/TaskApp.java", "package dev.cajonsastre.apps.task;\nimport dev.cajonsastre.apps.tasks.X;");
         assertThat(violations(apps)).containsExactly("task/TaskApp.java: usa dev.cajonsastre.apps.tasks.X");

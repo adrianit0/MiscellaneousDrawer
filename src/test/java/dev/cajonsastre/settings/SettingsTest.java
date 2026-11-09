@@ -101,6 +101,25 @@ class SettingsTest {
     }
 
     @Test
+    void r11_d05_the_repository_url_is_empty_by_default_and_saved_with_the_rest() throws IOException {
+        assertThat(TestApi.json(api.get("/api/settings")).get("config").get("updateRepository").isNull()).isTrue();
+        HttpResponse<String> r = api.put("/api/settings",
+                "{\"config\":{\"port\":47800,\"autoShutdownMinutes\":null,\"updateRepository\":\"https://github.com/demo/app\"}}");
+        assertThat(r.statusCode()).isEqualTo(200);
+        assertThat(Files.readString(configFile)).contains("\"updateRepository\" : \"https://github.com/demo/app\"");
+        assertThat(new AppSettings(configFile).get().updateRepository()).isEqualTo("https://github.com/demo/app");
+    }
+
+    @Test
+    void r11_saving_rejects_a_url_that_is_not_a_github_repository() {
+        HttpResponse<String> r = api.put("/api/settings",
+                "{\"config\":{\"port\":47800,\"updateRepository\":\"https://evil.example/demo/app\"}}");
+        assertThat(r.statusCode()).isEqualTo(400);
+        assertThat(TestApi.json(r).get("message").asText()).contains("https://github.com/");
+        assertThat(settings.get()).isEqualTo(AppConfig.DEFAULT);
+    }
+
+    @Test
     void d05_validate_gives_messages_apt_to_be_shown() {
         assertThatThrownBy(() -> new AppConfig(80, null).validate()).isInstanceOf(ApiError.class)
                 .hasMessage("El puerto debe estar entre 1024 y 65535");

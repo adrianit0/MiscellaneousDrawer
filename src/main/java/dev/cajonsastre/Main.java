@@ -15,6 +15,8 @@ import dev.cajonsastre.lifecycle.Presence;
 import dev.cajonsastre.platform.Store;
 import dev.cajonsastre.settings.AppSettings;
 import dev.cajonsastre.settings.SettingsApi;
+import dev.cajonsastre.update.UpdateApi;
+import dev.cajonsastre.update.Updater;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -126,6 +128,8 @@ public final class Main {
                     new CatalogApi(registry),
                     new AppStateApi(store, catalog, clock),
                     new LifecycleApi(presence.value, exit),
+                    // R-12: solo conecta cuando la interfaz llama a sus rutas.
+                    new UpdateApi(Updater.installed(() -> settings.get().updateRepository(), port), exit),
                     registry)).start();
         } catch (RuntimeException e) {
             // C-02
