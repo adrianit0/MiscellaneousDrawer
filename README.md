@@ -2,10 +2,10 @@
 
 Cajón de sastre es una aplicación local para un único usuario que reúne varias **mini apps** de utilidad bajo una misma ventana: un lanzador para elegirlas, una barra lateral para cambiar de una a otra y una navegación común.
 
-En esta versión están la base de la aplicación y el catálogo de las mini apps previstas, que aparecen como «En preparación»:
+Mini apps:
 
-- **Base de datos**, un gestor de bases de datos.
-- **Tareas**, un gestor de tareas.
+- **Base de datos** prepara la base de datos local de desarrollo y guarda copias de sus volcados (ver «Base de datos»).
+- **Tareas**, un gestor de tareas, aparece como «En preparación».
 
 ## Uso
 
@@ -22,7 +22,27 @@ En esta versión están la base de la aplicación y el catálogo de las mini app
 | Alt+W | Cerrar la mini app activa |
 | Alt+←, Alt+→ | Atrás y adelante |
 
-Todo se guarda en la máquina local. La aplicación solo se conecta a internet para buscar e instalar actualizaciones, y solo cuando se pulsa un botón (ver «Actualizar»).
+Todo se guarda en la máquina local. La aplicación solo se conecta a internet en dos casos, y siempre porque se pulsa un botón: para buscar e instalar actualizaciones (ver «Actualizar») y para descargar un volcado de S3 desde «Base de datos».
+
+## Base de datos
+
+Prepara la base de datos local en tres pasos, que se pueden marcar por separado:
+
+1. **Descargar** el volcado de una rama (`develop`, `hotfix` o las dos) desde S3. Por bloques, para poder reanudar una descarga interrumpida, o directa.
+2. **Importar** un volcado en un contenedor MySQL de Docker. Borra el contenedor y su volumen y los crea de nuevo, así que pide confirmación.
+3. **Ejecutar scripts** SQL de la carpeta de pendientes o de una versión, todos o los que se elijan.
+
+Mientras el trabajo corre se ven el estado de cada paso, el progreso de la descarga, el resultado de cada script y el registro de los comandos. Si un paso falla, los siguientes no se ejecutan. Cerrar la ventana no interrumpe un trabajo en marcha.
+
+**Copias.** Al descargar un volcado nuevo, el que había pasa a ser la copia anterior, así que siempre queda el inmediatamente anterior. Además se puede conservar cualquier volcado con un nombre: no se borra solo y no ocupa más disco mientras exista el volcado del que salió. Al importar se elige el actual, el anterior o uno conservado.
+
+**Configuración.** Todo lo que depende del equipo se escribe a mano en la sección «Configuración» de la mini app: carpetas, ruta de S3, contenedor, imagen, puertos, contraseña y scripts iniciales. Se guarda en `~/.config/cajonsastre/apps/database/config.json`, con permisos 600, y la contraseña no vuelve a mostrarse.
+
+Necesita instalados y en el `PATH`:
+
+- `aws`, la CLI de AWS, con unas credenciales que puedan leer el bucket. Cajón de sastre no pide ni guarda credenciales de AWS: usa las que tenga el usuario, y solo para leer.
+- `docker`.
+- Para el aviso al terminar, `notify-send` y `paplay`. Son opcionales.
 
 ## Requisitos
 
@@ -106,6 +126,8 @@ cajonsastre --stop          apaga la instancia en marcha
 | Ajustes | `~/.config/cajonsastre/config.json` |
 | Estado de la interfaz | `~/.local/share/cajonsastre/cajonsastre.db` |
 | Datos de cada mini app | `~/.local/share/cajonsastre/apps/<id>/` |
+| Configuración de cada mini app | `~/.config/cajonsastre/apps/<id>/` |
+| Volcados de «Base de datos» y sus copias | La carpeta de trabajo que se indique en su configuración, y `backups/` dentro de ella |
 | Copias previas a cada migración | `~/.local/share/cajonsastre/backups/` |
 | Registro | `~/.local/state/cajonsastre/cajonsastre.log` (rota a 5 MB, 3 ficheros) |
 | Registro de la última actualización | `~/.local/state/cajonsastre/update.log` |

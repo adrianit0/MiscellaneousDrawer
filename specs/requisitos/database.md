@@ -28,14 +28,14 @@ Términos:
 | Sufijo del fichero en S3 | `s3Suffix` | 1 a 100 caracteres, sin `/` ni `\` | Descargar |
 | Sufijo del fichero local | `localSuffix` | 1 a 100 caracteres, sin `/` ni `\` | Descargar, importar, copias |
 | Contenedor | `containerName` | `[A-Za-z0-9][A-Za-z0-9_.-]*`, hasta 63 caracteres | Importar, ejecutar |
-| Imagen de MySQL | `mysqlImage` | 1 a 200 caracteres, sin espacios | Importar |
+| Imagen de MySQL | `mysqlImage` | Letras, cifras y `_ . : / @ -`; empieza por letra o cifra; hasta 200 caracteres | Importar |
 | Contraseña de root | `rootPassword` | 1 a 200 caracteres | Importar, ejecutar |
 | Puerto en la máquina | `hostPort` | 1 a 65535 | Importar |
 | Puerto del contenedor | `containerPort` | 1 a 65535 | Importar |
 | Zona horaria | `timeZone` | `[A-Za-z0-9_+/-]`, 1 a 64 caracteres | Importar |
 | Script inicial | `initSqlFile` | Ruta absoluta | Importar |
 | Segundo script inicial | `secondInitSqlFile` | Ruta absoluta | Importar |
-| Base de datos | `databaseName` | `[A-Za-z0-9_$-]`, 1 a 64 caracteres | Ejecutar |
+| Base de datos | `databaseName` | `[A-Za-z0-9_$-]`, 1 a 64 caracteres, sin empezar por `-` | Ejecutar |
 | Carpeta de scripts pendientes | `pendingSqlDir` | Ruta absoluta | Ejecutar |
 | Carpeta de versiones | `versionsSqlDir` | Ruta absoluta; solo hace falta para ejecutar los scripts de una versión | Ejecutar |
 | Aviso al terminar | `notifyOnFinish` | Sí o no; por defecto, sí | — |
@@ -66,7 +66,7 @@ Términos:
 | BD-24 | Junto a `<destino>.part` se guarda `<destino>.part.json` con el ETag y el tamaño del objeto. Una descarga a medias se reanuda solo si coinciden con los del objeto actual y no es mayor que él. Si no, se descarta y se empieza de cero. |
 | BD-25 | Al completar una descarga se comprueba el tamaño total y se pone al fichero la fecha de modificación del objeto. Después se rota (BD-31) y `<destino>.part` pasa a ser el volcado actual. Si algo falla antes de ese momento, el volcado actual y sus copias quedan como estaban. |
 | BD-26 | Modo «Directa»: una sola llamada `aws s3 cp` a `<destino>.part`, sin reanudación; una descarga a medias anterior se descarta. Al completar, igual que BD-25. |
-| BD-27 | El paso informa del progreso del volcado en curso: bytes descargados y totales. |
+| BD-27 | El paso informa del progreso del volcado en curso. En el modo «Por bloques», con los bytes descargados y totales. En el modo «Directa», con el texto de progreso que va dando la propia CLI: las líneas que un comando sobrescribe en la consola se muestran como mensaje del paso y no llenan el registro. |
 | BD-28 | Después de los volcados se descargan `<s3Path>/dynamodb/Dockerfile` y `<s3Path>/dynamodb/dynamo-db-dump.tar.bz2` a `<carpeta de trabajo>/dynamodb/`. Cada uno se descarga a un `.part` que sustituye al fichero anterior solo si la descarga termina bien. |
 | BD-29 | Dentro del paso se intentan todas las descargas aunque una falle. El paso termina como `failed` si falló alguna. |
 
@@ -121,7 +121,7 @@ Todas las rutas cuelgan de `/api/apps/database` (P-06) y siguen A-01 a A-03.
 | GET | /config | Configuración sin la contraseña, `rootPasswordSet` y los campos que faltan por paso (BD-02, BD-03) |
 | PUT | /config | Guarda la configuración. 400 `invalid_config` con el campo; 409 `job_running` (BD-01, BD-04) |
 | GET | /dumps | Biblioteca por rama (BD-35). 409 `not_configured` |
-| POST | /dumps/keep | `{"branch", "source", "name"}`: conserva el volcado actual (`"current"`) o la copia anterior (su nombre de fichero) (BD-32, BD-33) |
+| POST | /dumps/keep | `{"branch", "source", "name"}`: conserva el volcado actual (`"current"`) o la copia anterior (su nombre de fichero) (BD-32, BD-33). 409 `name_taken` o `links_unsupported` |
 | DELETE | /dumps/{branch}/{file} | Borra una copia (BD-34). 404 `dump_not_found` |
 | GET | /scripts | Versiones y ficheros de la carpeta de `?version=`; sin parámetro, «Pendientes» (BD-50) |
 | GET | /job | Trabajo en marcha o último terminado, con el registro desde `?after=N` (BD-13, BD-14) |

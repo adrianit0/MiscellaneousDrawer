@@ -53,14 +53,15 @@ class AppCatalogTest {
     }
 
     @Test
-    void adr0008_the_built_in_catalog_has_the_two_planned_apps() {
+    void adr0008_adr0011_the_built_in_catalog_has_database_available_and_tasks_planned() {
         AppCatalog catalog = AppCatalog.builtIn();
         assertThat(catalog.apps()).extracting(a -> a.manifest().id()).containsExactly("database", "tasks");
         AppManifest database = catalog.find("database").orElseThrow().manifest();
         assertThat(database.name()).isEqualTo("Base de datos");
+        assertThat(database.description()).isEqualTo("Descarga, importa y prepara la base de datos local");
         assertThat(database.color()).isEqualTo(AppColor.VIOLET);
         assertThat(database.category()).isEqualTo(AppCategory.DATA);
-        assertThat(database.planned()).isTrue();
+        assertThat(database.planned()).isFalse();
         AppManifest tasks = catalog.find("tasks").orElseThrow().manifest();
         assertThat(tasks.name()).isEqualTo("Tareas");
         assertThat(tasks.category()).isEqualTo(AppCategory.PRODUCTIVITY);

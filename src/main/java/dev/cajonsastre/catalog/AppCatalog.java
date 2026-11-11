@@ -1,5 +1,6 @@
 package dev.cajonsastre.catalog;
 
+import dev.cajonsastre.apps.database.DatabaseApp;
 import dev.cajonsastre.platform.AppCategory;
 import dev.cajonsastre.platform.AppColor;
 import dev.cajonsastre.platform.AppManifest;
@@ -30,11 +31,10 @@ public final class AppCatalog {
         }
     }
 
-    /** El catálogo de la aplicación (ADR-0008). */
+    /** El catálogo de la aplicación (ADR-0008, ADR-0011). */
     public static AppCatalog builtIn() {
         return new AppCatalog(List.of(
-                MiniApp.of(new AppManifest("database", "Base de datos", "Gestor de bases de datos", "database",
-                        AppColor.VIOLET, AppCategory.DATA, List.of("sql", "tablas", "consultas"), true)),
+                new DatabaseApp(),
                 MiniApp.of(new AppManifest("tasks", "Tareas", "Gestor de tareas", "tasks",
                         AppColor.GREEN, AppCategory.PRODUCTIVITY, List.of("pendientes", "listas", "por hacer"), true))));
     }
