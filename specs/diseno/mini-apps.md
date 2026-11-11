@@ -67,6 +67,9 @@ public interface MiniApp {
 
     /** Apagado: libera hilos, conexiones o ficheros abiertos. */
     default void stop() { }
+
+    /** P-20: el motivo por el que no conviene apagar ni actualizar ahora; vacío si no hay ninguno. */
+    default Optional<String> busy() { return Optional.empty(); }
 }
 
 public interface AppContext {
@@ -95,6 +98,10 @@ para cada mini app del catálogo, en su orden:
 ```
 
 El servidor HTTP arranca después, con las rutas de las mini apps disponibles y un filtro que responde 503 `app_unavailable` a cualquier ruta de una mini app en `failed`. Al apagar, se llama a `stop()` en orden inverso y se cierran las bases (P-10).
+
+### Trabajos largos
+
+Una mini app con un trabajo que no debe interrumpirse (una descarga, una importación) lo dice con `busy()` mientras dura (P-20, ADR-0012). El shell lo consulta en dos momentos: antes de apagarse porque no quedan ventanas, y antes de actualizar. En el primero aplaza el apagado; en el segundo rechaza la actualización con el motivo. Un apagado pedido de forma expresa (`--stop`) no espera: la mini app debe cancelar su trabajo en `stop()`.
 
 ### Datos
 

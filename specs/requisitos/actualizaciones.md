@@ -47,7 +47,7 @@ Cajón de sastre se puede actualizar sin compilar ni copiar el JAR a mano. Cada 
 | ID | Requisito |
 |---|---|
 | R-40 | «Actualizar» pide confirmación en un diálogo con el build, el commit y la lista de commits, y avisa de que la aplicación se reiniciará. |
-| R-41 | Antes de confirmar se guardan los estados de interfaz pendientes de las mini apps (P-14). Si alguno no se puede guardar, no se actualiza y se indica de qué mini app es. |
+| R-41 | Antes de confirmar se guardan los estados de interfaz pendientes de las mini apps (P-14). Si alguno no se puede guardar, no se actualiza y se indica de qué mini app es. Si una mini app está ocupada (P-20), el servidor rechaza la actualización antes de descargar nada, con el nombre de la mini app y su motivo. |
 | R-42 | El JAR se descarga en la carpeta del actual como `cajonsastre.jar.new`, con permisos 644. Si queda una descarga anterior, se sustituye. |
 | R-43 | Tras verificar, un proceso `sh` independiente espera a que termine Cajón de sastre, que se apaga de forma ordenada (C-10). Después guarda el JAR actual como `cajonsastre.jar.prev`, mueve el nuevo a su sitio y ejecuta `bin/cajonsastre --no-window` con el mismo puerto y sin las variables `_JPACKAGE_LAUNCHER` y `LD_LIBRARY_PATH` que hereda de la aplicación, de modo que arranca igual que desde el escritorio. |
 | R-44 | Si a los 60 s no existe `instance.json`, el proceso restaura `cajonsastre.jar.prev` y arranca esa versión. Lo que hace, junto con la salida de errores de `bin/cajonsastre`, queda en `<estado>/update.log`, que se reescribe en cada actualización. |

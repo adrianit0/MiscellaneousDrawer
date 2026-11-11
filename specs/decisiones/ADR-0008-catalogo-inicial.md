@@ -24,3 +24,4 @@ El Sprint 0 construye solo la base: el lanzador y la navegación. El usuario qui
 
 - Al implementar una de ellas se cambia `planned` a `false` y se le dan sus módulos (`diseno/mini-apps.md`, «Añadir una mini app»). Su identificador no cambia, así que se conservan fijadas y recientes.
 - La descripción visible es deliberadamente genérica hasta que cada mini app tenga su especificación.
+- Desde el Sprint 3, `database` ya no está en preparación: tiene su especificación y su descripción propia (ADR-0011). `tasks` sigue como aquí.

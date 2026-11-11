@@ -21,6 +21,7 @@ Una **mini app** es una aplicación pequeña que vive dentro de CajonSastre: un 
 | P-08 | Una mini app con migraciones tiene su propia base SQLite en `<datos>/apps/<id>/data.db`, con migraciones propias en `db/apps/<id>/` y su propio `user_version` (D-02). Antes de migrar una base existente se copia a `backups/<id>-AAAAMMDD-HHmmss-premigracion.db`; se conservan las 2 últimas de cada mini app. Ninguna mini app abre la base de otra ni la del shell. |
 | P-09 | El contexto da a cada mini app su carpeta de ficheros `<datos>/apps/<id>/` y su carpeta de configuración `<config>/apps/<id>/`. Los secretos se escriben con `PrivateFile` (S-20). |
 | P-10 | Al apagar se avisa a las mini apps en orden inverso al de arranque y se cierran sus bases. Un fallo al avisar a una no impide avisar a las demás ni cerrar las bases. |
+| P-20 | Una mini app puede declararse ocupada mientras hace un trabajo que no debe interrumpirse: `MiniApp.busy()` devuelve el motivo, o vacío. Mientras alguna lo esté, el apagado por falta de ventanas (C-05) se aplaza y se vuelve a comprobar pasado el mismo plazo, y «Actualizar» no continúa y dice el motivo (R-41). `cajonsastre --stop`, `POST /api/shutdown` y el instalador apagan igualmente, y la mini app cancela su trabajo al recibir el aviso de apagado (P-10). Si preguntar a una mini app falla, cuenta como no ocupada y el error va al registro (ADR-0012). |
 
 ## Interfaz
 

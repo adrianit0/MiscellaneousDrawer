@@ -11,7 +11,7 @@ CajonSastre es un único proceso que sirve su interfaz en la propia máquina. Es
 | S-12 | Al arrancar se genera un token aleatorio. Se entrega en el HTML inicial y es obligatorio en la cabecera `X-CajonSastre-Token` de toda llamada a `/api`, salvo `GET /api/health`. |
 | S-13 | Se valida Origin en las peticiones que modifican estado (POST, PUT, PATCH, DELETE): solo `http://127.0.0.1:puerto` o `http://localhost:puerto`. Sin Origin (clientes que no son navegador) se acepta y el token sigue siendo obligatorio. No se emiten cabeceras CORS. |
 | S-14 | Cabecera CSP: `default-src 'self'; img-src 'self' data:`. Ningún recurso se carga de internet: todo va empaquetado. |
-| S-15 | Sin telemetría ni llamadas a servicios externos, salvo los destinos autorizados (constitución, principio 4). La búsqueda de actualizaciones solo contacta con GitHub si el usuario ha guardado la URL de su repositorio y pulsa un botón, y no envía ningún dato suyo (R-11, R-12, R-20 a R-22). Ninguna mini app tiene destinos autorizados. |
+| S-15 | Sin telemetría ni llamadas a servicios externos, salvo los destinos autorizados (constitución, principio 4). La búsqueda de actualizaciones solo contacta con GitHub si el usuario ha guardado la URL de su repositorio y pulsa un botón, y no envía ningún dato suyo (R-11, R-12, R-20 a R-22). La única mini app con un destino autorizado es «Base de datos»: lee de S3 con el comando `aws` del usuario, solo dentro de un trabajo que él inicia, y no guarda credenciales (BD-20, ADR-0011). |
 | S-16 | Una mini app solo puede registrar rutas dentro de su espacio `/api/apps/<id>/` (P-06). |
 
 ## Credenciales y registro

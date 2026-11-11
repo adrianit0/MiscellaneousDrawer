@@ -22,9 +22,14 @@ Contexto de uso: un único usuario, una única máquina con Ubuntu 22.04 y sesio
 
 - Cada push a `master` publica en GitHub un JAR firmado, y «Ajustes → Actualizaciones» lo busca e instala con dos botones (R-01 a R-47, ADR-0010).
 
+### «Base de datos» (Sprint 3)
+
+- La primera mini app con funcionalidad: descarga un volcado de S3, lo importa en un contenedor MySQL de Docker y ejecuta los scripts SQL pendientes, con una biblioteca de copias de los volcados (BD-01 a BD-65, ADR-0011).
+- Las mini apps pueden declararse ocupadas para aplazar el apagado y la actualización (P-20, ADR-0012).
+
 ### Fuera de la base
 
-- La funcionalidad de cualquier mini app: cada una tendrá su especificación y su sprint.
+- La funcionalidad de las demás mini apps: cada una tendrá su especificación y su sprint.
 - Lo que la plataforma aún no ofrece ([mini-apps.md](mini-apps.md), «Fuera de la plataforma, por ahora»).
 - Tema claro y otros idiomas.
 
@@ -56,10 +61,11 @@ Contexto de uso: un único usuario, una única máquina con Ubuntu 22.04 y sesio
 | `http` | Servidor en 127.0.0.1, ficheros estáticos, token, Host, Origin, CSP y formato de errores |
 | `lifecycle` | Línea de comandos, `instance.json`, ventana de Chrome, presencia y apagado |
 | `settings` | `config.json` (D-05) y tabla `setting` (D-04) |
-| `update` | Búsqueda, verificación e instalación de versiones publicadas en GitHub (R-01 a R-47, ADR-0010). Es la única salida de la máquina y ninguna mini app la usa (P-18) |
+| `update` | Búsqueda, verificación e instalación de versiones publicadas en GitHub (R-01 a R-47, ADR-0010). Es la única salida de la máquina del shell y ninguna mini app la usa (P-18) |
 | `catalog` | Lista de mini apps, su arranque aislado, su estado y sus rutas por mini app del shell |
 | `platform` | Contrato público para las mini apps y acceso a SQLite (`Store`) |
 | `apps.<id>` | Una mini app; solo depende de `platform` (P-18) |
+| `apps.database` | «Base de datos»: ejecuta `aws` y `docker` como comandos externos. Es la única mini app con una salida de la máquina: S3, solo para leer (BD-20, ADR-0011) |
 | Interfaz `shell/` | Disposición, navegación, lanzador, paleta, ajustes, presencia |
 | Interfaz `platform/` | API pública de interfaz para las mini apps |
 | Interfaz `apps/<id>/` | Una mini app; solo depende de `platform/` (P-18) |
@@ -111,7 +117,7 @@ Ver [requisitos/ciclo-de-vida.md](../requisitos/ciclo-de-vida.md). En resumen:
 
 - Código, identificadores, tablas y rutas de API en inglés. Paquete raíz Java: `dev.cajonsastre`.
 - Textos de interfaz, especificaciones y mensajes de commit en español.
-- Prefijos de requisitos del shell: S (seguridad), A (API), P (plataforma), N (navegación), L (lanzador), U (interfaz), C (ciclo de vida), D (datos), R (actualizaciones). Cada mini app elige un prefijo propio de dos o más letras al especificarse, para no chocar con estos.
+- Prefijos de requisitos del shell: S (seguridad), A (API), P (plataforma), N (navegación), L (lanzador), U (interfaz), C (ciclo de vida), D (datos), R (actualizaciones). Cada mini app elige un prefijo propio de dos o más letras al especificarse, para no chocar con estos: BD es el de «Base de datos».
 
 ## Método de desarrollo
 
@@ -127,7 +133,7 @@ cajonsastre/
 ├── specs/
 │   ├── constitucion.md       principios que no se negocian
 │   ├── requisitos/           seguridad, api, plataforma, navegacion, interfaz, ciclo-de-vida, datos,
-│   │                         actualizaciones
+│   │                         actualizaciones y uno por mini app (database)
 │   ├── diseno/               arquitectura, mini-apps, modelo-datos
 │   ├── sprints/              sprint-00.md …
 │   └── decisiones/           ADR-0001-….md
