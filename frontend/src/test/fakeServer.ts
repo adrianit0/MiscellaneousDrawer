@@ -21,8 +21,8 @@ export interface FakeServer {
   config: AppConfig;
   /** R-06, R-45: build que devuelve /api/health. */
   build: number;
-  /** R-10 a R-14, R-40: lo que responden las rutas de actualización y los builds pedidos. */
-  update: { status: UpdateStatus; check: UpdateCheck | { error: string }; applied: number[] };
+  /** R-10 a R-14, R-40: lo que responden las rutas de actualización y los builds pedidos. busy: P-20, R-41. */
+  update: { status: UpdateStatus; check: UpdateCheck | { error: string }; applied: number[]; busy?: string };
   appStates: Record<string, Record<string, unknown>>;
   /** Rutas de las mini apps: /api/apps/... */
   appRoutes: Handler;
@@ -115,6 +115,9 @@ export function installFakeServer(init: Partial<Omit<FakeServer, 'calls' | 'call
       return 'error' in check ? json(502, { code: 'update_http', message: check.error, details: null }) : json(200, check);
     }
     if (url === '/api/update/apply') {
+      if (server.update.busy) {
+        return json(409, { code: 'app_busy', message: `No se puede actualizar ahora: ${server.update.busy}`, details: null });
+      }
       server.update.applied.push((body as { build: number }).build);
       return json(200, { restarting: true });
     }

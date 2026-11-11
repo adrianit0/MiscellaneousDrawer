@@ -23,6 +23,7 @@ public final class Presence implements AutoCloseable {
     private final Runnable shutdown;
     private final Duration byeGrace;
     private final Supplier<Duration> autoShutdown;
+    private final Supplier<String> busy;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "cajonsastre-presence");
         t.setDaemon(true);
@@ -34,11 +35,20 @@ public final class Presence implements AutoCloseable {
     private long byeDeadline;
     private ScheduledFuture<?> pending;
 
-    /** @param autoShutdown plazo sin ventanas tras perder la presencia sin despedida; null desactivado */
+    /** Sin mini apps que puedan estar ocupadas. */
     public Presence(Runnable shutdown, Duration byeGrace, Supplier<Duration> autoShutdown) {
+        this(shutdown, byeGrace, autoShutdown, () -> null);
+    }
+
+    /**
+     * @param autoShutdown plazo sin ventanas tras perder la presencia sin despedida; null desactivado
+     * @param busy         P-20: motivo por el que una mini app no debe interrumpirse; null si ninguna está ocupada
+     */
+    public Presence(Runnable shutdown, Duration byeGrace, Supplier<Duration> autoShutdown, Supplier<String> busy) {
         this.shutdown = shutdown;
         this.byeGrace = byeGrace;
         this.autoShutdown = autoShutdown;
+        this.busy = busy;
     }
 
     public synchronized void connected() {
@@ -92,9 +102,25 @@ public final class Presence implements AutoCloseable {
                 // Se vuelve a comprobar cuando se desconecte la última ventana.
                 return;
             }
+            // P-20, C-05: una mini app ocupada aplaza el apagado; se vuelve a comprobar pasado el plazo.
+            String reason = busyReason();
+            if (reason != null) {
+                log.info("No queda ninguna ventana abierta, pero el apagado se aplaza: {}", reason);
+                schedule(byeGrace);
+                return;
+            }
         }
         log.info("No queda ninguna ventana abierta: CajonSastre se apaga");
         shutdown.run();
+    }
+
+    private String busyReason() {
+        try {
+            return busy.get();
+        } catch (RuntimeException e) {
+            log.warn("No se pudo saber si hay una mini app ocupada", e);
+            return null;
+        }
     }
 
     private void cancelPending() {

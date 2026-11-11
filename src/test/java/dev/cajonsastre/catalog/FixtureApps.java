@@ -13,6 +13,7 @@ import org.apache.ibatis.annotations.Select;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /** Mini apps que solo existen en las pruebas, para probar el contrato de la plataforma (ADR-0008). */
 final class FixtureApps {
@@ -108,6 +109,30 @@ final class FixtureApps {
         public void stop() {
             stopped.add("fixture-echo");
             throw new IllegalStateException("fallo al apagar");
+        }
+    }
+
+    /** P-20: ocupada mientras reason no sea null; con fail, preguntarle lanza. */
+    static final class Worker implements MiniApp {
+        final String id;
+        volatile String reason;
+        volatile boolean fail;
+
+        Worker(String id) {
+            this.id = id;
+        }
+
+        @Override
+        public AppManifest manifest() {
+            return FixtureApps.manifest(id, false);
+        }
+
+        @Override
+        public Optional<String> busy() {
+            if (fail) {
+                throw new IllegalStateException("fallo al preguntar");
+            }
+            return Optional.ofNullable(reason);
         }
     }
 

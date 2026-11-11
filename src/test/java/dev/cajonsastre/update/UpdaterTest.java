@@ -337,6 +337,36 @@ class UpdaterTest {
     }
 
     @Test
+    void r41_p20_a_busy_app_rejects_the_update_before_downloading_anything() throws Exception {
+        publish(6, NEW_JAR, null);
+        Updater updater = updater(5, null);
+        AtomicReference<String> busy = new AtomicReference<>("«Notas» está ocupada: hay un trabajo en marcha");
+        int port;
+        try (ServerSocket s = new ServerSocket(0)) {
+            port = s.getLocalPort();
+        }
+        server = new HttpServer(port, TOKEN, List.of(new UpdateApi(updater, exits::incrementAndGet, busy::get))).start();
+        updater.check();
+        connected.clear();
+
+        HttpResponse<String> r = call("POST", "/api/update/apply", "{\"build\": 6}", true);
+        assertThat(r.statusCode()).isEqualTo(409);
+        JsonNode body = new ObjectMapper().readTree(r.body());
+        assertThat(body.get("code").asText()).isEqualTo("app_busy");
+        assertThat(body.get("message").asText())
+                .isEqualTo("No se puede actualizar ahora: «Notas» está ocupada: hay un trabajo en marcha");
+        assertThat(connected).isEmpty();
+        assertThat(restarts.get()).isZero();
+        Thread.sleep(300);
+        assertThat(exits.get()).isZero();
+
+        // Cuando termina, la misma búsqueda sigue valiendo.
+        busy.set(null);
+        assertThat(call("POST", "/api/update/apply", "{\"build\": 6}", true).statusCode()).isEqualTo(200);
+        assertThat(restarts.get()).isEqualTo(1);
+    }
+
+    @Test
     void a02_apply_without_a_build_is_a_bad_request() throws Exception {
         startServer(updater(5, null));
         assertThat(call("POST", "/api/update/apply", "{}", true).statusCode()).isEqualTo(400);

@@ -209,6 +209,19 @@ describe('R-40 instalación', () => {
     expect(screen.getByRole('alertdialog')).toBeTruthy();
   });
 
+  it('R-41 P-20: si una mini app está ocupada, no actualiza, dice el motivo y deja «Ajustes» abierto', async () => {
+    server.update.busy = '«Notas» está ocupada: hay un trabajo en marcha';
+    await openUpdates();
+    await askToUpdate();
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Actualizar ahora' }));
+    });
+    expect(screen.getByRole('alert').textContent).toBe('No se puede actualizar ahora: «Notas» está ocupada: hay un trabajo en marcha');
+    expect(server.update.applied).toEqual([]);
+    expect(useUi.getState().updating).toBe(false);
+    expect(useUi.getState().settingsOpen).toBe(true);
+  });
+
   it('R-41: si el estado de una mini app no se puede guardar, no actualiza y dice de cuál', async () => {
     useCatalog.setState({ apps: [app({ id: 'notes', name: 'Notas' })], status: 'ready' });
     const doc = appStateDoc('notes');

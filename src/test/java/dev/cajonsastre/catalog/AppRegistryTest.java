@@ -172,6 +172,31 @@ class AppRegistryTest {
     }
 
     @Test
+    void p20_reports_the_first_busy_app_with_its_name_and_reason() {
+        FixtureApps.Worker first = new FixtureApps.Worker("fixture-first");
+        FixtureApps.Worker second = new FixtureApps.Worker("fixture-second");
+        AppPaths other = new AppPaths(dir.resolve("busy"), dir.resolve("busy-config"), dir.resolve("busy/backups"));
+        AppRegistry r = AppRegistry.start(new AppCatalog(List.of(first, FixtureApps.throwing(),
+                MiniApp.of(FixtureApps.manifest("fixture-planned", true)), second)), other, Clock.systemUTC());
+        try {
+            assertThat(r.busy()).isNull();
+            second.reason = "hay un trabajo en marcha";
+            assertThat(r.busy()).isEqualTo("«Prueba fixture-second» está ocupada: hay un trabajo en marcha");
+            first.reason = "copiando";
+            assertThat(r.busy()).isEqualTo("«Prueba fixture-first» está ocupada: copiando");
+            // Un fallo al preguntar cuenta como no ocupada y no impide preguntar a las demás.
+            first.fail = true;
+            assertThat(r.busy()).startsWith("«Prueba fixture-second»");
+            second.reason = null;
+            assertThat(r.busy()).isNull();
+        } finally {
+            r.close();
+        }
+        second.reason = "sigue";
+        assertThat(r.busy()).as("apagada").isNull();
+    }
+
+    @Test
     void p08_two_apps_never_share_a_database() {
         List<String> stops = new CopyOnWriteArrayList<>();
         FixtureApps.Notes a = new FixtureApps.Notes("fixture-notes", stops);

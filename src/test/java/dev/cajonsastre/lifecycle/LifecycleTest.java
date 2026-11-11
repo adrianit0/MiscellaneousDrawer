@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -93,6 +94,44 @@ class LifecycleTest {
             withAuto.disconnected();
             waitFor(() -> auto.get() == 1, 3000);
             assertThat(auto.get()).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void c05_p20_a_busy_app_postpones_the_shutdown_until_it_finishes() throws Exception {
+        AtomicInteger stops = new AtomicInteger();
+        AtomicReference<String> busy = new AtomicReference<>("«Notas» está ocupada: hay un trabajo en marcha");
+        try (Presence p = new Presence(stops::incrementAndGet, Duration.ofMillis(100), () -> null, busy::get)) {
+            p.bye();
+            Thread.sleep(500);
+            assertThat(stops.get()).as("ocupada").isZero();
+            busy.set(null);
+            waitFor(() -> stops.get() == 1, 3000);
+            assertThat(stops.get()).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void c05_p20_a_busy_app_also_postpones_the_auto_shutdown_and_a_failing_question_does_not() throws Exception {
+        AtomicInteger stops = new AtomicInteger();
+        AtomicReference<String> busy = new AtomicReference<>("ocupada");
+        try (Presence p = new Presence(stops::incrementAndGet, Duration.ofMillis(100), () -> Duration.ofMillis(100), busy::get)) {
+            p.connected();
+            p.disconnected();
+            Thread.sleep(400);
+            assertThat(stops.get()).isZero();
+            // Una ventana que vuelve cancela la comprobación pendiente.
+            p.connected();
+            busy.set(null);
+            Thread.sleep(300);
+            assertThat(stops.get()).isZero();
+        }
+        try (Presence p = new Presence(stops::incrementAndGet, Duration.ofMillis(100), () -> null, () -> {
+            throw new IllegalStateException("fallo al preguntar");
+        })) {
+            p.bye();
+            waitFor(() -> stops.get() == 1, 3000);
+            assertThat(stops.get()).isEqualTo(1);
         }
     }
 

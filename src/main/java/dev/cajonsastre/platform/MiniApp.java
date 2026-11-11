@@ -1,6 +1,7 @@
 package dev.cajonsastre.platform;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Contrato de servidor de una mini app (P-05). Todo es opcional salvo el manifiesto: una mini app solo de
@@ -33,6 +34,14 @@ public interface MiniApp {
 
     /** P-10: apagado; libera hilos, conexiones o ficheros abiertos. La plataforma cierra después su base. */
     default void stop() {
+    }
+
+    /**
+     * P-20: el motivo por el que no conviene apagar ni actualizar ahora, apto para mostrarse («hay un trabajo en
+     * marcha»); vacío si no hay ninguno. Se consulta desde otros hilos y debe responder sin esperar.
+     */
+    default Optional<String> busy() {
+        return Optional.empty();
     }
 
     /** Una mini app sin servidor: solo de interfaz o en preparación. */

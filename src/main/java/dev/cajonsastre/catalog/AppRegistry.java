@@ -115,6 +115,30 @@ public final class AppRegistry implements ApiRoutes, AutoCloseable {
         return Optional.ofNullable(entries.get(id));
     }
 
+    /**
+     * P-20: la primera mini app disponible que se declara ocupada, como «Base de datos» está ocupada: …; null si
+     * ninguna lo está. Un fallo al preguntar cuenta como no ocupada.
+     */
+    public String busy() {
+        if (closed.get()) {
+            return null;
+        }
+        for (Entry e : entries.values()) {
+            if (e.status() != Status.AVAILABLE) {
+                continue;
+            }
+            try {
+                Optional<String> reason = e.app().busy();
+                if (reason != null && reason.isPresent()) {
+                    return "«" + e.manifest().name() + "» está ocupada: " + reason.get();
+                }
+            } catch (RuntimeException | LinkageError ex) {
+                log.warn("La mini app {} falló al preguntarle si está ocupada", e.manifest().id(), ex);
+            }
+        }
+        return null;
+    }
+
     @Override
     public void register(RoutesConfig routes) {
         // P-07: cualquier ruta de una mini app que falló responde 503.

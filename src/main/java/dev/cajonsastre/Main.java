@@ -120,7 +120,7 @@ public final class Main {
         presence.value = new Presence(exit, Presence.BYE_GRACE, () -> {
             Integer minutes = settings.get().autoShutdownMinutes();
             return minutes == null ? null : Duration.ofMinutes(minutes);
-        });
+        }, registry::busy);
 
         try {
             server.value = new HttpServer(port, token, List.of(
@@ -129,7 +129,7 @@ public final class Main {
                     new AppStateApi(store, catalog, clock),
                     new LifecycleApi(presence.value, exit),
                     // R-12: solo conecta cuando la interfaz llama a sus rutas.
-                    new UpdateApi(Updater.installed(() -> settings.get().updateRepository(), port), exit),
+                    new UpdateApi(Updater.installed(() -> settings.get().updateRepository(), port), exit, registry::busy),
                     registry)).start();
         } catch (RuntimeException e) {
             // C-02
