@@ -64,20 +64,25 @@ Fecha: 2026-11-09. Hecho en el código; falta el primer push, que publicará `bu
 ### Criterios de aceptación
 
 1. **`./mvnw verify` en verde:** en Windows 10. **Cumplido.**
-2. **Un push con una prueba rota no publica:** el workflow ejecuta `verify` antes de publicar. **Pendiente del primer push.**
-3. **Un push correcto publica los tres ficheros, y uno que solo cambia `specs/` no publica:** `ReleaseTest` comprueba el disparador y `paths-ignore`. `scripts/release.sh` se ejecutó en Git Bash con una clave de prueba desechable: generó `latest.json` con los commits desde la release anterior, y `openssl` verificó la firma. **Pendiente del primer push.**
+2. **Un push con una prueba rota no publica:** el workflow ejecuta `verify` antes de publicar. **No ha ocurrido todavía.**
+3. **Un push correcto publica los tres ficheros, y uno que solo cambia `specs/` no publica:**
+   - `ReleaseTest` comprueba el disparador y `paths-ignore`.
+   - `scripts/release.sh` se ejecutó en Git Bash con una clave de prueba desechable: generó `latest.json` con los commits desde la release anterior, y `openssl` verificó la firma.
+   - El primer push ejecutó el workflow y «Pruebas y JAR» pasó en `ubuntu-22.04`. «Publicar» falló porque `openssl` no pudo leer el secreto, aunque el fichero `.pem` del usuario es válido.
+   - Un push posterior que solo cambiaba `CLAUDE.md` no generó ninguna ejecución.
+   - **Pendiente de volver a guardar el secreto.**
 4. **Sin URL no hay conexión:** pruebas R-11 y R-12. **Cumplido en pruebas.**
 5. **«Guardar» rechaza otra URL:** con el JAR arrancado y datos aislados, `https://evil.example/demo/app` deja «Ajustes» abierto con el motivo, y `https://github.com/demo/app` se guarda en `config.json`. **Cumplido.**
 6. **Búsqueda:** pruebas R-13. **Cumplido en pruebas**; la búsqueda real espera a la primera release.
 7. **Rechazos** (firma ajena, manifiesto alterado, build anterior, otro hash, redirección a otro host): pruebas R-20, R-21 y R-30 a R-32. **Cumplido en pruebas.**
 8. **Estado de una mini app sin guardar:** pruebas R-41. **Cumplido en pruebas.**
 9. **Actualización real en Ubuntu:** **pendiente.**
-10. **Vuelta atrás:** `UpdateHelperTest` solo corre en Linux. **Pendiente del CI.**
+10. **Vuelta atrás:** `UpdateHelperTest` solo corre en Linux y forma parte del paso «Pruebas y JAR», que pasó en el CI. **Cumplido en pruebas.**
 11. **Desarrollo y Windows:** con el JAR, la categoría muestra «Las actualizaciones solo funcionan en la instalación de Ubuntu.» sin botones, `POST /api/update/check` y `POST /api/update/apply` responden 409 sin conectar, y sin token, 403. **Cumplido.**
 
 ### Pendiente
 
-- **Push a `master`:** lo hace el usuario. Publicará `build-1` y ejecutará por primera vez en Linux las 16 pruebas que en Windows se omiten.
+- **Secreto `CAJONSASTRE_RELEASE_KEY`:** volver a guardarlo con el fichero `.pem` entero y repetir la publicación. Las 16 pruebas que en Windows se omiten ya pasaron en Linux con el primer push.
 - **Primera instalación manual en Ubuntu:** `scripts/install.sh cajonsastre.jar` con el JAR de `build-1`, guardar la URL del repositorio en «Ajustes» y, con un segundo push, actualizar con los botones.
 - **Verificación del Sprint 1 en Ubuntu:** sigue sin confirmar, y ADR-0009 sigue como «propuesta».
 
@@ -87,3 +92,4 @@ Fecha: 2026-11-09. Hecho en el código; falta el primer push, que publicará `bu
 - **La confirmación es un diálogo sobre «Ajustes»:** su botón se llama «Actualizar ahora» para distinguirlo del de la categoría. Esc cierra solo la confirmación. Al confirmar, «Ajustes» se cierra y un aviso dice que la ventana se recargará sola.
 - **Las pruebas cubren también la publicación:** `ReleaseTest` comprueba el workflow y el script en todos los sistemas, y en Linux ejecuta el script en un proyecto mínimo con su propia clave, sin publicar nada.
 - **Clave pública:** se obtuvo del fichero del usuario con `openssl pkey -pubout`, que solo emite la parte pública. La privada no pasó por el código ni por el registro.
+- **R-04 ampliado tras el primer push:** el error «Could not read key» no decía qué tenía el secreto. Ahora `scripts/release.sh` tolera `\r` y espacios en los extremos de las líneas, y distingue cuatro casos sin mostrar el secreto: falta, no es un PEM, es la clave pública o no corresponde a la del repositorio. Tres pruebas nuevas de `ReleaseTest`, solo en Linux.

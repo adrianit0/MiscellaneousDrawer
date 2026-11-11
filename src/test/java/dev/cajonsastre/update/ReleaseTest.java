@@ -203,6 +203,49 @@ class ReleaseTest {
         assertThat(out).doesNotExist();
     }
 
+    /** Ejecuta el script con ese secreto en un proyecto con la clave pública de keys. */
+    private Result release(KeyPair keys, String secret, Path out) throws Exception {
+        Path project = project(keys, "jar publicado".getBytes(StandardCharsets.UTF_8));
+        return run(project, Map.of("GITHUB_RUN_NUMBER", "2", "GITHUB_SHA", "abc", "CAJONSASTRE_RELEASE_KEY", secret),
+                "scripts/release.sh", out.toString());
+    }
+
+    @Test
+    void r04_a_secret_copied_from_windows_with_spaces_is_accepted() throws Exception {
+        assumeTrue(LINUX && tools(), "Solo en Linux con git, jq y openssl");
+        KeyPair keys = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        String windows = "  " + pem(keys).replace("\n", " \r\n") + "\r\n\r\n";
+        Path out = dir.resolve("release");
+        Result r = release(keys, windows, out);
+        assertThat(r.code()).as(r.output()).isZero();
+        UpdateManifest.verified(Files.readAllBytes(out.resolve("latest.json")), Files.readAllBytes(out.resolve("latest.json.sig")),
+                keys.getPublic());
+    }
+
+    @Test
+    void r04_a_secret_with_the_public_key_says_so_and_publishes_nothing() throws Exception {
+        assumeTrue(LINUX && tools(), "Solo en Linux con git, jq y openssl");
+        KeyPair keys = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        Path out = dir.resolve("release");
+        Result r = release(keys, Base64.getEncoder().encodeToString(keys.getPublic().getEncoded()), out);
+        assertThat(r.code()).isEqualTo(1);
+        assertThat(r.output()).contains("contiene la clave pública").doesNotContain("Could not read key");
+        assertThat(out).doesNotExist();
+    }
+
+    @Test
+    void r04_a_secret_that_is_not_a_pem_says_what_it_must_contain_without_showing_it() throws Exception {
+        assumeTrue(LINUX && tools(), "Solo en Linux con git, jq y openssl");
+        KeyPair keys = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        String body = Base64.getEncoder().encodeToString(keys.getPrivate().getEncoded());
+        Path out = dir.resolve("release");
+        Result r = release(keys, body, out);
+        assertThat(r.code()).isEqualTo(1);
+        assertThat(r.output()).contains("no es una clave privada en PEM").contains("-----BEGIN PRIVATE KEY-----")
+                .doesNotContain(body).doesNotContain("Could not read key");
+        assertThat(out).doesNotExist();
+    }
+
     @Test
     void r04_without_the_secret_nothing_is_published() throws Exception {
         assumeTrue(LINUX && tools(), "Solo en Linux con git, jq y openssl");

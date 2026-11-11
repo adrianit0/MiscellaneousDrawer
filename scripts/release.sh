@@ -21,10 +21,24 @@ umask 077
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 KEY="$WORK/release.pem"
-printf '%s\n' "$CAJONSASTRE_RELEASE_KEY" > "$KEY"
+# R-04: el secreto puede llegar copiado desde Windows, con \r o espacios en los extremos de cada línea.
+printf '%s\n' "$CAJONSASTRE_RELEASE_KEY" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d' > "$KEY"
+PUBLIC="$(tr -d '[:space:]' < "$PUBLIC_KEY" 2>/dev/null || true)"
+
+# R-04: qué se recibió, sin mostrar el secreto.
+if ! openssl pkey -in "$KEY" -noout 2>/dev/null; then
+  if [ -n "$PUBLIC" ] && [ "$(tr -d '[:space:]' < "$KEY")" = "$PUBLIC" ]; then
+    echo "CAJONSASTRE_RELEASE_KEY contiene la clave pública. Debe contener la privada: el fichero .pem entero. No se publica nada" >&2
+  elif ! grep -q -e '^-----BEGIN PRIVATE KEY-----$' "$KEY" || ! grep -q -e '^-----END PRIVATE KEY-----$' "$KEY"; then
+    echo "CAJONSASTRE_RELEASE_KEY no es una clave privada en PEM ($(wc -l < "$KEY") líneas). Debe ser el fichero .pem entero, desde -----BEGIN PRIVATE KEY----- hasta -----END PRIVATE KEY-----. No se publica nada" >&2
+  else
+    echo "CAJONSASTRE_RELEASE_KEY tiene las cabeceras de una clave privada, pero su contenido no es válido. Vuelve a copiar el fichero .pem entero. No se publica nada" >&2
+  fi
+  exit 1
+fi
 
 # Una release firmada con otra clave la rechazaría toda instalación (R-30).
-if [ ! -f "$PUBLIC_KEY" ] || [ "$(openssl pkey -in "$KEY" -pubout -outform DER | base64 -w0)" != "$(tr -d '[:space:]' < "$PUBLIC_KEY")" ]; then
+if [ -z "$PUBLIC" ] || [ "$(openssl pkey -in "$KEY" -pubout -outform DER | base64 -w0)" != "$PUBLIC" ]; then
   echo "CAJONSASTRE_RELEASE_KEY no corresponde a $PUBLIC_KEY: no se publica nada" >&2
   exit 1
 fi
