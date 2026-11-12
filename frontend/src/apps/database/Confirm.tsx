@@ -11,7 +11,7 @@ interface Props {
   children: ReactNode;
 }
 
-/** U-05: diálogo para confirmar una acción destructiva o pedir un dato. Esc y «Cancelar» lo cierran sin hacer nada. */
+/** U-05: diálog para confirmar una acción destructiva o pedir un dato. Esc y «Cancelar» lo cierran sin hacer nada. */
 export function Confirm({ title, action, ready = true, onAnswer, children }: Props) {
   const dialog = useRef<HTMLDivElement>(null);
   useEffect(() => {
