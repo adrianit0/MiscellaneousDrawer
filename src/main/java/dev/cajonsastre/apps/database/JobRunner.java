@@ -3,6 +3,9 @@ package dev.cajonsastre.apps.database;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import dev.cajonsastre.platform.ApiError;
+import dev.cajonsastre.platform.Console;
+import dev.cajonsastre.platform.ConsoleState;
+import dev.cajonsastre.platform.Consoles;
 import dev.cajonsastre.platform.NotificationKind;
 import dev.cajonsastre.platform.Notifications;
 import org.slf4j.Logger;
@@ -19,8 +22,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * BD-10 a BD-18: los trabajos. Uno a la vez, en un hilo propio, con sus pasos, su progreso y su registro en memoria.
- * El último terminado se conserva hasta que empieza otro.
+ * BD-10 a BD-18: los trabajos. Uno a la vez, en un hilo propio, con sus pasos y su progreso en memoria y su registro
+ * en una consola de la plataforma (BD-14). El último terminado se conserva hasta que empieza otro.
  */
 final class JobRunner {
 
@@ -46,8 +49,8 @@ final class JobRunner {
         }
     }
 
-    /** BD-13 */
-    record View(long id, String state, String branch, String startedAt, String finishedAt, List<StepView> steps, JobLog.Slice log) {
+    /** BD-13. consoleId: la consola con su registro (BD-14). */
+    record View(long id, String state, String branch, String startedAt, String finishedAt, List<StepView> steps, long consoleId) {
     }
 
     record StepView(String kind, String state, String message, ProgressView progress, List<SqlScripts.Result> scripts) {
@@ -66,21 +69,23 @@ final class JobRunner {
         final String branch;
         final Instant startedAt;
         final List<Step> steps = new ArrayList<>();
-        final JobLog log = new JobLog();
+        /** BD-14 */
+        final Console log;
         volatile String state = "running";
         volatile Instant finishedAt;
         volatile boolean cancelRequested;
 
-        Job(long id, String branch, Instant startedAt) {
+        Job(long id, String branch, Instant startedAt, Console log) {
             this.id = id;
             this.branch = branch;
             this.startedAt = startedAt;
+            this.log = log;
         }
     }
 
     private static final class Step implements Reporter {
         final String kind;
-        final JobLog log;
+        final Console log;
         /** Solo en el paso de scripts (BD-52). */
         final List<SqlScripts.Result> scripts;
         String state = "pending";
@@ -88,7 +93,7 @@ final class JobRunner {
         long done;
         long total;
 
-        Step(String kind, JobLog log, List<SqlScripts.Result> scripts) {
+        Step(String kind, Console log, List<SqlScripts.Result> scripts) {
             this.kind = kind;
             this.log = log;
             this.scripts = scripts;
@@ -96,7 +101,7 @@ final class JobRunner {
 
         @Override
         public void log(String line) {
-            log.add(line);
+            log.line(line);
         }
 
         @Override
@@ -130,18 +135,20 @@ final class JobRunner {
     private final ZoneId zone;
     private final Clock clock;
     private final Notifications notifications;
+    private final Consoles consoles;
     private Job current;
     private Thread thread;
     private long ids;
 
     JobRunner(ConfigStore configs, CommandRunner runner, Sleeper sleeper, ZoneId zone, Clock clock,
-              Notifications notifications) {
+              Notifications notifications, Consoles consoles) {
         this.configs = configs;
         this.runner = runner;
         this.sleeper = sleeper;
         this.zone = zone;
         this.clock = clock;
         this.notifications = notifications;
+        this.consoles = consoles;
     }
 
     synchronized boolean running() {
@@ -154,7 +161,10 @@ final class JobRunner {
             throw jobRunning();
         }
         Plan plan = plan(request);
-        Job job = new Job(++ids, request.branch(), clock.instant());
+        long id = ++ids;
+        // BD-14: el registro del trabajo es una consola de la plataforma.
+        Job job = new Job(id, request.branch(), clock.instant(),
+                consoles.open("Trabajo " + id + " · " + branchLabel(request.branch())));
         if (!plan.branches().isEmpty() && request.download() != null) {
             job.steps.add(new Step("download", job.log, null));
         }
@@ -170,23 +180,32 @@ final class JobRunner {
         // S-21: al registro del shell solo van identificadores y estados.
         log.info("Trabajo {} de la mini app database iniciado", job.id);
         thread = Thread.ofPlatform().daemon().name("cajonsastre-database-job").start(() -> execute(job, plan));
-        return view(job, 0);
+        return view(job);
+    }
+
+    /** BD-14: la rama como se ve en la interfaz. */
+    private static String branchLabel(String branch) {
+        return switch (branch) {
+            case "hotfix" -> "Hotfix";
+            case "develop" -> "Develop";
+            default -> "Ambas";
+        };
     }
 
     static ApiError jobRunning() {
         return new ApiError(409, "job_running", "Hay un trabajo en marcha: espera a que termine o cancélalo");
     }
 
-    /** BD-13, BD-14: el trabajo en marcha o el último terminado, con las líneas del registro desde after; null si no hay. */
-    synchronized View view(long after) {
-        return current == null ? null : view(current, after);
+    /** BD-13: el trabajo en marcha o el último terminado; null si no hay. */
+    synchronized View view() {
+        return current == null ? null : view(current);
     }
 
-    private static View view(Job job, long after) {
+    private static View view(Job job) {
         Instant finished = job.finishedAt;
         return new View(job.id, job.state, job.branch, job.startedAt.truncatedTo(ChronoUnit.SECONDS).toString(),
                 finished == null ? null : finished.truncatedTo(ChronoUnit.SECONDS).toString(),
-                job.steps.stream().map(Step::view).toList(), job.log.after(after));
+                job.steps.stream().map(Step::view).toList(), job.log.id());
     }
 
     /** BD-15 */
@@ -305,12 +324,14 @@ final class JobRunner {
             if (cancelled) {
                 step.state("failed");
                 step.message("Cancelado");
-                job.log.add("Trabajo cancelado");
+                job.log.line("Trabajo cancelado");
             }
         }
         // Limpia la interrupción antes de notificar.
         boolean interrupted = Thread.interrupted();
         String state = cancelled ? "cancelled" : failed ? "failed" : "succeeded";
+        // BD-14: la consola termina con el estado del trabajo, antes de que este deje de estar en marcha.
+        job.log.finish(cancelled ? ConsoleState.CANCELLED : failed ? ConsoleState.FAILED : ConsoleState.SUCCEEDED);
         job.finishedAt = clock.instant();
         job.state = state;
         log.info("Trabajo {} de la mini app database terminado: {}", job.id, state);

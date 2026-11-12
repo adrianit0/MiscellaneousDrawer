@@ -45,6 +45,8 @@ Necesita instalados y en el `PATH`:
 
 Al terminar un trabajo deja una notificación en la campana de la barra superior. Con `notify-send` y `paplay` instalados, que son opcionales, aparece además en el escritorio y suena; las dos cosas se desactivan en «Ajustes → Notificaciones».
 
+Los comandos de cada trabajo y su salida se ven en el panel «Consolas», que se despliega desde la barra inferior de la ventana: a la izquierda, las consolas con su estado; a la derecha, la salida de la elegida. Solo viven en memoria: se pierden al apagar la aplicación.
+
 ## Requisitos
 
 - JDK 21

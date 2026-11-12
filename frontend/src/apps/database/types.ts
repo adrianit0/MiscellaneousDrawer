@@ -99,7 +99,8 @@ export interface Job {
   startedAt: string;
   finishedAt: string | null;
   steps: JobStep[];
-  log: { from: number; next: number; lines: string[] };
+  /** BD-14: la consola del shell con su registro. */
+  consoleId: number;
 }
 
 /** Cuerpo de POST /job. */

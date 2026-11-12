@@ -58,7 +58,8 @@ public final class DatabaseApp implements MiniApp {
     @Override
     public void start(AppContext context, AppRoutes routes) {
         ConfigStore configs = new ConfigStore(context.configDir().resolve("config.json"));
-        JobRunner jobs = new JobRunner(configs, runner, sleeper, zone, context.clock(), context.notifications());
+        JobRunner jobs = new JobRunner(configs, runner, sleeper, zone, context.clock(), context.notifications(),
+                context.consoles());
         this.jobs = jobs;
 
         // BD-01 a BD-04
@@ -94,18 +95,7 @@ public final class DatabaseApp implements MiniApp {
         });
 
         // BD-10 a BD-15
-        routes.get("/job", ctx -> {
-            long after = 0;
-            String param = ctx.queryParam("after");
-            if (param != null) {
-                try {
-                    after = Math.max(0, Long.parseLong(param));
-                } catch (NumberFormatException e) {
-                    throw ApiError.badRequest("invalid_request", "El parámetro after debe ser un número");
-                }
-            }
-            ctx.json(Collections.singletonMap("job", jobs.view(after)));
-        });
+        routes.get("/job", ctx -> ctx.json(Collections.singletonMap("job", jobs.view())));
         routes.post("/job", ctx -> ctx.status(202)
                 .json(Collections.singletonMap("job", jobs.start(JSON.readValue(ctx.body(), JobRunner.Request.class)))));
         routes.post("/job/cancel", ctx -> {

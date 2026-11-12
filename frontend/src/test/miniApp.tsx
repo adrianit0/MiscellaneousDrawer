@@ -15,6 +15,7 @@ export function testContext(overrides: Partial<MiniAppContextValue> = {}): MiniA
     api: createAppApi(id),
     notify: () => {},
     setSubtitle: () => {},
+    showConsole: () => {},
     ...overrides,
   };
 }

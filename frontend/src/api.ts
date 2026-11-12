@@ -102,6 +102,30 @@ export interface ShellNotification {
   createdAt: string;
 }
 
+/** P-25: «En progreso», «Terminado», «Error» y «Cancelado». */
+export type ConsoleState = 'running' | 'succeeded' | 'failed' | 'cancelled';
+
+/** P-25, P-27: una consola de una mini app, de GET /api/consoles y del canal de eventos (P-28). Sin sus líneas. */
+export interface ShellConsole {
+  id: number;
+  appId: string;
+  name: string;
+  state: ConsoleState;
+  startedAt: string;
+  /** null mientras está en progreso. */
+  finishedAt: string | null;
+}
+
+/** P-27: GET /api/consoles/{id}?after=N. */
+export interface ConsoleLines {
+  console: ShellConsole;
+  /** Índice de la primera línea devuelta. */
+  from: number;
+  /** Lo que se pasa como after en la siguiente consulta. */
+  next: number;
+  lines: string[];
+}
+
 export type Settings = Record<string, unknown> & { config?: AppConfig };
 
 /** R-10, R-14: GET /api/update. */
@@ -208,6 +232,23 @@ export const api = {
   /** P-22, N-13: «Limpiar todo». */
   clearNotifications(): Promise<unknown> {
     return request('DELETE', '/api/notifications');
+  },
+
+  /** P-27: de la más reciente a la más antigua. */
+  async consoles(): Promise<ShellConsole[]> {
+    const body = await request<{ consoles: ShellConsole[] }>('GET', '/api/consoles');
+    return body.consoles;
+  },
+
+  /** P-27: las líneas de una consola desde el índice after. */
+  consoleLines(id: number, after: number): Promise<ConsoleLines> {
+    return request<ConsoleLines>('GET', `/api/consoles/${id}?after=${after}`);
+  },
+
+  /** P-27, N-17: «Limpiar terminadas». Devuelve las que quedan. */
+  async clearConsoles(): Promise<ShellConsole[]> {
+    const body = await request<{ consoles: ShellConsole[] }>('DELETE', '/api/consoles');
+    return body.consoles;
   },
 
   /** R-10, R-14: no contacta con GitHub. */

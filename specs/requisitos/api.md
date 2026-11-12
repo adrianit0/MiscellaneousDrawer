@@ -15,8 +15,10 @@ La interfaz habla con el servidor solo a través de esta API JSON, bajo `/api`.
 | GET | /api/catalog | Mini apps con su manifiesto, estado y, si falló, el mensaje (P-04) |
 | GET, PUT | /api/app-state/{id} | Documento de estado de interfaz de una mini app: un objeto JSON de hasta 64 KB (P-14). 404 `app_not_found` si no está en el catálogo; 400 `invalid_state` si no es un objeto o es mayor |
 | GET, PUT | /api/settings | Estado de interfaz del shell (tabla `setting`) y, en la clave `config`, los ajustes de `config.json` (D-04, D-05). Las claves cumplen `[A-Za-z0-9._-]{1,100}` |
-| GET | /api/events | Canal de presencia (C-04). Lleva además un evento `notification` por cada notificación nueva (P-23) |
+| GET | /api/events | Canal de presencia (C-04). Lleva además un evento `notification` por cada notificación nueva (P-23) y un evento `consoles` por cada cambio en la lista de consolas (P-28) |
 | GET, DELETE | /api/notifications | Notificaciones guardadas, de la más reciente a la más antigua; `DELETE` las borra todas y devuelve la lista vacía (P-22) |
+| GET, DELETE | /api/consoles | Consolas, de la más reciente a la más antigua, sin sus líneas; `DELETE` descarta las que no están en progreso y devuelve las que quedan (P-27) |
+| GET | /api/consoles/{id} | Una consola y sus líneas desde `?after=N` (P-27). 404 `console_not_found`; 400 `invalid_request` |
 | POST | /api/presence/bye | Aviso de cierre de ventana (C-05) |
 | POST | /api/shutdown | Apagado ordenado (C-06, C-10) |
 | GET | /api/update | Versión, build y commit instalados, y si la actualización está disponible y por qué (R-10, R-14) |
@@ -39,6 +41,34 @@ Respuesta de `GET /api/notifications`. `text` y `path` pueden ser `null`:
       "createdAt": "2026-11-12T09:30:00Z"
     }
   ]
+}
+```
+
+Respuesta de `GET /api/consoles`. `state` es `running`, `succeeded`, `failed` o `cancelled`; `finishedAt` es `null` mientras está en progreso:
+
+```json
+{
+  "consoles": [
+    {
+      "id": 3,
+      "appId": "database",
+      "name": "Trabajo 3 · Hotfix",
+      "state": "running",
+      "startedAt": "2026-11-12T09:30:00Z",
+      "finishedAt": null
+    }
+  ]
+}
+```
+
+Respuesta de `GET /api/consoles/3?after=120`. `from` es el índice de la primera línea devuelta y `next` el que se pasa en la siguiente consulta:
+
+```json
+{
+  "console": { "id": 3, "appId": "database", "name": "Trabajo 3 · Hotfix", "state": "running", "startedAt": "2026-11-12T09:30:00Z", "finishedAt": null },
+  "from": 120,
+  "next": 122,
+  "lines": ["$ docker stop mysql", "mysql"]
 }
 ```
 

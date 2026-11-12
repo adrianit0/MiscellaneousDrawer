@@ -71,7 +71,7 @@ function job(partial: Partial<Job> = {}): Job {
         ],
       },
     ],
-    log: { from: 0, next: 2, lines: ['$ aws s3api head-object --bucket bucket-de-prueba', 'Bloque descargado'] },
+    consoleId: 7,
     ...partial,
   };
 }
@@ -90,6 +90,8 @@ let backend: Backend;
 let navigations: string[];
 let notices: string[];
 let subtitles: (string | null)[];
+/** BD-62: las consolas que la mini app pide mostrar al shell. */
+let shownConsoles: number[];
 
 function route(call: Call): { status?: number; body?: unknown } | undefined {
   const path = call.url.slice(BASE.length);
@@ -114,14 +116,10 @@ function route(call: Call): { status?: number; body?: unknown } | undefined {
     const version = new URLSearchParams(path.split('?')[1] ?? '').get('version') ?? '';
     return { body: backend.scripts[version] };
   }
-  if (path.startsWith('/job') && call.method === 'GET') {
-    if (!backend.job) return { body: { job: null } };
-    const after = Number(new URLSearchParams(path.split('?')[1] ?? '').get('after') ?? 0);
-    const all = backend.job.log.lines;
-    return { body: { job: { ...backend.job, log: { from: Math.min(after, all.length), next: all.length, lines: all.slice(after) } } } };
-  }
+  if (path === '/job' && call.method === 'GET') return { body: { job: backend.job } };
   if (path === '/job') {
-    backend.job = job({ id: (backend.job?.id ?? 0) + 1, log: { from: 0, next: 1, lines: ['Trabajo iniciado'] } });
+    const id = (backend.job?.id ?? 0) + 1;
+    backend.job = job({ id, consoleId: 10 + id });
     return { status: 202, body: { job: backend.job } };
   }
   if (path === '/job/cancel') {
@@ -145,6 +143,7 @@ function Harness({ initialPath = '', active = true }: { initialPath?: string; ac
         },
         notify: (text) => notices.push(text),
         setSubtitle: (text) => subtitles.push(text),
+        showConsole: (id) => shownConsoles.push(id),
       }),
     [path, active],
   );
@@ -178,6 +177,7 @@ beforeEach(() => {
   navigations = [];
   notices = [];
   subtitles = [];
+  shownConsoles = [];
   backend = {
     config: CONFIG,
     dumps: DUMPS,
@@ -286,6 +286,8 @@ describe('BD-61 «Preparar»', () => {
       fireEvent.click(button('Iniciar'));
     });
     expect(posts('/job')[0].body).toEqual({ branch: 'hotfix', download: null, import: null, scripts: { version: '1.10.0', files: null } });
+    // BD-62: al iniciar un trabajo se muestra su consola.
+    expect(shownConsoles).toEqual([11]);
   });
 
   it('BD-11 BD-61: con «Ambas» solo se puede descargar', async () => {
@@ -354,7 +356,7 @@ describe('BD-61 «Preparar»', () => {
 });
 
 describe('BD-62 trabajo', () => {
-  it('BD-62: muestra los pasos con su estado, el progreso de la descarga, los scripts y el registro', async () => {
+  it('BD-62: muestra los pasos con su estado, el progreso de la descarga, los scripts y «Ver consola»', async () => {
     backend.job = job();
     await openPrepare();
     const region = await screen.findByRole('region', { name: 'Trabajo' });
@@ -372,13 +374,17 @@ describe('BD-62 trabajo', () => {
       'TAREA-1.sql: pendiente',
       'TAREA-2.sql: pendiente',
     ]);
-    expect(within(region).getByLabelText('Registro').textContent).toBe('$ aws s3api head-object --bucket bucket-de-prueba\nBloque descargado');
+    // BD-14: el registro ya no está en la mini app; «Ver consola» lo muestra en el panel del shell.
+    expect(within(region).queryByLabelText('Registro')).toBeNull();
+    expect(shownConsoles).toEqual([]);
+    fireEvent.click(within(region).getByRole('button', { name: 'Ver consola' }));
+    expect(shownConsoles).toEqual([7]);
     // Con un trabajo en marcha se cancela, no se inicia otro.
     expect(screen.queryByRole('button', { name: 'Iniciar' })).toBeNull();
     expect(checkbox('Descargar').disabled).toBe(true);
   });
 
-  it('BD-14 BD-63: mientras está en marcha pide solo las líneas nuevas, y al terminar avisa y deja de consultar', async () => {
+  it('BD-63: mientras está en marcha consulta su estado, y al terminar avisa y deja de consultar', async () => {
     backend.job = job();
     await openPrepare();
     await screen.findByRole('region', { name: 'Trabajo' });
@@ -398,21 +404,17 @@ describe('BD-62 trabajo', () => {
           ],
         },
       ],
-      log: { from: 0, next: 3, lines: ['$ aws s3api head-object --bucket bucket-de-prueba', 'Bloque descargado', 'ERROR: Falló 1 script de 2'] },
     });
     await waitFor(() => expect(notices).toEqual(['Base de datos: trabajo terminado con errores']), { timeout: 4000 });
     expect(screen.getByRole('heading', { name: 'Trabajo terminado con errores · Hotfix' })).toBeTruthy();
-    expect(screen.getByLabelText('Registro').textContent).toBe(
-      '$ aws s3api head-object --bucket bucket-de-prueba\nBloque descargado\nERROR: Falló 1 script de 2',
-    );
     expect(screen.getByText('ERROR 1064 (42000) at line 1')).toBeTruthy();
     expect(within(screen.getByRole('list', { name: 'Resultado de los scripts' })).getAllByRole('listitem')[0].textContent).toContain(
       'TAREA-1.sql: con error',
     );
     expect(button('Iniciar')).toBeTruthy();
     const polls = server.callsTo('GET', BASE + '/job');
-    expect(polls[0].url).toBe(BASE + '/job?after=0');
-    expect(polls.at(-1)?.url).toBe(BASE + '/job?after=2');
+    // BD-14: ya no pide líneas: el registro está en la consola.
+    expect(new Set(polls.map((p) => p.url))).toEqual(new Set([BASE + '/job']));
     const count = polls.length;
     await new Promise((r) => setTimeout(r, 1300));
     expect(server.callsTo('GET', BASE + '/job')).toHaveLength(count);

@@ -4,6 +4,7 @@ import dev.cajonsastre.catalog.AppCatalog;
 import dev.cajonsastre.catalog.AppRegistry;
 import dev.cajonsastre.catalog.AppStateApi;
 import dev.cajonsastre.catalog.CatalogApi;
+import dev.cajonsastre.consoles.ConsoleCenter;
 import dev.cajonsastre.http.HttpServer;
 import dev.cajonsastre.http.LocalSecurity;
 import dev.cajonsastre.lifecycle.CommandLine;
@@ -31,6 +32,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -101,7 +103,10 @@ public final class Main {
         // P-21: cada mini app recibe sus notificaciones ya con su identidad.
         NotificationCenter notifications = new NotificationCenter(store, clock, catalog::contains,
                 new DesktopAnnouncer(settings::get));
-        AppRegistry registry = AppRegistry.start(catalog, DataPaths.appPaths(), clock, notifications::forApp);
+        // P-25: y sus consolas, que solo viven en memoria.
+        ConsoleCenter consoles = new ConsoleCenter(clock, catalog::contains);
+        AppRegistry registry = AppRegistry.start(catalog, DataPaths.appPaths(), clock, notifications::forApp,
+                consoles::forApp);
 
         String token = sessionToken();
         AtomicBoolean stopped = new AtomicBoolean();
@@ -130,6 +135,8 @@ public final class Main {
         LifecycleApi lifecycle = new LifecycleApi(presence.value, exit);
         // P-23: cada notificación nueva llega a las ventanas abiertas.
         notifications.onNotification(n -> lifecycle.broadcast("notification", n));
+        // P-28: y cada cambio en la lista de consolas.
+        consoles.onChange(list -> lifecycle.broadcast("consoles", Map.of("consoles", list)));
 
         try {
             server.value = new HttpServer(port, token, List.of(
@@ -138,6 +145,7 @@ public final class Main {
                     new AppStateApi(store, catalog, clock),
                     lifecycle,
                     notifications,
+                    consoles,
                     // R-12: solo conecta cuando la interfaz llama a sus rutas.
                     new UpdateApi(Updater.installed(() -> settings.get().updateRepository(), port), exit, registry::busy),
                     registry)).start();

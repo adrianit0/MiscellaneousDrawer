@@ -5,6 +5,7 @@ import { MiniAppContext } from '../platform/context';
 import type { MiniAppContextValue } from '../platform/types';
 import { navigateInApp } from './actions';
 import { FailedPage, MissingUiPage, PlannedPage } from './AppPages';
+import { useConsoles } from './consoleStore';
 import { useNav } from './navStore';
 import { ModuleRegistryContext } from './registry';
 import { useUi } from './uiStore';
@@ -76,6 +77,7 @@ export function AppFrame({ app, active }: { app: CatalogApp; active: boolean }) 
       api,
       notify: (text, kind) => useUi.getState().notify(text, kind),
       setSubtitle: (text) => useNav.getState().setSubtitle(app.id, text),
+      showConsole: (id) => useConsoles.getState().show(id),
     }),
     [app, active, path, api],
   );

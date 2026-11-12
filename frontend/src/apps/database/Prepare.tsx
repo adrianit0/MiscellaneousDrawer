@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppState, useMiniApp } from '../../platform';
 import { Confirm } from './Confirm';
 import styles from './database.module.css';
@@ -22,7 +22,6 @@ import {
 
 /** BD-63: cada cuánto se consulta un trabajo en marcha. */
 export const POLL_MS = 1000;
-const MAX_LINES = 5000;
 
 const STEP_LABELS: Record<StepKind, string> = { download: 'Descargar', import: 'Importar', scripts: 'Ejecutar scripts' };
 const STEP_STATES: Record<JobStep['state'], string> = {
@@ -53,7 +52,7 @@ interface Props {
 
 /** BD-61 a BD-63, BD-42: elegir los pasos, iniciar el trabajo y seguirlo. */
 export function Prepare({ config, visible, choice, onChoiceUsed }: Props) {
-  const { api, active, navigate, notify } = useMiniApp();
+  const { api, active, navigate, notify, showConsole } = useMiniApp();
   const [branch, setBranch] = useAppState<JobBranch>('branch', 'hotfix');
   const [steps, setSteps] = useAppState<Steps>('steps', { download: true, import: true, scripts: true });
   const [mode, setMode] = useAppState<'chunked' | 'direct'>('mode', 'chunked');
@@ -64,16 +63,11 @@ export function Prepare({ config, visible, choice, onChoiceUsed }: Props) {
   const [unchecked, setUnchecked] = useState<string[]>([]);
   const [dumps, setDumps] = useState<BranchDumps[] | null>(null);
   const [job, setJob] = useState<Job | null>(null);
-  const [lines, setLines] = useState<string[]>([]);
   const [confirming, setConfirming] = useState<JobRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [epoch, setEpoch] = useState(0);
-  const next = useRef(0);
-  const jobId = useRef<number | null>(null);
   const sawRunning = useRef(false);
-  const logBox = useRef<HTMLPreElement>(null);
-  const stick = useRef(true);
 
   const both = branch === 'both';
   const missing = config.missing;
@@ -111,25 +105,13 @@ export function Prepare({ config, visible, choice, onChoiceUsed }: Props) {
       .catch(() => setListing(null));
   }, [api, watching, canScripts, version]);
 
-  /** BD-14: añade las líneas nuevas; un trabajo distinto empieza su registro de cero. */
+  /** BD-13: el estado del trabajo; su registro está en su consola (BD-14). */
   const apply = useCallback(
     (received: Job | null) => {
       if (!received) {
         setJob(null);
         return;
       }
-      const fresh = received.id !== jobId.current;
-      if (fresh && received.log.from > 0 && next.current > 0) {
-        // Se pidió con el índice del trabajo anterior: se vuelve a pedir entero.
-        jobId.current = received.id;
-        next.current = 0;
-        setLines([]);
-        setEpoch((e) => e + 1);
-        return;
-      }
-      jobId.current = received.id;
-      next.current = received.log.next;
-      setLines((previous) => (fresh ? received.log.lines : [...previous, ...received.log.lines]).slice(-MAX_LINES));
       setJob(received);
       // BD-63: avisa al terminar un trabajo que se estaba viendo.
       if (sawRunning.current && received.state !== 'running') {
@@ -148,7 +130,7 @@ export function Prepare({ config, visible, choice, onChoiceUsed }: Props) {
     const tick = async () => {
       let received: Job | null = null;
       try {
-        received = (await api.get<{ job: Job | null }>(`/job?after=${next.current}`)).job;
+        received = (await api.get<{ job: Job | null }>('/job')).job;
         if (stopped) return;
         apply(received);
       } catch {
@@ -165,12 +147,6 @@ export function Prepare({ config, visible, choice, onChoiceUsed }: Props) {
       clearTimeout(timer);
     };
   }, [api, apply, watching, epoch]);
-
-  // BD-62: el registro baja solo hasta el final, salvo que el usuario haya subido.
-  useLayoutEffect(() => {
-    const box = logBox.current;
-    if (box && stick.current) box.scrollTop = box.scrollHeight;
-  }, [lines]);
 
   const enabled: Steps = {
     download: steps.download && missing.download.length === 0,
@@ -194,9 +170,10 @@ export function Prepare({ config, visible, choice, onChoiceUsed }: Props) {
     setError(null);
     try {
       const { job: started } = await api.post<{ job: Job }>('/job', body);
-      stick.current = true;
       sawRunning.current = false;
       apply(started);
+      // BD-62: al iniciar un trabajo se muestra su consola.
+      showConsole(started.consoleId);
       setEpoch((e) => e + 1);
     } catch (e) {
       setError(errorMessage(e));
@@ -358,9 +335,14 @@ export function Prepare({ config, visible, choice, onChoiceUsed }: Props) {
 
       {job && (
         <section className={styles.job} aria-label="Trabajo">
-          <h2 className={job.state === 'failed' ? styles.error : undefined}>
-            {JOB_STATES[job.state]} · {BRANCH_LABELS[job.branch]}
-          </h2>
+          <div className={styles.jobHeader}>
+            <h2 className={job.state === 'failed' ? styles.error : undefined}>
+              {JOB_STATES[job.state]} · {BRANCH_LABELS[job.branch]}
+            </h2>
+            <button type="button" onClick={() => showConsole(job.consoleId)}>
+              Ver consola
+            </button>
+          </div>
           <ol className={styles.steps}>
             {job.steps.map((s) => (
               <li key={s.kind} data-state={s.state}>
@@ -389,18 +371,6 @@ export function Prepare({ config, visible, choice, onChoiceUsed }: Props) {
               </li>
             ))}
           </ol>
-          <pre
-            ref={logBox}
-            className={styles.log}
-            aria-label="Registro"
-            tabIndex={0}
-            onScroll={(e) => {
-              const box = e.currentTarget;
-              stick.current = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
-            }}
-          >
-            {lines.join('\n')}
-          </pre>
         </section>
       )}
 

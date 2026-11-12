@@ -79,6 +79,7 @@ public interface AppContext {
     Path configDir();     // <config>/apps/<id>/
     Clock clock();
     Notifications notifications();   // P-21: notificaciones del shell
+    Consoles consoles();             // P-25: consolas del shell
 }
 ```
 
@@ -131,6 +132,33 @@ Reglas de uso:
 
 En las pruebas de una mini app, las notificaciones emitidas se recogen pasando un `Notifications` propio a `AppRegistry.start` (véase `DatabaseAppTest`).
 
+### Consolas
+
+La salida de texto de una ejecución (los comandos de un trabajo y lo que devuelven) no se pinta en la mini app: se escribe en una consola del shell (P-25 a P-28, ADR-0014).
+
+```java
+// En start(): guardar context.consoles() y usarlo desde cualquier hilo.
+Console console = consoles.open("Trabajo 3 · Hotfix");
+console.line("$ aws s3api head-object …");
+console.line(salidaDelComando);
+console.finish(ConsoleState.SUCCEEDED);   // o FAILED, o CANCELLED
+```
+
+El shell hace el resto:
+
+- La muestra en el panel inferior, con el nombre, la mini app y el estado: «En progreso» hasta que se llama a `finish` (N-14 a N-17).
+- Conserva sus últimas 5000 líneas y las últimas 20 consolas, solo en memoria (P-26).
+- El usuario las descarta con «Limpiar terminadas»; una consola en progreso no se puede descartar.
+
+Reglas de uso:
+
+- Nombre de 1 a 80 caracteres, que distinga esa ejecución de las demás.
+- Toda consola abierta se termina, también si la ejecución falla o se cancela: si no, queda «En progreso» hasta que se apaga la aplicación.
+- Es de solo lectura y solo vive en memoria: nada de secretos, y lo que deba conservarse se guarda en la base de la mini app.
+- `console.id()` es su identificador. La interfaz de la mini app puede desplegar el panel en esa consola con `showConsole(id)` de `useMiniApp()`.
+
+En las pruebas de una mini app, las consolas se recogen pasando un `Consoles` propio a `AppRegistry.start` (véase `DatabaseAppTest`).
+
 ### Datos
 
 Cada mini app tiene **su propia base SQLite** (ADR-0006). Las razones:
@@ -178,6 +206,7 @@ export function TasksApp() {
 | `api` | Cliente acotado a `/api/apps/<id>` con `get`, `post`, `put`, `patch` y `delete` (P-13) |
 | `notify(texto, tipo)` | Aviso no bloqueante del shell (U-05). No es una notificación: esas se emiten desde el servidor (P-21) |
 | `setSubtitle(texto)` | Sección actual en la miga de pan (N-07) |
+| `showConsole(id)` | Despliega el panel de consolas del shell con esa consola elegida (N-15). El identificador lo da el servidor de la mini app (P-25) |
 
 ### Ciclo de vida en la interfaz
 
@@ -224,7 +253,8 @@ Las reglas de aislamiento no dependen de la buena voluntad: unas pruebas las com
 
 Se añadirán cuando una mini app real los necesite (constitución, principio 8), cada uno con su ADR:
 
-- Eventos del servidor hacia la interfaz de una mini app por el canal de presencia. Hoy solo lleva las notificaciones del shell (P-23).
+- Eventos del servidor hacia la interfaz de una mini app por el canal de presencia. Hoy solo lleva las notificaciones y la lista de consolas del shell (P-23, P-28).
+- Escribir en una consola desde la interfaz, para una mini app sin servidor, y los estados «Abierto» y «Pausado» (ADR-0014).
 - Emitir notificaciones desde la interfaz, para una mini app sin servidor (ADR-0013).
 - Una categoría propia de cada mini app en «Ajustes».
 - Comunicación entre mini apps (abrir un elemento de otra, compartir datos).

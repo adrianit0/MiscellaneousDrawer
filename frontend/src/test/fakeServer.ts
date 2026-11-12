@@ -1,6 +1,7 @@
-import type { AppConfig, CatalogApp, ShellNotification, UpdateCheck, UpdateStatus } from '../api';
+import type { AppConfig, CatalogApp, ShellConsole, ShellNotification, UpdateCheck, UpdateStatus } from '../api';
 import { resetAppStates } from '../platform/appState';
 import { useCatalog } from '../shell/catalogStore';
+import { resetConsoles } from '../shell/consoleStore';
 import { resetNav } from '../shell/navStore';
 import { useNotifications } from '../shell/notificationStore';
 import { HOME, useRouter } from '../shell/router';
@@ -27,6 +28,9 @@ export interface FakeServer {
   appStates: Record<string, Record<string, unknown>>;
   /** P-22: lo que devuelve GET /api/notifications, la más reciente primero. */
   notifications: ShellNotification[];
+  /** P-27: lo que devuelve GET /api/consoles, la más reciente primero, y las líneas de cada una por su identificador. */
+  consoles: ShellConsole[];
+  consoleLines: Record<number, string[]>;
   /** P-23: envía un evento por /api/events a las ventanas conectadas. */
   emit: (event: string, data: unknown) => void;
   /** Rutas de las mini apps: /api/apps/... */
@@ -64,6 +68,8 @@ export function installFakeServer(init: Partial<Omit<FakeServer, 'calls' | 'call
     settings: {},
     config: { port: 47800, autoShutdownMinutes: null, updateRepository: null, notificationSound: true, desktopNotifications: true },
     notifications: [],
+    consoles: [],
+    consoleLines: {},
     emit: (event, data) => {
       const bytes = new TextEncoder().encode(`: latido\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
       windows.forEach((w) => w.enqueue(bytes));
@@ -94,6 +100,18 @@ export function installFakeServer(init: Partial<Omit<FakeServer, 'calls' | 'call
     if (url === '/api/notifications') {
       if (method === 'DELETE') server.notifications = [];
       return json(200, { notifications: server.notifications });
+    }
+    if (url === '/api/consoles') {
+      if (method === 'DELETE') server.consoles = server.consoles.filter((c) => c.state === 'running');
+      return json(200, { consoles: server.consoles });
+    }
+    const lines = /^\/api\/consoles\/(\d+)\?after=(\d+)$/.exec(url);
+    if (lines) {
+      const found = server.consoles.find((c) => c.id === Number(lines[1]));
+      if (!found) return json(404, { code: 'console_not_found', message: 'La consola no existe', details: null });
+      const all = server.consoleLines[found.id] ?? [];
+      const from = Math.min(Number(lines[2]), all.length);
+      return json(200, { console: found, from, next: all.length, lines: all.slice(from) });
     }
     if (url === '/api/presence/bye') return json(200, { ok: true });
     if (url === '/api/catalog') {
@@ -156,6 +174,7 @@ export function resetShell() {
   useCatalog.setState({ apps: [], status: 'loading', error: null });
   useUi.setState({ notices: [], paletteOpen: false, settingsOpen: false, contactLost: false, updating: false });
   useNotifications.setState({ items: [], seen: 0 });
+  resetConsoles();
   useRouter.setState({ route: HOME });
   document.title = '';
 }

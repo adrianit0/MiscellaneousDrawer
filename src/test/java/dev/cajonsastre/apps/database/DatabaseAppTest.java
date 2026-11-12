@@ -8,6 +8,7 @@ import dev.cajonsastre.catalog.AppCatalog;
 import dev.cajonsastre.catalog.AppPaths;
 import dev.cajonsastre.catalog.AppRegistry;
 import dev.cajonsastre.catalog.CatalogApi;
+import dev.cajonsastre.consoles.ConsoleCenter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +49,8 @@ class DatabaseAppTest {
     final Fixtures.NoSleep sleeper = new Fixtures.NoSleep();
     /** BD-17: las notificaciones que emite la mini app, como «tipo|título|texto|subruta». */
     final List<String> notifications = new CopyOnWriteArrayList<>();
+    /** BD-14: las consolas que abre la mini app, en el centro de consolas real del shell. */
+    final ConsoleCenter consoles = new ConsoleCenter(Clock.systemUTC(), id -> true);
     DatabaseApp app;
     AppRegistry registry;
     TestApi api;
@@ -60,7 +63,8 @@ class DatabaseAppTest {
         app = new DatabaseApp(commands, sleeper, Fixtures.ZONE);
         AppPaths paths = new AppPaths(dir.resolve("data"), dir.resolve("config"), dir.resolve("data/backups"));
         registry = AppRegistry.start(new AppCatalog(List.of(app)), paths, Clock.systemUTC(),
-                manifest -> (title, text, kind, path) -> notifications.add(kind.id() + "|" + title + "|" + text + "|" + path));
+                manifest -> (title, text, kind, path) -> notifications.add(kind.id() + "|" + title + "|" + text + "|" + path),
+                consoles::forApp);
         api = TestApi.start(List.of(new CatalogApi(registry), registry));
         config = Fixtures.config(dir);
         work = Path.of(config.workDir());
@@ -94,17 +98,17 @@ class DatabaseAppTest {
         return api.post(BASE + "/job", body);
     }
 
-    private JsonNode job(long after) {
-        return TestApi.json(api.get(BASE + "/job?after=" + after)).get("job");
+    private JsonNode job() {
+        return TestApi.json(api.get(BASE + "/job")).get("job");
     }
 
     /** Espera a que el trabajo termine y lo devuelve entero. */
     private JsonNode finished() throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
-        JsonNode job = job(0);
+        JsonNode job = job();
         while (job.get("state").asText().equals("running") && System.nanoTime() < deadline) {
             Thread.sleep(20);
-            job = job(0);
+            job = job();
         }
         return job;
     }
@@ -115,10 +119,9 @@ class DatabaseAppTest {
         return finished();
     }
 
-    private static List<String> lines(JsonNode job) {
-        List<String> out = new ArrayList<>();
-        job.get("log").get("lines").forEach(l -> out.add(l.asText()));
-        return out;
+    /** BD-14: el registro del trabajo, que está en su consola. */
+    private List<String> lines(JsonNode job) {
+        return consoles.slice(job.get("consoleId").asLong(), 0).lines();
     }
 
     private static List<String> stepStates(JsonNode job) {
@@ -226,7 +229,7 @@ class DatabaseAppTest {
         assertError(api.get(BASE + "/dumps"), 409, "not_configured");
         assertError(api.get(BASE + "/scripts"), 409, "not_configured");
         assertThat(commands.commands).isEmpty();
-        assertThat(job(0).isNull()).isTrue();
+        assertThat(job().isNull()).isTrue();
     }
 
     // --- Trabajos ---
@@ -235,7 +238,6 @@ class DatabaseAppTest {
     void bd13_without_any_job_there_is_nothing_to_show_or_to_cancel() {
         assertThat(TestApi.json(api.get(BASE + "/job")).get("job").isNull()).isTrue();
         assertError(api.post(BASE + "/job/cancel", null), 409, "no_job");
-        assertError(api.get(BASE + "/job?after=x"), 400, "invalid_request");
     }
 
     @Test
@@ -273,42 +275,50 @@ class DatabaseAppTest {
         assertThat(log).anyMatch(l -> l.startsWith("$ aws s3api head-object --bucket bucket-de-prueba"));
         assertThat(log).anyMatch(l -> l.startsWith("$ docker exec -i -e MYSQL_PWD mysql-de-prueba mysql"));
         assertThat(log).contains("0123456789ab");
+        assertThat(log).noneMatch(l -> l.contains(Fixtures.PASSWORD));
         assertThat(api.get(BASE + "/job").body()).doesNotContain(Fixtures.PASSWORD);
         assertThat(commands.commands).allSatisfy(c -> assertThat(c.line()).doesNotContain(Fixtures.PASSWORD));
     }
 
     @Test
-    void bd14_the_log_can_be_read_from_a_given_line() throws Exception {
+    void bd14_p25_each_job_opens_a_console_that_ends_with_the_state_of_the_job() throws Exception {
         configure();
-        JsonNode all = run("{\"branch\": \"hotfix\", \"scripts\": {}}").get("log");
-        long next = all.get("next").asLong();
-        assertThat(all.get("from").asLong()).isZero();
-        assertThat(all.get("lines")).hasSize((int) next);
-        JsonNode tail = job(next - 2).get("log");
-        assertThat(tail.get("from").asLong()).isEqualTo(next - 2);
-        assertThat(tail.get("next").asLong()).isEqualTo(next);
-        assertThat(tail.get("lines")).hasSize(2);
-        assertThat(tail.get("lines").get(1)).isEqualTo(all.get("lines").get((int) next - 1));
-        assertThat(job(next).get("log").get("lines")).isEmpty();
-        assertThat(job(next + 50).get("log").get("from").asLong()).isEqualTo(next);
+        JsonNode ok = run("{\"branch\": \"hotfix\", \"scripts\": {}}");
+        // BD-13: el trabajo dice cuál es su consola y ya no lleva el registro.
+        assertThat(ok.has("log")).isFalse();
+        ConsoleCenter.View first = consoles.list().get(0);
+        assertThat(first.id()).isEqualTo(ok.get("consoleId").asLong());
+        assertThat(first.appId()).isEqualTo("database");
+        assertThat(first.name()).isEqualTo("Trabajo 1 · Hotfix");
+        assertThat(first.state()).isEqualTo("succeeded");
+        assertThat(first.finishedAt()).isNotNull();
+
+        Files.writeString(pending.resolve("TAREA-1.sql"), "FALLA;");
+        JsonNode failed = run("{\"branch\": \"hotfix\", \"scripts\": {}}");
+        assertThat(failed.get("consoleId").asLong()).isNotEqualTo(first.id());
+        assertThat(consoles.list().get(0).state()).isEqualTo("failed");
+        assertThat(lines(failed)).last().asString().startsWith("ERROR: ");
+
+        run("{\"branch\": \"both\", \"download\": {\"mode\": \"direct\"}}");
+        assertThat(consoles.list()).extracting(ConsoleCenter.View::name)
+                .containsExactly("Trabajo 3 · Ambas", "Trabajo 2 · Hotfix", "Trabajo 1 · Hotfix");
     }
 
     @Test
-    void bd14_the_log_keeps_only_the_last_lines() {
-        JobLog log = new JobLog();
-        for (int i = 0; i < JobLog.MAX_LINES + 10; i++) {
-            log.add("línea " + i);
-        }
-        log.add("x".repeat(JobLog.MAX_CHARS + 500));
-        JobLog.Slice all = log.after(0);
-        assertThat(JobLog.MAX_LINES).isEqualTo(5000);
-        assertThat(JobLog.MAX_CHARS).isEqualTo(2000);
-        assertThat(all.lines()).hasSize(JobLog.MAX_LINES);
-        assertThat(all.from()).isEqualTo(11);
-        assertThat(all.next()).isEqualTo(JobLog.MAX_LINES + 11);
-        assertThat(all.lines().get(0)).isEqualTo("línea 11");
-        assertThat(all.lines().get(JobLog.MAX_LINES - 1)).hasSize(JobLog.MAX_CHARS + 1).endsWith("…");
-        assertThat(log.after(all.next() - 1).lines()).hasSize(1);
+    void bd14_a_running_job_has_its_console_in_progress_and_a_cancelled_one_ends_cancelled() throws Exception {
+        configure();
+        holdAt("head-object");
+        startJob("{\"branch\": \"develop\", \"download\": {}}");
+        awaitHeld();
+        ConsoleCenter.View running = consoles.list().get(0);
+        assertThat(running.name()).isEqualTo("Trabajo 1 · Develop");
+        assertThat(running.state()).isEqualTo("running");
+        assertThat(running.finishedAt()).isNull();
+        assertThat(consoles.slice(running.id(), 0).lines()).isNotEmpty();
+
+        assertThat(api.post(BASE + "/job/cancel", null).statusCode()).isEqualTo(200);
+        assertThat(finished().get("state").asText()).isEqualTo("cancelled");
+        assertThat(consoles.list().get(0).state()).isEqualTo("cancelled");
     }
 
     @Test
@@ -319,7 +329,7 @@ class DatabaseAppTest {
         assertThat(startJob(FULL_JOB).statusCode()).isEqualTo(202);
         awaitHeld();
 
-        JsonNode running = job(0);
+        JsonNode running = job();
         assertThat(running.get("state").asText()).isEqualTo("running");
         assertThat(running.get("finishedAt").isNull()).isTrue();
         assertThat(stepStates(running)).containsExactly("download:running", "import:pending", "scripts:pending");
@@ -420,7 +430,7 @@ class DatabaseAppTest {
         }
         assertError(startJob("no es JSON"), 400, "invalid_json");
         assertThat(commands.commands).isEmpty();
-        assertThat(job(0).isNull()).isTrue();
+        assertThat(job().isNull()).isTrue();
     }
 
     @Test

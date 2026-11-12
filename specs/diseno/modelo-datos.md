@@ -41,6 +41,8 @@ CREATE TABLE notification (
 | `shell.recent` | Lista de hasta 6 identificadores, el más reciente primero | L-04 |
 | `shell.lastRoute` | Última ruta visitada, como `#/apps/tasks/lista` | N-03 |
 | `shell.notificationsSeen` | Identificador de la última notificación vista | N-12 |
+| `shell.consoleOpen` | Si el panel de consolas está desplegado | N-14 |
+| `shell.consoleHeight` | Altura del panel de consolas, en píxeles | N-16 |
 
 ## `config.json`
 

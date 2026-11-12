@@ -6,6 +6,9 @@ import dev.cajonsastre.platform.ApiError;
 import dev.cajonsastre.platform.AppContext;
 import dev.cajonsastre.platform.AppManifest;
 import dev.cajonsastre.platform.AppRoutes;
+import dev.cajonsastre.platform.Console;
+import dev.cajonsastre.platform.ConsoleState;
+import dev.cajonsastre.platform.Consoles;
 import dev.cajonsastre.platform.MiniApp;
 import dev.cajonsastre.platform.Notifications;
 import dev.cajonsastre.platform.Store;
@@ -67,18 +70,41 @@ public final class AppRegistry implements ApiRoutes, AutoCloseable {
      * P-05, P-07: arranca las mini apps en el orden del catálogo. Nunca falla por una mini app.
      *
      * @param notifications P-21: las notificaciones que recibe cada mini app en su contexto
+     * @param consoles      P-25: las consolas que recibe cada mini app en su contexto
      */
     public static AppRegistry start(AppCatalog catalog, AppPaths paths, Clock clock,
-                                    Function<AppManifest, Notifications> notifications) {
+                                    Function<AppManifest, Notifications> notifications,
+                                    Function<AppManifest, Consoles> consoles) {
         Map<String, Entry> entries = new LinkedHashMap<>();
         for (MiniApp app : catalog.apps()) {
             Entry entry = app.manifest().planned()
                     ? new Entry(app, Status.PLANNED, null, null, List.of())
-                    : startOne(app, paths, clock, notifications);
+                    : startOne(app, paths, clock, notifications, consoles);
             entries.put(app.manifest().id(), entry);
         }
         return new AppRegistry(catalog, entries);
     }
+
+    /** Sin shell que muestre las consolas (P-25): lo que se escribe en ellas se descarta. */
+    public static AppRegistry start(AppCatalog catalog, AppPaths paths, Clock clock,
+                                    Function<AppManifest, Notifications> notifications) {
+        return start(catalog, paths, clock, notifications, manifest -> name -> DISCARDED);
+    }
+
+    private static final Console DISCARDED = new Console() {
+        @Override
+        public long id() {
+            return 0;
+        }
+
+        @Override
+        public void line(String text) {
+        }
+
+        @Override
+        public void finish(ConsoleState state) {
+        }
+    };
 
     /** Sin shell que recoja las notificaciones (P-21): se descartan. */
     public static AppRegistry start(AppCatalog catalog, AppPaths paths, Clock clock) {
@@ -87,7 +113,8 @@ public final class AppRegistry implements ApiRoutes, AutoCloseable {
     }
 
     private static Entry startOne(MiniApp app, AppPaths paths, Clock clock,
-                                  Function<AppManifest, Notifications> notifications) {
+                                  Function<AppManifest, Notifications> notifications,
+                                  Function<AppManifest, Consoles> consoles) {
         String id = app.manifest().id();
         Store store = null;
         try {
@@ -104,7 +131,7 @@ public final class AppRegistry implements ApiRoutes, AutoCloseable {
             }
             AppRoutes routes = new AppRoutes(id);
             app.start(new RunningContext(id, store, paths.dataDir(id), paths.configDir(id), clock,
-                    notifications.apply(app.manifest())), routes);
+                    notifications.apply(app.manifest()), consoles.apply(app.manifest())), routes);
             log.info("Mini app {} disponible", id);
             return new Entry(app, Status.AVAILABLE, null, store, routes.routes());
         } catch (Exception | LinkageError e) {
@@ -203,9 +230,9 @@ public final class AppRegistry implements ApiRoutes, AutoCloseable {
         }
     }
 
-    /** P-08, P-09, P-21 */
+    /** P-08, P-09, P-21, P-25 */
     private record RunningContext(String appId, Store database, Path appDataDir, Path appConfigDir, Clock clock,
-                                  Notifications notifications) implements AppContext {
+                                  Notifications notifications, Consoles consoles) implements AppContext {
 
         @Override
         public Store store() {

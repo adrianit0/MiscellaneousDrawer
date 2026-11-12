@@ -1,5 +1,6 @@
-import { api, onNetworkFailure, sessionToken, TOKEN_HEADER, type ShellNotification } from './api';
+import { api, onNetworkFailure, sessionToken, TOKEN_HEADER, type ShellConsole, type ShellNotification } from './api';
 import { useCatalog } from './shell/catalogStore';
+import { useConsoles } from './shell/consoleStore';
 import { useNotifications } from './shell/notificationStore';
 import { useUi } from './shell/uiStore';
 
@@ -35,11 +36,15 @@ export function takeEvents(chunk: string): { events: ServerEvent[]; rest: string
   return { events, rest };
 }
 
-/** P-23: un evento que no se entiende se ignora. */
+/** P-23, P-28: un evento que no se entiende se ignora. */
 function dispatch({ event, data }: ServerEvent) {
-  if (event !== 'notification') return;
   try {
-    useNotifications.getState().add(JSON.parse(data) as ShellNotification);
+    if (event === 'notification') {
+      useNotifications.getState().add(JSON.parse(data) as ShellNotification);
+    } else if (event === 'consoles') {
+      const body = JSON.parse(data) as { consoles?: ShellConsole[] };
+      if (Array.isArray(body.consoles)) useConsoles.getState().set(body.consoles);
+    }
   } catch {
     // Datos que no son JSON.
   }
@@ -109,6 +114,8 @@ export function startPresence(): () => void {
     void useCatalog.getState().load();
     // Las notificaciones emitidas mientras no había contacto.
     void useNotifications.getState().load();
+    // Un servidor reiniciado empieza sin consolas (P-26).
+    void useConsoles.getState().load();
   };
 
   /** R-45: el estado pendiente se guarda al descargar la página (pagehide), ya con el token nuevo. */

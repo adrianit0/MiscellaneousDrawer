@@ -48,6 +48,8 @@ export interface MiniAppContextValue {
   notify: (text: string, kind?: NoticeKind) => void;
   /** N-07: la sección actual en la miga de pan; null la quita. */
   setSubtitle: (text: string | null) => void;
+  /** N-15: despliega el panel de consolas del shell con esa consola elegida; el identificador lo da su servidor (P-25). */
+  showConsole: (id: number) => void;
 }
 
 /** P-11: lo que exporta por defecto frontend/src/apps/<id>/index.tsx. */

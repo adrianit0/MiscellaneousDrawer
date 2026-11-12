@@ -6,6 +6,8 @@ import { activeAppId, closeActiveApp, cycleRail, goHome, knownIds, openPinned } 
 import { AppHost } from './shell/AppHost';
 import { useCatalog } from './shell/catalogStore';
 import { CommandPalette } from './shell/CommandPalette';
+import { ConsoleDock } from './shell/ConsoleDock';
+import { useConsoles } from './shell/consoleStore';
 import { matchShellShortcut } from './shell/keyboard';
 import { Launcher } from './shell/Launcher';
 import { flushShellState, useNav } from './shell/navStore';
@@ -28,7 +30,7 @@ function restoreRoute(openedWithoutRoute: boolean) {
   useRouter.getState().navigate(valid && route ? route : HOME, { replace: true });
 }
 
-/** Disposición de la ventana: barra superior, barra lateral y escenario (navegacion.md). */
+/** Disposición de la ventana: barra superior, barra lateral, escenario y barra inferior con las consolas (navegacion.md). */
 export function App() {
   const route = useRouter((s) => s.route);
   const catalogStatus = useCatalog((s) => s.status);
@@ -47,10 +49,13 @@ export function App() {
       .then((s) => {
         useNav.getState().hydrate(s);
         useNotifications.getState().hydrate(s);
+        useConsoles.getState().hydrate(s);
       })
       .catch(() => {});
     // N-11: las notificaciones guardadas; las nuevas llegan por el canal de presencia (P-23).
     void useNotifications.getState().load();
+    // N-15: las consolas abiertas; sus cambios llegan por el mismo canal (P-28).
+    void useConsoles.getState().load();
     void Promise.all([useCatalog.getState().load(), settings]).then(() => {
       if (useCatalog.getState().status === 'ready') useNav.getState().prune(knownIds());
       restoreRoute(openedWithoutRoute);
@@ -139,6 +144,7 @@ export function App() {
           <AppHost activeId={activeId} />
         </main>
       </div>
+      <ConsoleDock />
       {paletteOpen && <CommandPalette />}
       {settingsOpen && <SettingsDialog />}
       <Notices />

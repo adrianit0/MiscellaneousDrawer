@@ -232,18 +232,15 @@
   font-size: 12px;
 }
 
-.log {
+.jobHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.jobHeader h2 {
   margin: 0;
-  height: 320px;
-  overflow: auto;
-  padding: 10px 12px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
 .table {

@@ -1,6 +1,6 @@
 # Requisitos de navegación y lanzador
 
-La ventana tiene tres zonas fijas: barra superior, barra lateral de iconos y escenario. En el escenario está el lanzador («Inicio») o la mini app activa.
+La ventana tiene cuatro zonas fijas: barra superior, barra lateral de iconos, escenario y barra inferior, sobre la que se despliega el panel de consolas. En el escenario está el lanzador («Inicio») o la mini app activa.
 
 ```text
 ┌────────────────────────────────────────────────────────────────────┐
@@ -13,7 +13,14 @@ La ventana tiene tres zonas fijas: barra superior, barra lateral de iconos y esc
 │────│                                                               │
 │ ▣• │                                                               │
 │    │                                                               │
-└────┴───────────────────────────────────────────────────────────────┘
+├────┴───────────────────────────────────────────────────────────────┤
+│ ▾ Consolas · 1 en progreso                      Limpiar terminadas │
+├───────────────────────┬────────────────────────────────────────────┤
+│ Trabajo 2 · Hotfix    │ $ aws s3api head-object …                  │
+│ Base de datos  En pr… │ Bloque 3 de 12 descargado                  │
+│ Trabajo 1 · Develop   │                                            │
+│ Base de datos  Error  │                                            │
+└───────────────────────┴────────────────────────────────────────────┘
 ```
 
 ## Rutas
@@ -42,6 +49,15 @@ La ventana tiene tres zonas fijas: barra superior, barra lateral de iconos y esc
 | N-11 | «Notificaciones» despliega bajo la campana las notificaciones guardadas (P-22), de la más reciente a la más antigua: cada una con el icono, el color y el nombre de su mini app, su título, su texto y su fecha (U-02); las de tipo `error` se distinguen. Sin ninguna: «No hay notificaciones». Esc, un clic fuera o la propia campana lo cierran. Una notificación nueva (P-23) aparece sin recargar. |
 | N-12 | La campana muestra cuántas notificaciones hay sin leer, «9+» con más de nueve, y lo dice en su nombre accesible. Están sin leer las que llegaron después de la última vez que se abrió el desplegable; ese punto se guarda (D-04). |
 | N-13 | Pulsar una notificación abre su mini app, en la subruta de la notificación si la tiene (P-21), y cierra el desplegable. «Limpiar todo» borra todas las notificaciones (P-22) y no aparece si no hay ninguna. |
+
+## Consolas
+
+| ID | Requisito |
+|---|---|
+| N-14 | La barra inferior ocupa todo el ancho de la ventana y mide 28 px. Tiene el botón «Consolas», que despliega y recoge el panel de consolas (`aria-expanded`) y dice cuántas hay en progreso: «Consolas · 2 en progreso». Que el panel esté desplegado se guarda (D-04). El panel se despliega bajo la barra, a todo el ancho, y quita ese alto al escenario. |
+| N-15 | El panel muestra a la izquierda las consolas (P-27), de la más reciente a la más antigua: cada una con su nombre, el icono, el color y el nombre de su mini app, su estado («En progreso», «Terminado», «Error» o «Cancelado») y su hora de inicio (U-02); la elegida se marca (`aria-current`). A la derecha, la salida de la elegida, de solo lectura y en letra monoespaciada (U-03), que se desplaza sola hasta el final salvo que el usuario haya subido. Al desplegarlo está elegida la más reciente. Sin ninguna: «No hay consolas». Una consola nueva o un cambio de estado (P-28) aparecen sin recargar. Las líneas de la consola elegida se piden cada segundo mientras está en progreso y el panel desplegado; recogido, no se pide nada. |
+| N-16 | La altura del panel se cambia arrastrando su borde superior, o con ↑ y ↓ con el foco en él (U-04), entre 120 px y el 70 % del alto de la ventana. Nace con 260 px y la altura elegida se guarda (D-04). |
+| N-17 | «Limpiar terminadas» descarta las consolas que no están en progreso (P-27) y no aparece si no hay ninguna. |
 
 ## Atajos
 
