@@ -42,7 +42,8 @@ Necesita instalados y en el `PATH`:
 
 - `aws`, la CLI de AWS, con unas credenciales que puedan leer el bucket. Cajón de sastre no pide ni guarda credenciales de AWS: usa las que tenga el usuario, y solo para leer.
 - `docker`.
-- Para el aviso al terminar, `notify-send` y `paplay`. Son opcionales.
+
+Al terminar un trabajo deja una notificación en la campana de la barra superior. Con `notify-send` y `paplay` instalados, que son opcionales, aparece además en el escritorio y suena; las dos cosas se desactivan en «Ajustes → Notificaciones».
 
 ## Requisitos
 

@@ -10,6 +10,7 @@ import { matchShellShortcut } from './shell/keyboard';
 import { Launcher } from './shell/Launcher';
 import { flushShellState, useNav } from './shell/navStore';
 import { Notices } from './shell/Notices';
+import { useNotifications } from './shell/notificationStore';
 import { Rail } from './shell/Rail';
 import { formatRoute, HOME, parseRoute, startRouter, useRouter } from './shell/router';
 import { SettingsDialog } from './shell/SettingsDialog';
@@ -43,8 +44,13 @@ export function App() {
     const stopPresence = startPresence();
     const settings = api
       .settings()
-      .then((s) => useNav.getState().hydrate(s))
+      .then((s) => {
+        useNav.getState().hydrate(s);
+        useNotifications.getState().hydrate(s);
+      })
       .catch(() => {});
+    // N-11: las notificaciones guardadas; las nuevas llegan por el canal de presencia (P-23).
+    void useNotifications.getState().load();
     void Promise.all([useCatalog.getState().load(), settings]).then(() => {
       if (useCatalog.getState().status === 'ready') useNav.getState().prune(knownIds());
       restoreRoute(openedWithoutRoute);

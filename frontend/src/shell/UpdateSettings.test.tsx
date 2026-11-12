@@ -52,17 +52,19 @@ async function askToUpdate() {
 
 beforeEach(() => {
   resetShell();
-  server = installFakeServer({ config: { port: 47800, autoShutdownMinutes: null, updateRepository: REPOSITORY } });
+  server = installFakeServer({
+    config: { port: 47800, autoShutdownMinutes: null, updateRepository: REPOSITORY, notificationSound: true, desktopNotifications: true },
+  });
   server.update.status = AVAILABLE;
   server.update.check = NEWER;
   useUi.setState({ settingsOpen: true });
 });
 
 describe('R-10 categoría «Actualizaciones»', () => {
-  it('R-10 U-06: va después de «General» y muestra la versión, el build, el commit y la URL guardada', async () => {
+  it('R-10 U-06: va después de «General» y «Notificaciones» y muestra la versión, el build, el commit y la URL guardada', async () => {
     const dialog = await openUpdates();
     const categories = within(within(dialog).getByRole('list', { name: 'Categorías' })).getAllByRole('button');
-    expect(categories.map((c) => c.textContent)).toEqual(['General', 'Actualizaciones']);
+    expect(categories.map((c) => c.textContent)).toEqual(['General', 'Notificaciones', 'Actualizaciones']);
     expect(within(dialog).getByRole('heading', { name: 'Actualizaciones' })).toBeTruthy();
     expect(within(dialog).getByText('0.1.0, build 5, commit 0123456')).toBeTruthy();
     expect(repositoryField().value).toBe(REPOSITORY);
@@ -105,7 +107,7 @@ describe('R-11 URL del repositorio', () => {
     fireEvent.change(repositoryField(), { target: { value: ` ${REPOSITORY} ` } });
     fireEvent.click(button('Guardar'));
     await waitFor(() => expect(useUi.getState().settingsOpen).toBe(false));
-    expect(server.config).toEqual({ port: 47800, autoShutdownMinutes: null, updateRepository: REPOSITORY });
+    expect(server.config).toMatchObject({ port: 47800, autoShutdownMinutes: null, updateRepository: REPOSITORY });
   });
 
   it('R-11: «Guardar» rechaza una URL que no es de un repositorio de GitHub', async () => {

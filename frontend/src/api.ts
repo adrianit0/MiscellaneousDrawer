@@ -84,6 +84,22 @@ export interface AppConfig {
   autoShutdownMinutes: number | null;
   /** R-11: null, sin conexión a GitHub. */
   updateRepository: string | null;
+  /** P-24: sonido al emitirse una notificación. */
+  notificationSound: boolean;
+  /** P-24: notificación de escritorio al emitirse una notificación. */
+  desktopNotifications: boolean;
+}
+
+/** P-21, P-22: una notificación de una mini app, de GET /api/notifications y del canal de eventos (P-23). */
+export interface ShellNotification {
+  id: number;
+  appId: string;
+  kind: 'info' | 'success' | 'error';
+  title: string;
+  text: string | null;
+  /** Subruta de la mini app que se abre al pulsarla; null, como estuviera. */
+  path: string | null;
+  createdAt: string;
 }
 
 export type Settings = Record<string, unknown> & { config?: AppConfig };
@@ -181,6 +197,17 @@ export const api = {
 
   saveAppState(appId: string, doc: Record<string, unknown>, options: RequestOptions = {}): Promise<unknown> {
     return request('PUT', `/api/app-state/${encodeURIComponent(appId)}`, doc, options);
+  },
+
+  /** P-22: de la más reciente a la más antigua. */
+  async notifications(): Promise<ShellNotification[]> {
+    const body = await request<{ notifications: ShellNotification[] }>('GET', '/api/notifications');
+    return body.notifications;
+  },
+
+  /** P-22, N-13: «Limpiar todo». */
+  clearNotifications(): Promise<unknown> {
+    return request('DELETE', '/api/notifications');
   },
 
   /** R-10, R-14: no contacta con GitHub. */

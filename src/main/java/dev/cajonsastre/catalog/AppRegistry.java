@@ -7,6 +7,7 @@ import dev.cajonsastre.platform.AppContext;
 import dev.cajonsastre.platform.AppManifest;
 import dev.cajonsastre.platform.AppRoutes;
 import dev.cajonsastre.platform.MiniApp;
+import dev.cajonsastre.platform.Notifications;
 import dev.cajonsastre.platform.Store;
 import io.javalin.config.RoutesConfig;
 import org.slf4j.Logger;
@@ -25,6 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 /**
  * Las mini apps en ejecución (P-04 a P-10). Arranca cada una por separado: si una falla, queda en {@code failed} y
@@ -61,19 +63,31 @@ public final class AppRegistry implements ApiRoutes, AutoCloseable {
         this.entries = entries;
     }
 
-    /** P-05, P-07: arranca las mini apps en el orden del catálogo. Nunca falla por una mini app. */
-    public static AppRegistry start(AppCatalog catalog, AppPaths paths, Clock clock) {
+    /**
+     * P-05, P-07: arranca las mini apps en el orden del catálogo. Nunca falla por una mini app.
+     *
+     * @param notifications P-21: las notificaciones que recibe cada mini app en su contexto
+     */
+    public static AppRegistry start(AppCatalog catalog, AppPaths paths, Clock clock,
+                                    Function<AppManifest, Notifications> notifications) {
         Map<String, Entry> entries = new LinkedHashMap<>();
         for (MiniApp app : catalog.apps()) {
             Entry entry = app.manifest().planned()
                     ? new Entry(app, Status.PLANNED, null, null, List.of())
-                    : startOne(app, paths, clock);
+                    : startOne(app, paths, clock, notifications);
             entries.put(app.manifest().id(), entry);
         }
         return new AppRegistry(catalog, entries);
     }
 
-    private static Entry startOne(MiniApp app, AppPaths paths, Clock clock) {
+    /** Sin shell que recoja las notificaciones (P-21): se descartan. */
+    public static AppRegistry start(AppCatalog catalog, AppPaths paths, Clock clock) {
+        return start(catalog, paths, clock, manifest -> (title, text, kind, path) -> {
+        });
+    }
+
+    private static Entry startOne(MiniApp app, AppPaths paths, Clock clock,
+                                  Function<AppManifest, Notifications> notifications) {
         String id = app.manifest().id();
         Store store = null;
         try {
@@ -89,7 +103,8 @@ public final class AppRegistry implements ApiRoutes, AutoCloseable {
                 store = Store.open(paths.database(id), id, migrations, List.copyOf(app.mappers()), paths.backups());
             }
             AppRoutes routes = new AppRoutes(id);
-            app.start(new RunningContext(id, store, paths.dataDir(id), paths.configDir(id), clock), routes);
+            app.start(new RunningContext(id, store, paths.dataDir(id), paths.configDir(id), clock,
+                    notifications.apply(app.manifest())), routes);
             log.info("Mini app {} disponible", id);
             return new Entry(app, Status.AVAILABLE, null, store, routes.routes());
         } catch (Exception | LinkageError e) {
@@ -188,9 +203,9 @@ public final class AppRegistry implements ApiRoutes, AutoCloseable {
         }
     }
 
-    /** P-08, P-09 */
-    private record RunningContext(String appId, Store database, Path appDataDir, Path appConfigDir, Clock clock)
-            implements AppContext {
+    /** P-08, P-09, P-21 */
+    private record RunningContext(String appId, Store database, Path appDataDir, Path appConfigDir, Clock clock,
+                                  Notifications notifications) implements AppContext {
 
         @Override
         public Store store() {

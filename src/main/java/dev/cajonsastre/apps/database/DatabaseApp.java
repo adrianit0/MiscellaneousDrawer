@@ -58,7 +58,7 @@ public final class DatabaseApp implements MiniApp {
     @Override
     public void start(AppContext context, AppRoutes routes) {
         ConfigStore configs = new ConfigStore(context.configDir().resolve("config.json"));
-        JobRunner jobs = new JobRunner(configs, runner, sleeper, zone, context.clock());
+        JobRunner jobs = new JobRunner(configs, runner, sleeper, zone, context.clock(), context.notifications());
         this.jobs = jobs;
 
         // BD-01 a BD-04

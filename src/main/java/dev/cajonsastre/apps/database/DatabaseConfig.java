@@ -19,10 +19,10 @@ import java.util.regex.Pattern;
 record DatabaseConfig(String workDir, String s3Path, String s3Suffix, String localSuffix, String containerName,
                       String mysqlImage, String rootPassword, Integer hostPort, Integer containerPort, String timeZone,
                       String initSqlFile, String secondInitSqlFile, String databaseName, String pendingSqlDir,
-                      String versionsSqlDir, Boolean notifyOnFinish) {
+                      String versionsSqlDir) {
 
     static final DatabaseConfig EMPTY = new DatabaseConfig(null, null, null, null, null, null, null, null, null, null,
-            null, null, null, null, null, true);
+            null, null, null, null, null);
 
     /** BD-03: lo que necesita cada paso. */
     static final List<String> DOWNLOAD = List.of("workDir", "s3Path", "s3Suffix", "localSuffix");
@@ -49,7 +49,6 @@ record DatabaseConfig(String workDir, String s3Path, String s3Suffix, String loc
         LABELS.put("databaseName", "Base de datos");
         LABELS.put("pendingSqlDir", "Carpeta de scripts pendientes");
         LABELS.put("versionsSqlDir", "Carpeta de versiones");
-        LABELS.put("notifyOnFinish", "Aviso al terminar");
     }
 
     private static final String NAME_CHARS = "[^/\\\\\\p{Cntrl}]";
@@ -61,10 +60,6 @@ record DatabaseConfig(String workDir, String s3Path, String s3Suffix, String loc
     private static final Pattern TIME_ZONE = Pattern.compile("[A-Za-z0-9_+/-]{1,64}");
     private static final Pattern DATABASE = Pattern.compile("[A-Za-z0-9_$][A-Za-z0-9_$-]{0,63}");
     private static final Pattern PASSWORD = Pattern.compile("\\P{Cntrl}{1,200}");
-
-    DatabaseConfig {
-        notifyOnFinish = notifyOnFinish == null || notifyOnFinish;
-    }
 
     static String label(String key) {
         return LABELS.getOrDefault(key, key);
@@ -86,15 +81,11 @@ record DatabaseConfig(String workDir, String s3Path, String s3Suffix, String loc
             }
             password = p.asText().isEmpty() ? null : p.asText();
         }
-        JsonNode notify = body.get("notifyOnFinish");
-        if (notify != null && !notify.isNull() && !notify.isBoolean()) {
-            throw invalid("notifyOnFinish", "debe ser sí o no");
-        }
         DatabaseConfig config = new DatabaseConfig(text(body, "workDir"), text(body, "s3Path"), text(body, "s3Suffix"),
                 text(body, "localSuffix"), text(body, "containerName"), text(body, "mysqlImage"), password,
                 port(body, "hostPort"), port(body, "containerPort"), text(body, "timeZone"), text(body, "initSqlFile"),
                 text(body, "secondInitSqlFile"), text(body, "databaseName"), text(body, "pendingSqlDir"),
-                text(body, "versionsSqlDir"), notify == null || notify.isNull() || notify.asBoolean());
+                text(body, "versionsSqlDir"));
         config.validate();
         return config;
     }
@@ -184,7 +175,6 @@ record DatabaseConfig(String workDir, String s3Path, String s3Suffix, String loc
             case "databaseName" -> databaseName;
             case "pendingSqlDir" -> pendingSqlDir;
             case "versionsSqlDir" -> versionsSqlDir;
-            case "notifyOnFinish" -> notifyOnFinish;
             default -> throw new IllegalArgumentException("Campo desconocido: " + key);
         };
     }

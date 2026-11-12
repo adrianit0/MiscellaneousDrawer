@@ -53,7 +53,7 @@ No se trasladan la cabecera con el nombre y la versión del configurador ni el m
 ## Consecuencias
 
 - **Segundo destino autorizado.** `AppBoundariesTest` sigue impidiendo que una mini app use el actualizador del shell, pero ninguna prueba puede impedir que una mini app ejecute un comando. La garantía de que `database` solo contacta con S3, y solo para leer, es su especificación (BD-20) y las pruebas que comprueban los comandos que emite.
-- **Depende de lo instalado en el equipo:** `aws`, `docker` y, para los avisos, `notify-send` y `paplay`. Si falta alguno, el paso lo dice (BD-19).
+- **Depende de lo instalado en el equipo:** `aws`, `docker` y, para los avisos, `notify-send` y `paplay`. Si falta alguno, el paso lo dice (BD-19). Desde ADR-0013 el aviso de fin de trabajo es una notificación de la plataforma, y `notify-send` y `paplay` los lanza el shell.
 - **Depende del entorno con que arranca la aplicación.** Lanzada desde el escritorio no hereda las variables que el usuario defina solo en su terminal. Si sus credenciales de AWS dependen de ellas, habrá que añadir un campo de perfil; hoy queda fuera de alcance.
 - **Los nombres fijos de los scripts pasan al código público:** el prefijo `BBDD_`, las ramas `develop` y `hotfix`, y los dos ficheros de `dynamodb/`. No son datos reales (S-30), pero describen la convención del origen. Si el usuario lo prefiere, se pueden pasar a la configuración.
 - **Cerrar la ventana ya no interrumpe un trabajo.** El proceso se apagaba 15 s después de cerrar la última ventana (C-05). Con ADR-0012, la mini app se declara ocupada y el apagado espera a que termine. Un apagado pedido de forma expresa sí lo cancela (BD-18).

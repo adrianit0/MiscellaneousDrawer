@@ -27,6 +27,10 @@ Contexto de uso: un único usuario, una única máquina con Ubuntu 22.04 y sesio
 - La primera mini app con funcionalidad: descarga un volcado de S3, lo importa en un contenedor MySQL de Docker y ejecuta los scripts SQL pendientes, con una biblioteca de copias de los volcados (BD-01 a BD-65, ADR-0011).
 - Las mini apps pueden declararse ocupadas para aplazar el apagado y la actualización (P-20, ADR-0012).
 
+### Notificaciones (Sprint 4)
+
+- Las mini apps emiten notificaciones desde su servidor; el shell las guarda, las muestra en la campana de la barra superior y las anuncia con sonido y notificación de escritorio (P-21 a P-24, N-11 a N-13, ADR-0013).
+
 ### Fuera de la base
 
 - La funcionalidad de las demás mini apps: cada una tendrá su especificación y su sprint.
@@ -47,6 +51,7 @@ Contexto de uso: un único usuario, una única máquina con Ubuntu 22.04 y sesio
 │  lifecycle   instancia, ventana, presencia, apagado                     │
 │  settings    config.json y estado de interfaz del shell                 │
 │  update      búsqueda e instalación de versiones (única salida: GitHub) │
+│  notifications  notificaciones de las mini apps, sonido y escritorio    │
 │  catalog     AppCatalog (declaración), AppRegistry (ejecución),         │
 │              /api/catalog, /api/app-state                               │
 │  platform    MiniApp, AppManifest, AppContext, AppRoutes, Store, ApiError│
@@ -62,8 +67,9 @@ Contexto de uso: un único usuario, una única máquina con Ubuntu 22.04 y sesio
 | `lifecycle` | Línea de comandos, `instance.json`, ventana de Chrome, presencia y apagado |
 | `settings` | `config.json` (D-05) y tabla `setting` (D-04) |
 | `update` | Búsqueda, verificación e instalación de versiones publicadas en GitHub (R-01 a R-47, ADR-0010). Es la única salida de la máquina del shell y ninguna mini app la usa (P-18) |
+| `notifications` | Guarda las notificaciones que emiten las mini apps, las reparte a las ventanas y lanza `notify-send` y `paplay` (P-21 a P-24, ADR-0013) |
 | `catalog` | Lista de mini apps, su arranque aislado, su estado y sus rutas por mini app del shell |
-| `platform` | Contrato público para las mini apps y acceso a SQLite (`Store`) |
+| `platform` | Contrato público para las mini apps (`MiniApp`, `AppContext`, `Notifications`…) y acceso a SQLite (`Store`) |
 | `apps.<id>` | Una mini app; solo depende de `platform` (P-18) |
 | `apps.database` | «Base de datos»: ejecuta `aws` y `docker` como comandos externos. Es la única mini app con una salida de la máquina: S3, solo para leer (BD-20, ADR-0011) |
 | Interfaz `shell/` | Disposición, navegación, lanzador, paleta, ajustes, presencia |

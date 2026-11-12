@@ -12,6 +12,8 @@ import dev.cajonsastre.lifecycle.Desktop;
 import dev.cajonsastre.lifecycle.InstanceFile;
 import dev.cajonsastre.lifecycle.LifecycleApi;
 import dev.cajonsastre.lifecycle.Presence;
+import dev.cajonsastre.notifications.DesktopAnnouncer;
+import dev.cajonsastre.notifications.NotificationCenter;
 import dev.cajonsastre.platform.Store;
 import dev.cajonsastre.settings.AppSettings;
 import dev.cajonsastre.settings.SettingsApi;
@@ -96,7 +98,10 @@ public final class Main {
             return;
         }
         AppCatalog catalog = AppCatalog.builtIn();
-        AppRegistry registry = AppRegistry.start(catalog, DataPaths.appPaths(), clock);
+        // P-21: cada mini app recibe sus notificaciones ya con su identidad.
+        NotificationCenter notifications = new NotificationCenter(store, clock, catalog::contains,
+                new DesktopAnnouncer(settings::get));
+        AppRegistry registry = AppRegistry.start(catalog, DataPaths.appPaths(), clock, notifications::forApp);
 
         String token = sessionToken();
         AtomicBoolean stopped = new AtomicBoolean();
@@ -122,12 +127,17 @@ public final class Main {
             return minutes == null ? null : Duration.ofMinutes(minutes);
         }, registry::busy);
 
+        LifecycleApi lifecycle = new LifecycleApi(presence.value, exit);
+        // P-23: cada notificación nueva llega a las ventanas abiertas.
+        notifications.onNotification(n -> lifecycle.broadcast("notification", n));
+
         try {
             server.value = new HttpServer(port, token, List.of(
                     new SettingsApi(store, settings),
                     new CatalogApi(registry),
                     new AppStateApi(store, catalog, clock),
-                    new LifecycleApi(presence.value, exit),
+                    lifecycle,
+                    notifications,
                     // R-12: solo conecta cuando la interfaz llama a sus rutas.
                     new UpdateApi(Updater.installed(() -> settings.get().updateRepository(), port), exit, registry::busy),
                     registry)).start();

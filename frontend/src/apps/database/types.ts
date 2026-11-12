@@ -26,7 +26,6 @@ export type PortField = 'hostPort' | 'containerPort';
 /** BD-02: GET /config. La contraseña nunca viene. */
 export type ConfigView = Record<TextField, string | null> &
   Record<PortField, number | null> & {
-    notifyOnFinish: boolean;
     rootPasswordSet: boolean;
     /** BD-03: lo que le falta a cada paso. */
     missing: Record<StepKind | 'dumps', string[]>;
@@ -48,7 +47,6 @@ export const LABELS: Record<string, string> = {
   databaseName: 'Base de datos',
   pendingSqlDir: 'Carpeta de scripts pendientes',
   versionsSqlDir: 'Carpeta de versiones',
-  notifyOnFinish: 'Aviso al terminar',
 };
 
 export const BRANCH_LABELS: Record<JobBranch, string> = { hotfix: 'Hotfix', develop: 'Develop', both: 'Ambas' };

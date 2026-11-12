@@ -2,9 +2,10 @@ import type { CatalogApp } from '../api';
 import { closeActiveApp, goHome, openApp } from './actions';
 import { Icon } from './Icon';
 import { useNav } from './navStore';
+import { NotificationBell } from './NotificationBell';
 import { useUi } from './uiStore';
 
-/** N-07, U-08: logotipo y nombre, miga de pan y acciones. */
+/** N-07, U-08: logotipo y nombre, miga de pan y acciones, con la campana de las notificaciones (N-11). */
 export function TopBar({ active }: { active: CatalogApp | null }) {
   const subtitle = useNav((s) => (active ? (s.subtitles[active.id] ?? null) : null));
   const pinned = useNav((s) => (active ? s.pinned.includes(active.id) : false));
@@ -71,6 +72,7 @@ export function TopBar({ active }: { active: CatalogApp | null }) {
         >
           Ir a… <kbd>Ctrl+K</kbd>
         </button>
+        <NotificationBell />
         <button
           type="button"
           className="icon-button"

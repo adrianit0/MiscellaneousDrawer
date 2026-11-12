@@ -25,14 +25,12 @@ const CONFIG: ConfigView = {
   versionsSqlDir: '/datos/sql/versiones',
   hostPort: 3307,
   containerPort: 3306,
-  notifyOnFinish: true,
   rootPasswordSet: true,
   missing: NONE,
 };
 
 const EMPTY: ConfigView = {
   ...(Object.fromEntries(Object.keys(CONFIG).map((k) => [k, null])) as unknown as ConfigView),
-  notifyOnFinish: true,
   rootPasswordSet: false,
   missing: {
     download: ['workDir', 's3Path', 's3Suffix', 'localSuffix'],
@@ -558,14 +556,14 @@ describe('BD-65 «Configuración»', () => {
       'Descarga',
       'Docker y MySQL',
       'Scripts',
-      'Avisos',
     ]);
     expect(field('Carpeta de trabajo').value).toBe('/datos/trabajo');
     expect(field('Puerto en la máquina').value).toBe('3307');
     expect(field('Contraseña de root').value).toBe('');
     expect(field('Contraseña de root').type).toBe('password');
     expect(screen.getByText('Hay una contraseña guardada. Escribe otra para cambiarla.')).toBeTruthy();
-    expect(checkbox(/Aviso al terminar/).checked).toBe(true);
+    // BD-17, ADR-0013: el aviso al terminar ya no se configura aquí.
+    expect(screen.queryByText(/Aviso al terminar/)).toBeNull();
   });
 
   it('BD-02 BD-65: «Guardar» envía todos los campos, y la contraseña solo si se escribe', async () => {
@@ -573,7 +571,6 @@ describe('BD-65 «Configuración»', () => {
     fireEvent.change(field('Base de datos'), { target: { value: ' otra ' } });
     fireEvent.change(field('Carpeta de versiones'), { target: { value: '  ' } });
     fireEvent.change(field('Puerto del contenedor'), { target: { value: '3310' } });
-    fireEvent.click(checkbox(/Aviso al terminar/));
     await act(async () => {
       fireEvent.click(button('Guardar'));
     });
@@ -585,8 +582,8 @@ describe('BD-65 «Configuración»', () => {
       versionsSqlDir: null,
       hostPort: 3307,
       containerPort: 3310,
-      notifyOnFinish: false,
     });
+    expect('notifyOnFinish' in sent).toBe(false);
     expect(notices).toEqual(['Configuración guardada.']);
 
     fireEvent.change(field('Contraseña de root'), { target: { value: 'clave-secreta-de-prueba' } });

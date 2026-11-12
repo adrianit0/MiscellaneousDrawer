@@ -67,6 +67,45 @@ class LifecycleTest {
     }
 
     @Test
+    void p23_a_named_event_reaches_the_connected_windows_as_json() throws Exception {
+        LifecycleApi lifecycle = new LifecycleApi(presence, shutdowns::incrementAndGet);
+        try (TestApi events = TestApi.start(List.of(lifecycle))) {
+            HttpResponse<InputStream> r = HttpClient.newHttpClient().sendAsync(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + events.port() + "/api/events"))
+                            .header(LocalSecurity.TOKEN_HEADER, TestApi.TOKEN)
+                            .header("Accept", "text/event-stream").GET().build(),
+                    HttpResponse.BodyHandlers.ofInputStream()).get(5, TimeUnit.SECONDS);
+            waitFor(() -> presence.connections() == 1, 5000);
+            lifecycle.broadcast("notification", java.util.Map.of("id", 7, "title", "Copia terminada"));
+
+            // Tras el comentario de conexión llega el evento, con su nombre y sus datos en JSON.
+            StringBuilder received = new StringBuilder();
+            CompletableFuture<Void> reading = CompletableFuture.runAsync(() -> {
+                try (InputStream in = r.body()) {
+                    byte[] buffer = new byte[1024];
+                    int n;
+                    while (!received.toString().contains("\n\n") && (n = in.read(buffer)) > 0) {
+                        synchronized (received) {
+                            received.append(new String(buffer, 0, n, java.nio.charset.StandardCharsets.UTF_8));
+                        }
+                        if (received.toString().contains("Copia terminada")) {
+                            return;
+                        }
+                    }
+                } catch (java.io.IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            });
+            reading.get(5, TimeUnit.SECONDS);
+            assertThat(received.toString()).contains("event: notification\n");
+            com.fasterxml.jackson.databind.JsonNode data = new com.fasterxml.jackson.databind.ObjectMapper().readTree(
+                    received.substring(received.indexOf("data: ") + 6).lines().findFirst().orElseThrow());
+            assertThat(data.get("id").asInt()).isEqualTo(7);
+            assertThat(data.get("title").asText()).isEqualTo("Copia terminada");
+        }
+    }
+
+    @Test
     void c05_after_a_goodbye_without_windows_it_shuts_down() throws Exception {
         assertThat(api.post("/api/presence/bye", null).statusCode()).isEqualTo(200);
         waitFor(() -> shutdowns.get() == 1, 3000);

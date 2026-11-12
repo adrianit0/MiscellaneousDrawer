@@ -99,7 +99,7 @@ class SqlScriptsTest {
     @Test
     void bd50_without_a_versions_folder_there_are_no_versions() throws IOException {
         DatabaseConfig noVersions = new DatabaseConfig(config.workDir(), null, null, config.localSuffix(), config.containerName(),
-                null, config.rootPassword(), null, null, null, null, null, config.databaseName(), config.pendingSqlDir(), null, true);
+                null, config.rootPassword(), null, null, null, null, null, config.databaseName(), config.pendingSqlDir(), null);
         SqlScripts sql = new SqlScripts(noVersions);
         assertThat(sql.versions()).isEmpty();
         assertThatThrownBy(() -> sql.folder("1.10.0")).isInstanceOfSatisfying(ApiError.class,

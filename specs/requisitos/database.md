@@ -16,7 +16,7 @@ Términos:
 
 | ID | Requisito |
 |---|---|
-| BD-01 | La sección «Configuración» guarda los valores de la tabla siguiente en `<config>/apps/database/config.json`, con permisos 600 (S-20, P-09). Todos nacen vacíos, salvo «Aviso al terminar». Se pueden guardar a medias: lo que se valida al guardar es el formato de cada valor escrito, y un valor con formato incorrecto impide guardar e indica el campo. |
+| BD-01 | La sección «Configuración» guarda los valores de la tabla siguiente en `<config>/apps/database/config.json`, con permisos 600 (S-20, P-09). Todos nacen vacíos. Se pueden guardar a medias: lo que se valida al guardar es el formato de cada valor escrito, y un valor con formato incorrecto impide guardar e indica el campo. |
 | BD-02 | La contraseña nunca sale del servidor: `GET /config` devuelve `rootPasswordSet` en su lugar. Al guardar, si `rootPassword` no viene o es `null`, se conserva la guardada; si viene, la sustituye, y la cadena vacía la borra. |
 | BD-03 | Cada paso necesita sus campos (columna «Pasos»). `GET /config` devuelve, por paso, los que faltan. Un paso al que le faltan campos aparece desactivado en la interfaz con la lista de lo que falta, y el servidor rechaza un trabajo que lo incluya con 409 `not_configured`. |
 | BD-04 | Mientras hay un trabajo en marcha no se puede guardar la configuración: 409 `job_running`. |
@@ -38,7 +38,6 @@ Términos:
 | Base de datos | `databaseName` | `[A-Za-z0-9_$-]`, 1 a 64 caracteres, sin empezar por `-` | Ejecutar |
 | Carpeta de scripts pendientes | `pendingSqlDir` | Ruta absoluta | Ejecutar |
 | Carpeta de versiones | `versionsSqlDir` | Ruta absoluta; solo hace falta para ejecutar los scripts de una versión | Ejecutar |
-| Aviso al terminar | `notifyOnFinish` | Sí o no; por defecto, sí | — |
 
 ## Trabajos
 
@@ -51,7 +50,7 @@ Términos:
 | BD-14 | Cada trabajo tiene un registro con los comandos ejecutados y su salida, línea a línea. Se conservan las últimas 5000 líneas, de 2000 caracteres como máximo. `GET /job?after=N` devuelve solo las líneas posteriores a la N. Este registro solo vive en memoria: no va al registro del shell (S-21) ni a disco. |
 | BD-15 | «Cancelar» termina el comando en curso y sus procesos hijos, y el trabajo queda `cancelled`. Una descarga a medias se conserva para reanudarla (BD-24). Las esperas del paso de importación también se cancelan. |
 | BD-16 | La contraseña nunca aparece en una línea de comandos ni en ningún registro: se pasa a `docker` por variables de entorno (`MYSQL_ROOT_PASSWORD` y `MYSQL_PWD`). |
-| BD-17 | Al terminar un trabajo, si «Aviso al terminar» está activo, se lanza una notificación de escritorio con `notify-send` y el sonido de finalización con `paplay`. Si esos comandos no existen o fallan, no pasa nada. |
+| BD-17 | Al terminar un trabajo se emite una notificación de la plataforma (P-21, ADR-0013) que lleva a «Preparar»: «El trabajo ha terminado correctamente», de tipo `success`, o «El trabajo ha terminado con errores», de tipo `error`. Un trabajo cancelado no emite ninguna. El sonido y la notificación de escritorio son cosa del shell (P-24). |
 | BD-18 | Al apagarse la aplicación se cancela el trabajo en marcha (P-10). |
 | BD-19 | Los comandos externos (`aws`, `docker`) se ejecutan sin las variables `_JPACKAGE_LAUNCHER` y `LD_LIBRARY_PATH` que la aplicación hereda de su lanzador. Si un comando no existe, el paso falla y lo dice: «No se encontró el comando «aws»». |
 
@@ -110,7 +109,7 @@ Términos:
 | BD-62 | Con un trabajo en marcha o terminado, «Preparar» muestra cada paso con su estado, la barra de progreso de la descarga con bytes y porcentaje, el resultado de cada script y el registro, que se desplaza solo hasta el final salvo que el usuario haya subido. Con un trabajo en marcha se muestra «Cancelar» en lugar de «Iniciar». |
 | BD-63 | El estado del trabajo se consulta cada segundo mientras hay uno en marcha y la mini app está visible. Oculta, no consulta (N-05); al volver a verse, consulta de inmediato. Al terminar un trabajo que estaba viendo, avisa con el resultado (U-05). |
 | BD-64 | «Copias» muestra, por rama, el volcado actual, la copia anterior y las conservadas, con nombre, fecha (dd/MM/yyyy HH:mm) y tamaño (U-02). Acciones: «Conservar», que pide el nombre; «Importar», que lleva a «Preparar» con esa rama y ese volcado elegidos; y «Eliminar», que pide confirmación (U-05). |
-| BD-65 | «Configuración» es un formulario con los campos de BD-01 agrupados en «Descarga», «Docker y MySQL», «Scripts» y «Avisos», con «Guardar». El campo de la contraseña está siempre vacío e indica si hay una guardada; solo se envía si se escribe. Un error de formato se muestra junto a su campo. |
+| BD-65 | «Configuración» es un formulario con los campos de BD-01 agrupados en «Descarga», «Docker y MySQL» y «Scripts», con «Guardar». El campo de la contraseña está siempre vacío e indica si hay una guardada; solo se envía si se escribe. Un error de formato se muestra junto a su campo. |
 
 ## API
 

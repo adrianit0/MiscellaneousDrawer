@@ -23,6 +23,7 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import static dev.cajonsastre.apps.database.Fixtures.BUCKET;
@@ -45,6 +46,8 @@ class DatabaseAppTest {
     Path dir;
     final FakeCommands commands = new FakeCommands();
     final Fixtures.NoSleep sleeper = new Fixtures.NoSleep();
+    /** BD-17: las notificaciones que emite la mini app, como «tipo|título|texto|subruta». */
+    final List<String> notifications = new CopyOnWriteArrayList<>();
     DatabaseApp app;
     AppRegistry registry;
     TestApi api;
@@ -56,7 +59,8 @@ class DatabaseAppTest {
     void start() throws IOException {
         app = new DatabaseApp(commands, sleeper, Fixtures.ZONE);
         AppPaths paths = new AppPaths(dir.resolve("data"), dir.resolve("config"), dir.resolve("data/backups"));
-        registry = AppRegistry.start(new AppCatalog(List.of(app)), paths, Clock.systemUTC());
+        registry = AppRegistry.start(new AppCatalog(List.of(app)), paths, Clock.systemUTC(),
+                manifest -> (title, text, kind, path) -> notifications.add(kind.id() + "|" + title + "|" + text + "|" + path));
         api = TestApi.start(List.of(new CatalogApi(registry), registry));
         config = Fixtures.config(dir);
         work = Path.of(config.workDir());
@@ -145,6 +149,14 @@ class DatabaseAppTest {
         commands.blocking = c -> c.args().contains(argument);
     }
 
+    /** La notificación se emite justo después de que el trabajo deje de estar en marcha. */
+    private void awaitNotifications(int count) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (notifications.size() < count && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+    }
+
     private void awaitHeld() throws InterruptedException {
         assertThat(commands.blocked.await(10, TimeUnit.SECONDS)).as("el trabajo llegó al comando").isTrue();
     }
@@ -167,7 +179,6 @@ class DatabaseAppTest {
         JsonNode empty = TestApi.json(api.get(BASE + "/config"));
         assertThat(empty.get("workDir").isNull()).isTrue();
         assertThat(empty.get("rootPasswordSet").asBoolean()).isFalse();
-        assertThat(empty.get("notifyOnFinish").asBoolean()).isTrue();
 
         HttpResponse<String> saved = api.put(BASE + "/config", body(config).toString());
         assertThat(saved.statusCode()).isEqualTo(200);
@@ -246,7 +257,7 @@ class DatabaseAppTest {
         assertThat(Files.readString(current)).isEqualTo("volcado de hotfix del martes");
         List<String> programs = commands.commands.stream().map(c -> c.program() + " " + c.args().get(1)).distinct().toList();
         assertThat(programs).containsExactly("aws s3api", "aws s3", "docker stop", "docker rm", "docker volume", "docker run",
-                "docker start", "docker exec", "notify-send Base de datos", "paplay " + JobRunner.SOUND);
+                "docker start", "docker exec");
         assertThat(commands.commands).anySatisfy(c -> assertThat(c.args()).contains(current.toAbsolutePath() + ":/dump.tar.gz:ro"));
         assertThat(commands.executedSql).containsExactly("-: CREATE USER demo;", "-: RENAME demo;", "demo: UPDATE a;", "demo: UPDATE b;");
         assertThat(sleeper.sleeps).hasSize(2);
@@ -353,8 +364,9 @@ class DatabaseAppTest {
         assertThat(lines(job)).last().isEqualTo("Trabajo cancelado");
         assertThat(Files.readString(part)).as("la descarga a medias se conserva").isEqualTo("x".repeat(10));
         assertThat(Files.readString(current)).isEqualTo("volcado del lunes");
-        // Ni Docker ni avisos.
+        // Ni Docker ni notificación (BD-17).
         assertThat(commands.commands).allSatisfy(c -> assertThat(c.program()).isEqualTo("aws"));
+        assertThat(notifications).isEmpty();
         assertError(api.post(BASE + "/job/cancel", null), 409, "no_job");
         assertThat(app.busy()).isEmpty();
     }
@@ -498,30 +510,18 @@ class DatabaseAppTest {
     }
 
     @Test
-    void bd17_announces_the_end_of_the_job_on_the_desktop() throws Exception {
+    void bd17_p21_the_end_of_a_job_is_a_platform_notification_that_leads_to_prepare() throws Exception {
         configure();
         run("{\"branch\": \"hotfix\", \"scripts\": {}}");
-        int count = commands.commands.size();
-        assertThat(commands.commands.subList(count - 2, count)).extracting(Command::args).containsExactly(
-                List.of("notify-send", "Base de datos", "El trabajo ha terminado correctamente"),
-                List.of("paplay", "/usr/share/sounds/freedesktop/stereo/complete.oga"));
+        awaitNotifications(1);
+        assertThat(notifications).containsExactly("success|El trabajo ha terminado correctamente|null|/");
 
         Files.writeString(pending.resolve("TAREA-1.sql"), "FALLA;");
         run("{\"branch\": \"hotfix\", \"scripts\": {}}");
-        assertThat(commands.commands).extracting(Command::args)
-                .contains(List.of("notify-send", "Base de datos", "El trabajo ha terminado con errores"));
-    }
-
-    @Test
-    void bd17_without_the_notice_or_without_its_commands_nothing_happens() throws Exception {
-        api.put(BASE + "/config", body(config).put("notifyOnFinish", false).toString());
-        assertThat(run("{\"branch\": \"hotfix\", \"scripts\": {}}").get("state").asText()).isEqualTo("succeeded");
+        awaitNotifications(2);
+        assertThat(notifications.get(1)).isEqualTo("error|El trabajo ha terminado con errores|null|/");
+        // P-24: el sonido y la notificación de escritorio son cosa del shell.
         assertThat(commands.commands).noneMatch(c -> c.program().equals("notify-send") || c.program().equals("paplay"));
-
-        api.put(BASE + "/config", body(config).toString());
-        commands.missing.add("notify-send");
-        commands.missing.add("paplay");
-        assertThat(run("{\"branch\": \"hotfix\", \"scripts\": {}}").get("state").asText()).isEqualTo("succeeded");
     }
 
     @Test

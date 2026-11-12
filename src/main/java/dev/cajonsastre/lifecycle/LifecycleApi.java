@@ -1,5 +1,7 @@
 package dev.cajonsastre.lifecycle;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.cajonsastre.http.ApiRoutes;
 import io.javalin.config.RoutesConfig;
 import io.javalin.http.sse.SseClient;
@@ -11,12 +13,13 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * /api/events (presencia, C-04), /api/presence/bye (C-05) y /api/shutdown (C-06). La interfaz abre /api/events con
- * fetch para poder enviar el token (S-12).
+ * fetch para poder enviar el token (S-12). El canal lleva además los eventos del shell hacia las ventanas (P-23).
  */
 public final class LifecycleApi implements ApiRoutes {
 
     /** C-04: una conexión cerrada se descubre al escribir; con 5 s se detecta antes de que venza la despedida. */
     static final long HEARTBEAT_SECONDS = 5;
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final Presence presence;
     private final Runnable shutdown;
@@ -32,6 +35,23 @@ public final class LifecycleApi implements ApiRoutes {
                 c.close();
             }
         }), HEARTBEAT_SECONDS, HEARTBEAT_SECONDS, TimeUnit.SECONDS);
+    }
+
+    /** P-23: envía un evento con nombre a todas las ventanas conectadas; data va como JSON. */
+    public void broadcast(String event, Object data) {
+        String json;
+        try {
+            json = JSON.writeValueAsString(data);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("El evento " + event + " no se puede escribir como JSON", e);
+        }
+        clients.forEach(c -> {
+            try {
+                c.sendEvent(event, json);
+            } catch (RuntimeException e) {
+                c.close();
+            }
+        });
     }
 
     @Override

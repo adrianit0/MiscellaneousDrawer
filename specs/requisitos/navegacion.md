@@ -4,7 +4,7 @@ La ventana tiene tres zonas fijas: barra superior, barra lateral de iconos y esc
 
 ```text
 ┌────────────────────────────────────────────────────────────────────┐
-│ [▤] Cajón de sastre › Tareas › Lista            ☆  ×   Ir a… ⌃K  ⚙ │
+│ [▤] Cajón de sastre › Tareas › Lista         ☆  ×   Ir a… ⌃K  🔔 ⚙ │
 ├────┬───────────────────────────────────────────────────────────────┤
 │ ⌂  │                                                               │
 │────│                                                               │
@@ -36,9 +36,12 @@ La ventana tiene tres zonas fijas: barra superior, barra lateral de iconos y esc
 
 | ID | Requisito |
 |---|---|
-| N-07 | La barra superior mide 48 px. A la izquierda, el logotipo y «Cajón de sastre», que llevan a Inicio, y la miga de pan: el nombre de la mini app activa y, si la mini app lo indica (P-12), su sección. A la derecha, con una mini app activa, «Fijar» o «Desfijar» (☆/★) y «Cerrar» (×); siempre, «Ir a…» con su atajo y «Ajustes» (⚙). |
+| N-07 | La barra superior mide 48 px. A la izquierda, el logotipo y «Cajón de sastre», que llevan a Inicio, y la miga de pan: el nombre de la mini app activa y, si la mini app lo indica (P-12), su sección. A la derecha, con una mini app activa, «Fijar» o «Desfijar» (☆/★) y «Cerrar» (×); siempre, «Ir a…» con su atajo, «Notificaciones» (campana, N-11) y «Ajustes» (⚙). |
 | N-08 | El título de la ventana es «<mini app> · Cajón de sastre» con una mini app activa y «Cajón de sastre» en Inicio. |
 | N-09 | «Ir a…» (Ctrl+K) abre una paleta con Inicio, Ajustes y todas las mini apps. Filtra mientras se escribe por nombre, descripción y palabras clave, sin distinguir mayúsculas ni acentos; ↑ y ↓ eligen, Intro abre y Esc cierra. |
+| N-11 | «Notificaciones» despliega bajo la campana las notificaciones guardadas (P-22), de la más reciente a la más antigua: cada una con el icono, el color y el nombre de su mini app, su título, su texto y su fecha (U-02); las de tipo `error` se distinguen. Sin ninguna: «No hay notificaciones». Esc, un clic fuera o la propia campana lo cierran. Una notificación nueva (P-23) aparece sin recargar. |
+| N-12 | La campana muestra cuántas notificaciones hay sin leer, «9+» con más de nueve, y lo dice en su nombre accesible. Están sin leer las que llegaron después de la última vez que se abrió el desplegable; ese punto se guarda (D-04). |
+| N-13 | Pulsar una notificación abre su mini app, en la subruta de la notificación si la tiene (P-21), y cierra el desplegable. «Limpiar todo» borra todas las notificaciones (P-22) y no aparece si no hay ninguna. |
 
 ## Atajos
 

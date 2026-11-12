@@ -62,7 +62,8 @@ public final class AppRoutes {
         return this;
     }
 
-    static boolean valid(String path) {
+    /** P-06: el formato de una ruta relativa a la mini app. También es el de la subruta de una notificación (P-21). */
+    public static boolean valid(String path) {
         return path != null && path.startsWith("/") && !path.contains("..") && !path.contains("\\")
                 && !path.contains("?") && !path.contains("#") && !path.contains("//")
                 && path.chars().noneMatch(c -> Character.isWhitespace(c) || Character.isISOControl(c));

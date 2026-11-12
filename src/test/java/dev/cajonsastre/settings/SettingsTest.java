@@ -120,6 +120,26 @@ class SettingsTest {
     }
 
     @Test
+    void p24_d05_sound_and_desktop_notifications_are_on_by_default_and_saved_with_the_rest() throws IOException {
+        JsonNode defaults = TestApi.json(api.get("/api/settings")).get("config");
+        assertThat(defaults.get("notificationSound").asBoolean()).isTrue();
+        assertThat(defaults.get("desktopNotifications").asBoolean()).isTrue();
+
+        HttpResponse<String> r = api.put("/api/settings",
+                "{\"config\":{\"port\":47800,\"notificationSound\":false,\"desktopNotifications\":false}}");
+        assertThat(r.statusCode()).isEqualTo(200);
+        assertThat(Files.readString(configFile)).contains("\"notificationSound\" : false")
+                .contains("\"desktopNotifications\" : false");
+        AppConfig saved = new AppSettings(configFile).get();
+        assertThat(saved.notificationSound()).isFalse();
+        assertThat(saved.desktopNotifications()).isFalse();
+
+        // Un config.json anterior no los trae: valen los de por defecto.
+        Files.writeString(configFile, "{\"port\": 47800}");
+        assertThat(new AppSettings(configFile).get()).isEqualTo(AppConfig.DEFAULT);
+    }
+
+    @Test
     void d05_validate_gives_messages_apt_to_be_shown() {
         assertThatThrownBy(() -> new AppConfig(80, null).validate()).isInstanceOf(ApiError.class)
                 .hasMessage("El puerto debe estar entre 1024 y 65535");

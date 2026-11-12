@@ -43,9 +43,10 @@ class DatabaseConfigTest {
     }
 
     @Test
-    void bd01_everything_starts_empty_except_the_notice() {
+    void bd01_everything_starts_empty() {
         DatabaseConfig empty = DatabaseConfig.EMPTY;
-        assertThat(empty.notifyOnFinish()).isTrue();
+        // BD-17, ADR-0013: el aviso al terminar ya no es un campo de la mini app.
+        assertThat(JSON.valueToTree(empty.view()).has("notifyOnFinish")).isFalse();
         assertThat(empty.missing(List.of("workDir", "s3Path", "rootPassword", "hostPort"))).hasSize(4);
         assertThat(DatabaseConfig.from(JSON.createObjectNode(), empty)).isEqualTo(empty);
     }
@@ -94,7 +95,6 @@ class DatabaseConfigTest {
         assertInvalid(() -> DatabaseConfig.from(body(full).put("hostPort", "3306"), full), "hostPort");
         assertInvalid(() -> DatabaseConfig.from(body(full).put("hostPort", 33.5), full), "hostPort");
         assertInvalid(() -> DatabaseConfig.from(body(full).put("workDir", 5), full), "workDir");
-        assertInvalid(() -> DatabaseConfig.from(body(full).put("notifyOnFinish", "sí"), full), "notifyOnFinish");
         assertInvalid(() -> DatabaseConfig.from(body(full).put("rootPassword", "con\nsalto"), full), "rootPassword");
         assertThatThrownBy(() -> DatabaseConfig.from(JSON.createArrayNode(), full)).isInstanceOf(ApiError.class)
                 .hasMessageContaining("objeto JSON");
@@ -119,7 +119,6 @@ class DatabaseConfigTest {
         assertThat(view.get("rootPasswordSet").asBoolean()).isTrue();
         assertThat(view.get("workDir").asText()).isEqualTo(config.workDir());
         assertThat(view.get("hostPort").asInt()).isEqualTo(3307);
-        assertThat(view.get("notifyOnFinish").asBoolean()).isTrue();
         assertThat(JSON.valueToTree(DatabaseConfig.EMPTY.view()).get("rootPasswordSet").asBoolean()).isFalse();
     }
 

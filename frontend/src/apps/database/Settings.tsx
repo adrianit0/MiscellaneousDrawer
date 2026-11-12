@@ -54,13 +54,12 @@ interface Props {
 export function Settings({ config, onSaved }: Props) {
   const { api, notify } = useMiniApp();
   const [values, setValues] = useState<Values>(() => initial(config));
-  const [notifyOnFinish, setNotifyOnFinish] = useState(config.notifyOnFinish);
   const [clearPassword, setClearPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<{ field: string | null; text: string } | null>(null);
 
   const save = async () => {
-    const body: Record<string, unknown> = { notifyOnFinish };
+    const body: Record<string, unknown> = {};
     for (const key of TEXT_FIELDS) body[key] = values[key].trim() === '' ? null : values[key].trim();
     body.hostPort = port(values.hostPort);
     body.containerPort = port(values.containerPort);
@@ -141,13 +140,6 @@ export function Settings({ config, onSaved }: Props) {
           {g.fields.map(field)}
         </fieldset>
       ))}
-      <fieldset>
-        <legend>Avisos</legend>
-        <label className={styles.inline}>
-          <input type="checkbox" checked={notifyOnFinish} onChange={(e) => setNotifyOnFinish(e.target.checked)} />
-          {LABELS.notifyOnFinish}: notificación de escritorio y sonido
-        </label>
-      </fieldset>
       <div className={styles.actions}>
         <button type="submit" className={styles.primary} disabled={saving}>
           Guardar

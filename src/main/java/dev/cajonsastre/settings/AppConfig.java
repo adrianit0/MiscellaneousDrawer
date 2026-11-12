@@ -7,12 +7,15 @@ import dev.cajonsastre.update.UpdateUrls;
 /**
  * Ajustes de «Ajustes» (U-06), guardados en config.json (D-05).
  *
- * @param port                C-01, C-08: puerto local; se aplica al siguiente arranque. Si falta, 47800
- * @param autoShutdownMinutes C-05: apagado tras N minutos sin ventanas y sin despedida; null desactivado
- * @param updateRepository    R-11: URL del repositorio de actualizaciones; null, sin conexión a GitHub
+ * @param port                 C-01, C-08: puerto local; se aplica al siguiente arranque. Si falta, 47800
+ * @param autoShutdownMinutes  C-05: apagado tras N minutos sin ventanas y sin despedida; null desactivado
+ * @param updateRepository     R-11: URL del repositorio de actualizaciones; null, sin conexión a GitHub
+ * @param notificationSound    P-24: sonido al emitirse una notificación. Si falta, sí
+ * @param desktopNotifications P-24: notificación de escritorio al emitirse una notificación. Si falta, sí
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record AppConfig(Integer port, Integer autoShutdownMinutes, String updateRepository) {
+public record AppConfig(Integer port, Integer autoShutdownMinutes, String updateRepository, Boolean notificationSound,
+                        Boolean desktopNotifications) {
 
     /** C-08, ADR-0002: LiteDD usa 47600. */
     public static final int DEFAULT_PORT = 47800;
@@ -25,6 +28,13 @@ public record AppConfig(Integer port, Integer autoShutdownMinutes, String update
         port = port == null ? DEFAULT_PORT : port;
         // R-11: un config.json anterior no trae la URL, y una vacía es lo mismo que ninguna.
         updateRepository = updateRepository == null || updateRepository.isBlank() ? null : updateRepository.strip();
+        // P-24: un config.json anterior no los trae.
+        notificationSound = notificationSound == null || notificationSound;
+        desktopNotifications = desktopNotifications == null || desktopNotifications;
+    }
+
+    public AppConfig(Integer port, Integer autoShutdownMinutes, String updateRepository) {
+        this(port, autoShutdownMinutes, updateRepository, null, null);
     }
 
     public AppConfig(Integer port, Integer autoShutdownMinutes) {

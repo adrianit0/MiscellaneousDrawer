@@ -78,6 +78,7 @@ public interface AppContext {
     Path dataDir();       // <datos>/apps/<id>/
     Path configDir();     // <config>/apps/<id>/
     Clock clock();
+    Notifications notifications();   // P-21: notificaciones del shell
 }
 ```
 
@@ -102,6 +103,33 @@ El servidor HTTP arranca después, con las rutas de las mini apps disponibles y 
 ### Trabajos largos
 
 Una mini app con un trabajo que no debe interrumpirse (una descarga, una importación) lo dice con `busy()` mientras dura (P-20, ADR-0012). El shell lo consulta en dos momentos: antes de apagarse porque no quedan ventanas, y antes de actualizar. En el primero aplaza el apagado; en el segundo rechaza la actualización con el motivo. Un apagado pedido de forma expresa (`--stop`) no espera: la mini app debe cancelar su trabajo en `stop()`.
+
+### Notificaciones
+
+Cuando ocurre algo que el usuario debe saber aunque no esté mirando (ha terminado un trabajo, ha fallado una tarea), la mini app lo dice con una línea (P-21, ADR-0013):
+
+```java
+// En start(): guardar context.notifications() y usarlo desde cualquier hilo.
+Notifications notifications = context.notifications();
+
+notifications.send("El trabajo ha terminado correctamente", NotificationKind.SUCCESS);
+notifications.send("La exportación ha fallado", "Falta espacio en disco", NotificationKind.ERROR, "/exports/42");
+```
+
+El shell hace el resto, y la mini app no tiene que saber nada de ello:
+
+- La guarda con el identificador de la mini app y la fecha, y conserva las 50 últimas (P-22).
+- La muestra en la campana de la barra superior con el icono, el color y el nombre del manifiesto. Al pulsarla abre la mini app en la subruta indicada, o como estuviera si no se indica (N-11 a N-13).
+- La envía a las ventanas abiertas, lanza la notificación de escritorio y reproduce el sonido, según lo que el usuario tenga en «Ajustes» (P-23, P-24).
+
+Reglas de uso:
+
+- Título de 1 a 80 caracteres y texto de hasta 300. Pasarse es un error de programación y lanza `IllegalArgumentException`.
+- `send` no bloquea ni falla por culpa del shell: se puede llamar al final de un trabajo sin protegerlo.
+- Una notificación es para lo que ocurre sin el usuario delante. La respuesta inmediata a una acción suya («Guardado») es un aviso de la interfaz: `notify` de `useMiniApp()` (U-05).
+- Nada de secretos ni de datos que no deban verse en una notificación de escritorio.
+
+En las pruebas de una mini app, las notificaciones emitidas se recogen pasando un `Notifications` propio a `AppRegistry.start` (véase `DatabaseAppTest`).
 
 ### Datos
 
@@ -148,7 +176,7 @@ export function TasksApp() {
 | `path` | Su subruta: `''` o `'/lista/42'` |
 | `navigate(path, { replace })` | Cambia su subruta; entra en el historial del navegador (N-02) |
 | `api` | Cliente acotado a `/api/apps/<id>` con `get`, `post`, `put`, `patch` y `delete` (P-13) |
-| `notify(texto, tipo)` | Aviso no bloqueante del shell (U-05) |
+| `notify(texto, tipo)` | Aviso no bloqueante del shell (U-05). No es una notificación: esas se emiten desde el servidor (P-21) |
 | `setSubtitle(texto)` | Sección actual en la miga de pan (N-07) |
 
 ### Ciclo de vida en la interfaz
@@ -196,7 +224,8 @@ Las reglas de aislamiento no dependen de la buena voluntad: unas pruebas las com
 
 Se añadirán cuando una mini app real los necesite (constitución, principio 8), cada uno con su ADR:
 
-- Eventos del servidor hacia la interfaz de una mini app por el canal de presencia.
+- Eventos del servidor hacia la interfaz de una mini app por el canal de presencia. Hoy solo lleva las notificaciones del shell (P-23).
+- Emitir notificaciones desde la interfaz, para una mini app sin servidor (ADR-0013).
 - Una categoría propia de cada mini app en «Ajustes».
 - Comunicación entre mini apps (abrir un elemento de otra, compartir datos).
 - Copias diarias, exportación e importación de los datos de las mini apps.

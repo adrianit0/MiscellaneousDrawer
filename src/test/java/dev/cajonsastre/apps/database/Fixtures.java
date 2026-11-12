@@ -34,7 +34,7 @@ final class Fixtures {
         Files.writeString(second, "RENAME demo;");
         return new DatabaseConfig(work.toString(), "s3://" + BUCKET + "/volcados", "_remoto.tar.gz", "_local.tar.gz",
                 "mysql-de-prueba", "mysql:8.4", PASSWORD, 3307, 3306, "Europe/Madrid", init.toString(), second.toString(),
-                "demo", pending.toString(), versions.toString(), true);
+                "demo", pending.toString(), versions.toString());
     }
 
     static String s3Key(Branch branch) {

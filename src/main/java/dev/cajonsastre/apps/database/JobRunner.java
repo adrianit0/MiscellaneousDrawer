@@ -3,6 +3,8 @@ package dev.cajonsastre.apps.database;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import dev.cajonsastre.platform.ApiError;
+import dev.cajonsastre.platform.NotificationKind;
+import dev.cajonsastre.platform.Notifications;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,8 +26,8 @@ final class JobRunner {
 
     private static final Logger log = LoggerFactory.getLogger(JobRunner.class);
     /** BD-17 */
-    static final String SOUND = "/usr/share/sounds/freedesktop/stereo/complete.oga";
-    static final String NOTIFICATION_TITLE = "Base de datos";
+    static final String SUCCEEDED = "El trabajo ha terminado correctamente";
+    static final String FAILED = "El trabajo ha terminado con errores";
 
     /** Cuerpo de POST /job. Un paso null no se ejecuta. */
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -127,16 +129,19 @@ final class JobRunner {
     private final Sleeper sleeper;
     private final ZoneId zone;
     private final Clock clock;
+    private final Notifications notifications;
     private Job current;
     private Thread thread;
     private long ids;
 
-    JobRunner(ConfigStore configs, CommandRunner runner, Sleeper sleeper, ZoneId zone, Clock clock) {
+    JobRunner(ConfigStore configs, CommandRunner runner, Sleeper sleeper, ZoneId zone, Clock clock,
+              Notifications notifications) {
         this.configs = configs;
         this.runner = runner;
         this.sleeper = sleeper;
         this.zone = zone;
         this.clock = clock;
+        this.notifications = notifications;
     }
 
     synchronized boolean running() {
@@ -303,14 +308,15 @@ final class JobRunner {
                 job.log.add("Trabajo cancelado");
             }
         }
-        // Limpia la interrupción antes de avisar.
+        // Limpia la interrupción antes de notificar.
         boolean interrupted = Thread.interrupted();
         String state = cancelled ? "cancelled" : failed ? "failed" : "succeeded";
         job.finishedAt = clock.instant();
         job.state = state;
         log.info("Trabajo {} de la mini app database terminado: {}", job.id, state);
-        if (!cancelled && !interrupted && plan.config().notifyOnFinish()) {
-            notifyDesktop(failed ? "El trabajo ha terminado con errores" : "El trabajo ha terminado correctamente");
+        // BD-17: la notificación lleva a «Preparar»; un trabajo cancelado no emite ninguna.
+        if (!cancelled && !interrupted) {
+            notifications.send(failed ? FAILED : SUCCEEDED, null, failed ? NotificationKind.ERROR : NotificationKind.SUCCESS, "/");
         }
     }
 
@@ -349,27 +355,5 @@ final class JobRunner {
             throw new StepFailed(failed == 1 ? "Falló 1 script de " + files.size() : "Fallaron " + failed + " scripts de " + files.size());
         }
         step.message(files.size() == 1 ? "1 script ejecutado" : files.size() + " scripts ejecutados");
-    }
-
-    /** BD-17: si los comandos no existen o fallan, no pasa nada. */
-    private void notifyDesktop(String text) {
-        CommandRunner.Output silent = new CommandRunner.Output() {
-            @Override
-            public void out(String line) {
-            }
-
-            @Override
-            public void err(String line) {
-            }
-        };
-        for (Command command : List.of(Command.of("notify-send", NOTIFICATION_TITLE, text), Command.of("paplay", SOUND))) {
-            try {
-                runner.run(command, silent);
-            } catch (IOException | RuntimeException e) {
-                // Sin aviso.
-            } catch (InterruptedException e) {
-                return;
-            }
-        }
     }
 }

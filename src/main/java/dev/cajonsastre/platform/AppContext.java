@@ -3,7 +3,7 @@ package dev.cajonsastre.platform;
 import java.nio.file.Path;
 import java.time.Clock;
 
-/** Lo que la plataforma da a una mini app al arrancar (P-05, P-08, P-09). */
+/** Lo que la plataforma da a una mini app al arrancar (P-05, P-08, P-09, P-21). */
 public interface AppContext {
 
     String appId();
@@ -18,4 +18,7 @@ public interface AppContext {
     Path configDir();
 
     Clock clock();
+
+    /** P-21: para emitir notificaciones del shell en nombre de la mini app. */
+    Notifications notifications();
 }

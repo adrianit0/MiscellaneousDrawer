@@ -6,12 +6,19 @@ import { UpdateSettings } from './UpdateSettings';
 /** U-06: categorías, en este orden. */
 const CATEGORIES = [
   { id: 'general', label: 'General' },
+  { id: 'notifications', label: 'Notificaciones' },
   { id: 'updates', label: 'Actualizaciones' },
 ] as const;
 
 type Category = (typeof CATEGORIES)[number]['id'];
 
-const DEFAULT_CONFIG: AppConfig = { port: 47800, autoShutdownMinutes: null, updateRepository: null };
+const DEFAULT_CONFIG: AppConfig = {
+  port: 47800,
+  autoShutdownMinutes: null,
+  updateRepository: null,
+  notificationSound: true,
+  desktopNotifications: true,
+};
 
 /** U-06: «Ajustes». «Guardar» guarda los ajustes de todas las categorías y cierra. */
 export function SettingsDialog() {
@@ -20,6 +27,8 @@ export function SettingsDialog() {
   const [port, setPort] = useState('');
   const [autoShutdown, setAutoShutdown] = useState('');
   const [repository, setRepository] = useState('');
+  const [sound, setSound] = useState(true);
+  const [desktop, setDesktop] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const firstField = useRef<HTMLInputElement>(null);
@@ -34,6 +43,8 @@ export function SettingsDialog() {
         setPort(String(c.port));
         setAutoShutdown(c.autoShutdownMinutes === null ? '' : String(c.autoShutdownMinutes));
         setRepository(c.updateRepository ?? '');
+        setSound(c.notificationSound);
+        setDesktop(c.desktopNotifications);
       })
       .catch((e: Error) => setError(e.message));
   }, []);
@@ -49,6 +60,8 @@ export function SettingsDialog() {
       autoShutdownMinutes: autoShutdown.trim() === '' ? null : Number(autoShutdown),
       // R-11: vacía es lo mismo que ninguna.
       updateRepository: repository.trim() === '' ? null : repository.trim(),
+      notificationSound: sound,
+      desktopNotifications: desktop,
     };
     setSaving(true);
     setError(null);
@@ -134,6 +147,21 @@ export function SettingsDialog() {
                   />
                   <small className="muted">Vacío: sigue en marcha aunque la ventana se pierda sin cerrarse.</small>
                 </label>
+              </>
+            )}
+            {config && category === 'notifications' && (
+              // U-06, P-24
+              <>
+                <p className="muted">Qué ocurre, además de aparecer en la campana, cuando una mini app emite una notificación.</p>
+                <label className="field-check">
+                  <input type="checkbox" checked={sound} onChange={(e) => setSound(e.target.checked)} />
+                  <span>Sonido</span>
+                </label>
+                <label className="field-check">
+                  <input type="checkbox" checked={desktop} onChange={(e) => setDesktop(e.target.checked)} />
+                  <span>Notificación de escritorio</span>
+                </label>
+                <small className="muted">Necesitan «paplay» y «notify-send» instalados; si faltan, no pasa nada.</small>
               </>
             )}
             {config && category === 'updates' && (
