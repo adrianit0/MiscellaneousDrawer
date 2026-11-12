@@ -4,7 +4,6 @@ Instrucciones operativas para trabajar en CajonSastre. La fuente de verdad es `s
 
 ## Comandos
 
-
 | Acción | Comando |
 |---|---|
 | Build completo y todas las pruebas | `./mvnw verify` (en Windows también `mvnw.cmd verify`) |
