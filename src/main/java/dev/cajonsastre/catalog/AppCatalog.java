@@ -1,6 +1,7 @@
 package dev.cajonsastre.catalog;
 
 import dev.cajonsastre.apps.database.DatabaseApp;
+import dev.cajonsastre.apps.quality.QualityApp;
 import dev.cajonsastre.platform.AppCategory;
 import dev.cajonsastre.platform.AppColor;
 import dev.cajonsastre.platform.AppManifest;
@@ -31,10 +32,11 @@ public final class AppCatalog {
         }
     }
 
-    /** El catálogo de la aplicación (ADR-0008, ADR-0011). */
+    /** El catálogo de la aplicación (ADR-0008, ADR-0011, ADR-0016). */
     public static AppCatalog builtIn() {
         return new AppCatalog(List.of(
                 new DatabaseApp(),
+                new QualityApp(),
                 MiniApp.of(new AppManifest("tasks", "Tareas", "Gestor de tareas", "tasks",
                         AppColor.GREEN, AppCategory.PRODUCTIVITY, List.of("pendientes", "listas", "por hacer"), true))));
     }

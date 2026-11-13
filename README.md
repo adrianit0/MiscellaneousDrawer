@@ -5,6 +5,7 @@ Cajón de sastre es una aplicación local para un único usuario que reúne vari
 Mini apps:
 
 - **Base de datos** prepara la base de datos local de desarrollo y guarda copias de sus volcados (ver «Base de datos»).
+- **Calidad del dato** comprueba los datos de la base local con scripts SQL de validación (ver «Calidad del dato»).
 - **Tareas**, un gestor de tareas, aparece como «En preparación».
 
 ## Uso
@@ -48,6 +49,17 @@ Necesita instalados y en el `PATH`:
 Al terminar un trabajo deja una notificación en la campana de la barra superior. Con `notify-send` y `paplay` instalados, que son opcionales, aparece además en el escritorio y suena; las dos cosas se desactivan en «Ajustes → Notificaciones».
 
 Los comandos de cada trabajo y su salida se ven en el panel «Consolas», que se despliega desde la barra inferior de la ventana: a la izquierda, las consolas con su estado; a la derecha, la salida de la elegida. Solo viven en memoria: se pierden al apagar la aplicación.
+
+## Calidad del dato
+
+Sustituye a `calidad_dato.sh`: ejecuta cada `.sql` de la carpeta de calidad contra el contenedor MySQL de Docker. Un script que no devuelve filas está bien; uno que devuelve filas o falla es una incidencia.
+
+- **Comprobar** lista los scripts de la carpeta, todos marcados. «Filtrar» deja ver los que contienen un texto, como el parámetro del script de consola, y «Ejecutar» comprueba los marcados que se ven. Antes de empezar comprueba que el contenedor está levantado.
+- Cada script muestra su resultado: «Correcto», «N filas» o «Error», y arriba aparece el resumen, o «La base de datos tiene correctamente todos sus datos». «Solo con incidencias» oculta los correctos. Al pulsar un script con filas se ven en una tabla (hasta 1000), y al pulsar uno con error, el error.
+- Los comandos y las incidencias, como los mostraba el script, van a una consola del panel «Consolas». Al terminar deja una notificación con el resultado.
+- **Configuración**: contenedor, contraseña de root, base de datos y carpeta de scripts de calidad, en `~/.config/cajonsastre/apps/quality/config.json` con permisos 600. Son independientes de los de «Base de datos». «Importar de un .sh…» los toma de `CONTAINER_NAME`, `MYSQL_ROOT_PASSWORD`, `DATABASE_NAME` y `QUALITY_SQL_FOLDER`.
+
+Necesita `docker` instalado y en el `PATH`. Los resultados solo viven en memoria hasta la siguiente comprobación.
 
 ## Requisitos
 

@@ -53,9 +53,16 @@ class AppCatalogTest {
     }
 
     @Test
-    void adr0008_adr0011_the_built_in_catalog_has_database_available_and_tasks_planned() {
+    void adr0008_adr0011_adr0016_the_built_in_catalog_has_database_and_quality_available_and_tasks_planned() {
         AppCatalog catalog = AppCatalog.builtIn();
-        assertThat(catalog.apps()).extracting(a -> a.manifest().id()).containsExactly("database", "tasks");
+        assertThat(catalog.apps()).extracting(a -> a.manifest().id()).containsExactly("database", "quality", "tasks");
+        AppManifest quality = catalog.find("quality").orElseThrow().manifest();
+        assertThat(quality.name()).isEqualTo("Calidad del dato");
+        assertThat(quality.description()).isEqualTo("Comprueba los datos de la base local con scripts SQL");
+        assertThat(quality.icon()).isEqualTo("quality");
+        assertThat(quality.color()).isEqualTo(AppColor.CYAN);
+        assertThat(quality.category()).isEqualTo(AppCategory.DATA);
+        assertThat(quality.planned()).isFalse();
         AppManifest database = catalog.find("database").orElseThrow().manifest();
         assertThat(database.name()).isEqualTo("Base de datos");
         assertThat(database.description()).isEqualTo("Descarga, importa y prepara la base de datos local");
