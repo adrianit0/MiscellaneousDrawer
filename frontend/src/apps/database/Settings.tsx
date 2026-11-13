@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { ApiError, useMiniApp } from '../../platform';
+import { Confirm } from './Confirm';
 import styles from './database.module.css';
+import { MAX_SH_BYTES, parseSh, type Skipped } from './shImport';
 import { errorMessage, LABELS, TEXT_FIELDS, type ConfigView, type PortField, type TextField } from './types';
 
 /** BD-65: los grupos del formulario. */
@@ -28,6 +30,9 @@ const HINTS: Record<string, string> = {
   versionsSqlDir: 'Ruta absoluta. Cada subcarpeta es una versión. Opcional.',
 };
 
+/** Los campos que se comparan con lo guardado (BD-67): todos menos la contraseña. */
+const SAVED_FIELDS = [...TEXT_FIELDS, 'hostPort', 'containerPort'] as const;
+
 type Values = Record<string, string>;
 
 function initial(config: ConfigView): Values {
@@ -45,20 +50,55 @@ const port = (text: string): number | string | null => {
   return /^\d+$/.test(value) ? Number(value) : value;
 };
 
+/** BD-66: lo que dice la última importación. */
+interface Report {
+  text: string;
+  skipped: Skipped[];
+}
+
+function report(file: string, filled: number, skipped: Skipped[]): Report {
+  if (filled === 0 && skipped.length === 0) {
+    return { text: `${file} no tiene ninguna de las variables que se pueden importar.`, skipped };
+  }
+  const text =
+    filled === 0
+      ? `No se ha rellenado ningún campo con ${file}.`
+      : filled === 1
+        ? `Se ha rellenado 1 campo con ${file}. Revísalo y pulsa «Guardar».`
+        : `Se han rellenado ${filled} campos con ${file}. Revísalos y pulsa «Guardar».`;
+  return { text, skipped };
+}
+
 interface Props {
   config: ConfigView;
   onSaved: (config: ConfigView) => void;
+  /** BD-67: si hay cambios sin guardar. */
+  onDirtyChange: (dirty: boolean) => void;
+  /** BD-67: se ha pulsado otra sección con cambios sin guardar. */
+  leaving: boolean;
+  /** BD-67: la respuesta al diálogo; true para cambiar de sección. */
+  onLeave: (go: boolean) => void;
 }
 
-/** BD-65, BD-01, BD-02: la configuración, escrita a mano. La contraseña solo se envía si se escribe. */
-export function Settings({ config, onSaved }: Props) {
+/**
+ * BD-65, BD-01, BD-02: la configuración, escrita a mano o importada de un .sh (BD-66). La contraseña solo se envía si
+ * se escribe. Con cambios sin guardar, cambiar de sección pide confirmación (BD-67).
+ */
+export function Settings({ config, onSaved, onDirtyChange, leaving, onLeave }: Props) {
   const { api, notify } = useMiniApp();
   const [values, setValues] = useState<Values>(() => initial(config));
   const [clearPassword, setClearPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<{ field: string | null; text: string } | null>(null);
+  const [imported, setImported] = useState<Report | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
-  const save = async () => {
+  const saved = useMemo(() => initial(config), [config]);
+  const dirty = values.rootPassword !== '' || clearPassword || SAVED_FIELDS.some((key) => values[key].trim() !== saved[key]);
+  useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
+
+  /** Devuelve si se ha guardado. */
+  const save = async (): Promise<boolean> => {
     const body: Record<string, unknown> = {};
     for (const key of TEXT_FIELDS) body[key] = values[key].trim() === '' ? null : values[key].trim();
     body.hostPort = port(values.hostPort);
@@ -69,17 +109,48 @@ export function Settings({ config, onSaved }: Props) {
     setSaving(true);
     setError(null);
     try {
-      const saved = await api.put<ConfigView>('/config', body);
-      onSaved(saved);
-      setValues(initial(saved));
+      const result = await api.put<ConfigView>('/config', body);
+      onSaved(result);
+      setValues(initial(result));
       setClearPassword(false);
+      setImported(null);
       notify('Configuración guardada.');
+      return true;
     } catch (e) {
       const details = e instanceof ApiError ? (e.details as { field?: string } | null) : null;
       setError({ field: details?.field ?? null, text: errorMessage(e) });
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  /** BD-67: «Salir sin guardar». */
+  const discard = () => {
+    setValues(saved);
+    setClearPassword(false);
+    setError(null);
+    setImported(null);
+  };
+
+  /** BD-66: el fichero se lee aquí y no se envía a ningún sitio; solo rellena el formulario. */
+  const importFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const file = input.files?.[0];
+    // Para poder elegir otra vez el mismo fichero.
+    input.value = '';
+    if (!file) return;
+    if (file.size > MAX_SH_BYTES) {
+      setImported({ text: `${file.name} ocupa más de 1 MiB: no se importa.`, skipped: [] });
+      return;
+    }
+    const result = parseSh(await file.text());
+    setValues((v) => ({ ...v, ...result.values }));
+    setImported(report(file.name, Object.keys(result.values).length, result.skipped));
+  };
+
+  const answer = async (yes: boolean) => {
+    onLeave(yes ? await save() : false);
   };
 
   const field = (key: string) => {
@@ -126,33 +197,79 @@ export function Settings({ config, onSaved }: Props) {
   };
 
   return (
-    <form
-      className={styles.settings}
-      aria-label="Configuración"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void save();
-      }}
-    >
-      {GROUPS.map((g) => (
-        <fieldset key={g.title}>
-          <legend>{g.title}</legend>
-          {g.fields.map(field)}
-        </fieldset>
-      ))}
-      <div className={styles.actions}>
-        <button type="submit" className={styles.primary} disabled={saving}>
-          Guardar
-        </button>
-        {error && error.field === null && (
-          <span className={styles.error} role="alert">
-            {error.text}
-          </span>
-        )}
-      </div>
-      <p className={styles.muted}>
-        Estos valores se guardan solo en este equipo, en un fichero privado. La contraseña no vuelve a mostrarse.
-      </p>
-    </form>
+    <>
+      <form
+        className={styles.settings}
+        aria-label="Configuración"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <div className={styles.importer}>
+          <div className={styles.actions}>
+            <button type="button" onClick={() => fileInput.current?.click()}>
+              Importar de un .sh…
+            </button>
+            <input ref={fileInput} type="file" accept=".sh" hidden aria-label="Fichero .sh" onChange={(e) => void importFile(e)} />
+          </div>
+          <div role="status" aria-label="Importación">
+            {imported && (
+              <>
+                <p>{imported.text}</p>
+                {imported.skipped.length > 0 && (
+                  <>
+                    <p>No se han importado:</p>
+                    <ul>
+                      {imported.skipped.map((s) => (
+                        <li key={s.field}>
+                          {LABELS[s.field]} ({s.variable}): {s.reason}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+        {GROUPS.map((g) => (
+          <fieldset key={g.title}>
+            <legend>{g.title}</legend>
+            {g.fields.map(field)}
+          </fieldset>
+        ))}
+        <div className={styles.actions}>
+          <button type="submit" className={styles.primary} disabled={saving}>
+            Guardar
+          </button>
+          {error && error.field === null && (
+            <span className={styles.error} role="alert">
+              {error.text}
+            </span>
+          )}
+        </div>
+        <p className={styles.muted}>
+          Estos valores se guardan solo en este equipo, en un fichero privado. La contraseña no vuelve a mostrarse.
+        </p>
+      </form>
+      {leaving && (
+        <Confirm
+          title="Cambios sin guardar"
+          action="Guardar"
+          ready={!saving}
+          alternative={{
+            label: 'Salir sin guardar',
+            onSelect: () => {
+              discard();
+              onLeave(true);
+            },
+          }}
+          onAnswer={(yes) => void answer(yes)}
+        >
+          <p>Has cambiado la configuración y no la has guardado. Si sales sin guardar, perderás los cambios.</p>
+        </Confirm>
+      )}
+    </>
   );
 }

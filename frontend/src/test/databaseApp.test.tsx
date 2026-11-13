@@ -92,6 +92,8 @@ let notices: string[];
 let subtitles: (string | null)[];
 /** BD-62: las consolas que la mini app pide mostrar al shell. */
 let shownConsoles: number[];
+/** N-02: cambia la subruta como «Atrás» y «Adelante», sin pasar por navigate. */
+let moveHistory: (to: string) => void;
 
 function route(call: Call): { status?: number; body?: unknown } | undefined {
   const path = call.url.slice(BASE.length);
@@ -131,6 +133,7 @@ function route(call: Call): { status?: number; body?: unknown } | undefined {
 
 function Harness({ initialPath = '', active = true }: { initialPath?: string; active?: boolean }) {
   const [path, setPath] = useState(initialPath);
+  moveHistory = setPath;
   const value = useMemo(
     () =>
       testContext({
@@ -635,6 +638,194 @@ describe('BD-65 «Configuración»', () => {
     });
     fireEvent.click(button('Preparar'));
     await waitFor(() => expect(checkbox('Descargar').disabled).toBe(false));
+  });
+});
+
+const field = (name: string | RegExp) => screen.getByLabelText(name) as HTMLInputElement;
+
+/** BD-66: elige un fichero en «Importar de un .sh…». */
+async function importSh(content: string, name = 'config.sh') {
+  const input = screen.getByLabelText('Fichero .sh') as HTMLInputElement;
+  expect(input.accept).toBe('.sh');
+  await act(async () => {
+    fireEvent.change(input, { target: { files: [new File([content], name, { type: 'text/x-sh' })] } });
+  });
+}
+
+describe('BD-66 importar de un .sh', () => {
+  const SH = [
+    '#!/bin/sh',
+    '# --- Valores inventados ---',
+    'BASE_DIR="/datos/importado"',
+    'S3_PATH="s3://bucket-inventado/prefijo/"',
+    'MYSQL_ROOT_PASSWORD="clave-inventada"',
+    'LOCAL_PORT="3308"',
+    'INITDB_FILE="inicial.sql"',
+    'SQL_FOLDER_EXECUTED="/datos/sql/ejecutados/"',
+    'OTRO_PASS="no-debe-enviarse"',
+  ].join('\n');
+
+  it('BD-66: rellena el formulario sin guardar y dice qué ha omitido', async () => {
+    await open('/settings');
+    expect(button('Importar de un .sh…')).toBeTruthy();
+    await importSh(SH);
+    await screen.findByText('Se han rellenado 5 campos con config.sh. Revísalos y pulsa «Guardar».');
+    expect(field('Carpeta de trabajo').value).toBe('/datos/importado');
+    expect(field('Ruta de S3').value).toBe('s3://bucket-inventado/prefijo');
+    expect(field('Contraseña de root').value).toBe('clave-inventada');
+    expect(field('Puerto en la máquina').value).toBe('3308');
+    expect(field('Carpeta de versiones').value).toBe('/datos/sql/ejecutados');
+    // Lo omitido sigue como estaba, y lo que no viene en el fichero también.
+    expect(field('Script inicial').value).toBe('/datos/sql/inicial.sql');
+    expect(field('Contenedor').value).toBe('mysql-de-prueba');
+    expect(screen.getByText('No se han importado:')).toBeTruthy();
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Script inicial (INITDB_FILE): no es una ruta absoluta']);
+    expect(server.callsTo('PUT', BASE + '/config')).toEqual([]);
+
+    // BD-67: lo importado son cambios sin guardar.
+    fireEvent.click(button('Copias'));
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Cambios sin guardar' })).getByRole('button', { name: 'Cancelar' }));
+
+    await act(async () => {
+      fireEvent.click(button('Guardar'));
+    });
+    const sent = server.callsTo('PUT', BASE + '/config')[0].body as Record<string, unknown>;
+    expect(sent).toMatchObject({
+      workDir: '/datos/importado',
+      s3Path: 's3://bucket-inventado/prefijo',
+      rootPassword: 'clave-inventada',
+      hostPort: 3308,
+      initSqlFile: '/datos/sql/inicial.sql',
+      versionsSqlDir: '/datos/sql/ejecutados',
+    });
+    expect(JSON.stringify(sent)).not.toContain('no-debe-enviarse');
+    expect(screen.queryByText(/Se han rellenado/)).toBeNull();
+  });
+
+  it('BD-66: sin ninguna variable de la tabla lo dice y no cambia nada; si todo se omite, también lo dice', async () => {
+    await open('/settings');
+    await importSh('OTRA="valor"\n', 'otro.sh');
+    await screen.findByText('otro.sh no tiene ninguna de las variables que se pueden importar.');
+    expect(field('Carpeta de trabajo').value).toBe('/datos/trabajo');
+
+    await importSh('INITDB_FILE="inicial.sql"\n', 'solo.sh');
+    await screen.findByText('No se ha rellenado ningún campo con solo.sh.');
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Script inicial (INITDB_FILE): no es una ruta absoluta']);
+
+    // BD-67: nada ha cambiado, así que no pregunta.
+    fireEvent.click(button('Preparar'));
+    expect(navigations).toEqual(['']);
+  });
+
+  it('BD-66: con un solo campo lo dice en singular', async () => {
+    await open('/settings');
+    await importSh('TZ="Europe/Lisbon"\n');
+    await screen.findByText('Se ha rellenado 1 campo con config.sh. Revísalo y pulsa «Guardar».');
+    expect(field('Zona horaria').value).toBe('Europe/Lisbon');
+  });
+
+  it('BD-66: un fichero de más de 1 MiB no se lee', async () => {
+    await open('/settings');
+    await importSh(`TZ="Europe/Lisbon"\n${'#'.repeat(1024 * 1024)}`, 'grande.sh');
+    await screen.findByText('grande.sh ocupa más de 1 MiB: no se importa.');
+    expect(field('Zona horaria').value).toBe('Europe/Madrid');
+  });
+});
+
+describe('BD-67 cambios sin guardar', () => {
+  const dialog = () => screen.getByRole('alertdialog', { name: 'Cambios sin guardar' });
+  const inDialog = (name: string) => within(dialog()).getByRole('button', { name });
+
+  it('BD-67: sin cambios no pregunta, aunque se hayan escrito espacios en los extremos', async () => {
+    await open('/settings');
+    fireEvent.change(field('Base de datos'), { target: { value: ' demo ' } });
+    fireEvent.click(button('Copias'));
+    expect(navigations).toEqual(['/dumps']);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it('BD-67: con cambios avisa con «Cancelar», «Salir sin guardar» y «Guardar»; «Cancelar» y Esc se quedan con lo escrito', async () => {
+    await open('/settings');
+    fireEvent.change(field('Base de datos'), { target: { value: 'otra' } });
+    fireEvent.click(button('Copias'));
+    expect(navigations).toEqual([]);
+    expect(within(dialog()).getByText(/Si sales sin guardar, perderás los cambios\./)).toBeTruthy();
+    expect(within(dialog()).getAllByRole('button').map((b) => b.textContent)).toEqual(['Cancelar', 'Salir sin guardar', 'Guardar']);
+    expect(document.activeElement).toBe(inDialog('Guardar'));
+
+    fireEvent.click(inDialog('Cancelar'));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(field('Base de datos').value).toBe('otra');
+
+    fireEvent.click(button('Preparar'));
+    fireEvent.keyDown(dialog(), { key: 'Escape' });
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(navigations).toEqual([]);
+    expect(button('Configuración').getAttribute('aria-current')).toBe('page');
+  });
+
+  it('BD-67: una contraseña escrita cuenta como cambio', async () => {
+    await open('/settings');
+    fireEvent.change(field('Contraseña de root'), { target: { value: 'clave-de-prueba' } });
+    fireEvent.click(button('Preparar'));
+    expect(dialog()).toBeTruthy();
+  });
+
+  it('BD-67: «Salir sin guardar» descarta los cambios y cambia de sección', async () => {
+    await open('/settings');
+    fireEvent.change(field('Base de datos'), { target: { value: 'otra' } });
+    fireEvent.click(checkbox('Borrar la contraseña guardada'));
+    fireEvent.click(button('Preparar'));
+    fireEvent.click(inDialog('Salir sin guardar'));
+    expect(navigations).toEqual(['']);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(server.callsTo('PUT', BASE + '/config')).toEqual([]);
+
+    fireEvent.click(button('Configuración'));
+    expect(field('Base de datos').value).toBe('demo');
+    expect(checkbox('Borrar la contraseña guardada').checked).toBe(false);
+  });
+
+  it('BD-67: «Guardar» guarda y cambia de sección', async () => {
+    await open('/settings');
+    fireEvent.change(field('Contraseña de root'), { target: { value: 'clave-de-prueba' } });
+    fireEvent.click(button('Copias'));
+    await act(async () => {
+      fireEvent.click(inDialog('Guardar'));
+    });
+    expect((server.callsTo('PUT', BASE + '/config')[0].body as Record<string, unknown>).rootPassword).toBe('clave-de-prueba');
+    expect(navigations).toEqual(['/dumps']);
+    expect(notices).toEqual(['Configuración guardada.']);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it('BD-67: si «Guardar» falla, se queda en «Configuración» con el error junto a su campo', async () => {
+    await open('/settings');
+    fireEvent.change(field('Puerto en la máquina'), { target: { value: 'abc' } });
+    backend.fail = {
+      status: 400,
+      code: 'invalid_config',
+      message: '«Puerto en la máquina» debe ser un número entre 1 y 65535',
+      details: { field: 'hostPort' },
+    };
+    fireEvent.click(button('Preparar'));
+    await act(async () => {
+      fireEvent.click(inDialog('Guardar'));
+    });
+    expect(navigations).toEqual([]);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(field('Puerto en la máquina').getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByRole('alert').textContent).toBe('«Puerto en la máquina» debe ser un número entre 1 y 65535');
+  });
+
+  it('BD-67: con «Atrás» y «Adelante» no avisa y lo escrito se conserva', async () => {
+    await open('/settings');
+    fireEvent.change(field('Base de datos'), { target: { value: 'otra' } });
+    act(() => moveHistory(''));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(screen.queryByRole('form', { name: 'Configuración' })).toBeNull();
+    act(() => moveHistory('/settings'));
+    expect(field('Base de datos').value).toBe('otra');
   });
 });
 

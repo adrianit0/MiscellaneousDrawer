@@ -26,6 +26,9 @@ export function DatabaseApp() {
   const [config, setConfig] = useState<ConfigView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [choice, setChoice] = useState<ImportChoice | null>(null);
+  /** BD-67: si «Configuración» tiene cambios sin guardar, y la sección a la que se quiere ir mientras se pregunta. */
+  const [settingsDirty, setSettingsDirty] = useState(false);
+  const [leavingTo, setLeavingTo] = useState<string | null>(null);
 
   const loadConfig = useCallback(() => {
     api
@@ -44,11 +47,20 @@ export function DatabaseApp() {
     return () => setSubtitle(null);
   }, [section.label, setSubtitle]);
 
+  // BD-67: si la sección cambia por otro camino (Atrás y Adelante), ya no hay nada que preguntar.
+  useEffect(() => setLeavingTo(null), [section.path]);
+
+  /** BD-67: salir de «Configuración» con cambios sin guardar pregunta antes. */
+  const go = (target: string) => {
+    if (section.path === '/settings' && target !== section.path && settingsDirty) setLeavingTo(target);
+    else navigate(target);
+  };
+
   return (
     <div className={styles.app}>
       <nav className={styles.tabs} aria-label="Secciones">
         {SECTIONS.map((s) => (
-          <button key={s.path} type="button" aria-current={s === section ? 'page' : undefined} onClick={() => navigate(s.path)}>
+          <button key={s.path} type="button" aria-current={s === section ? 'page' : undefined} onClick={() => go(s.path)}>
             {s.label}
           </button>
         ))}
@@ -74,7 +86,21 @@ export function DatabaseApp() {
           }}
         />
       )}
-      {config && section.path === '/settings' && <Settings config={config} onSaved={setConfig} />}
+      {/* «Configuración» también sigue montada: conserva lo escrito y sin guardar (BD-67). */}
+      {config && (
+        <div hidden={section.path !== '/settings'}>
+          <Settings
+            config={config}
+            onSaved={setConfig}
+            onDirtyChange={setSettingsDirty}
+            leaving={leavingTo !== null}
+            onLeave={(ok) => {
+              if (ok && leavingTo !== null) navigate(leavingTo);
+              setLeavingTo(null);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

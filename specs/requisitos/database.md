@@ -1,8 +1,8 @@
 # Requisitos de «Base de datos»
 
-La mini app «Base de datos» (`database`) prepara la base de datos local de desarrollo en tres pasos: **descarga** un volcado desde S3, lo **importa** en un contenedor MySQL de Docker y **ejecuta** los scripts SQL pendientes. Además guarda una **biblioteca de copias** de los volcados descargados. Las decisiones están en [ADR-0011](../decisiones/ADR-0011-mini-app-base-de-datos.md).
+La mini app «Base de datos» (`database`) prepara la base de datos local de desarrollo en tres pasos: **descarga** un volcado desde S3, lo **importa** en un contenedor MySQL de Docker y **ejecuta** los scripts SQL pendientes. Además guarda una **biblioteca de copias** de los volcados descargados. Las decisiones están en [ADR-0011](../decisiones/ADR-0011-mini-app-base-de-datos.md) y [ADR-0015](../decisiones/ADR-0015-importar-configuracion-y-cambios-sin-guardar.md).
 
-Todo lo que depende del equipo (carpetas, ruta de S3, contenedor, contraseña…) se escribe a mano en su «Configuración» y no está en el código ni en el repositorio (S-32). Los ejemplos usan marcadores. Prefijo de requisitos: **BD**.
+Todo lo que depende del equipo (carpetas, ruta de S3, contenedor, contraseña…) se escribe a mano en su «Configuración», o se importa de un `.sh` (BD-66), y no está en el código ni en el repositorio (S-32). Los ejemplos usan marcadores. Prefijo de requisitos: **BD**.
 
 Términos:
 
@@ -110,6 +110,26 @@ Términos:
 | BD-63 | El estado del trabajo se consulta cada segundo mientras hay uno en marcha y la mini app está visible. Oculta, no consulta (N-05); al volver a verse, consulta de inmediato. Al terminar un trabajo que estaba viendo, avisa con el resultado (U-05). |
 | BD-64 | «Copias» muestra, por rama, el volcado actual, la copia anterior y las conservadas, con nombre, fecha (dd/MM/yyyy HH:mm) y tamaño (U-02). Acciones: «Conservar», que pide el nombre; «Importar», que lleva a «Preparar» con esa rama y ese volcado elegidos; y «Eliminar», que pide confirmación (U-05). |
 | BD-65 | «Configuración» es un formulario con los campos de BD-01 agrupados en «Descarga», «Docker y MySQL» y «Scripts», con «Guardar». El campo de la contraseña está siempre vacío e indica si hay una guardada; solo se envía si se escribe. Un error de formato se muestra junto a su campo. |
+| BD-66 | **Importar de un .sh.** «Importar de un .sh…» abre el selector de ficheros y lee en el navegador el fichero elegido, de 1 MiB como mucho; el fichero no se envía al servidor. Rellena el formulario con las variables de la tabla siguiente y no guarda: los valores quedan como cambios sin guardar (BD-67). Las demás variables se ignoran.<br>Se leen asignaciones `NOMBRE=valor`, una por línea, con `export` delante o sin él, y el valor entre comillas dobles, simples o sin comillas, con un comentario detrás o sin él. Si una variable se repite, vale la última. A las rutas y a la ruta de S3 se les quita la `/` final.<br>Se omite, dejando el campo como estaba y diciendo por qué, un valor que: está vacío; usa variables o comandos (`$`, `` ` `` o `~` al principio, fuera de comillas simples); no se puede leer, como una comilla sin cerrar; es una ruta que no es absoluta, o es un puerto que no es un número entre 1 y 65535.<br>Al terminar dice cuántos campos ha rellenado, que hay que revisarlos y pulsar «Guardar», y la lista de los omitidos con su variable y su motivo. Si el fichero no tiene ninguna variable de la tabla, lo dice y no cambia nada. |
+| BD-67 | **Cambios sin guardar.** Hay cambios sin guardar si un campo es distinto de lo guardado (sin contar los espacios de los extremos), si se ha escrito una contraseña o si está marcado «Borrar la contraseña guardada». Al pulsar otra sección con cambios sin guardar, un diálogo «Cambios sin guardar» avisa de que se perderán (U-05) y ofrece:<br>- «Guardar»: guarda y, si sale bien, cambia de sección. Si falla, cierra el diálogo y se queda en «Configuración» con el error junto a su campo (BD-65).<br>- «Salir sin guardar»: descarta los cambios y cambia de sección.<br>- «Cancelar», o Esc: se queda en «Configuración» con lo escrito.<br>«Configuración» sigue montada al cambiar de sección: con «Atrás» y «Adelante» (N-02) no hay aviso y lo escrito se conserva al volver. Cerrar la mini app o la ventana no avisa (ADR-0015). |
+
+| Variable del .sh | Campo |
+|---|---|
+| `BASE_DIR` | Carpeta de trabajo |
+| `S3_PATH` | Ruta de S3 |
+| `DATABASE_PREFIX_FILE_S3` | Sufijo del fichero en S3 |
+| `DATABASE_PREFIX_FILE_LOCAL` | Sufijo del fichero local |
+| `CONTAINER_NAME` | Contenedor |
+| `MYSQL_IMAGE` | Imagen de MySQL |
+| `MYSQL_ROOT_PASSWORD` | Contraseña de root |
+| `LOCAL_PORT` | Puerto en la máquina |
+| `MYSQL_PORT` | Puerto del contenedor |
+| `TZ` | Zona horaria |
+| `INITDB_FILE` | Script inicial |
+| `NAME_FILE` | Segundo script inicial |
+| `DATABASE_NAME` | Base de datos |
+| `SQL_FOLDER` | Carpeta de scripts pendientes |
+| `SQL_FOLDER_EXECUTED` | Carpeta de versiones |
 
 ## API
 
@@ -149,3 +169,5 @@ Cuerpo de `POST /job`. Un paso que no viene o es `null` no se ejecuta:
 - Consultar la base de datos, editar scripts o moverlos de «Pendientes» a una versión.
 - Subir nada a S3, o cualquier otro uso de AWS.
 - Un perfil o una región de AWS propios de la mini app: se usan los del usuario.
+- Expandir las variables de un `.sh` al importarlo, o importar de otros formatos (BD-66).
+- Avisar de los cambios sin guardar al cerrar la mini app o la ventana (BD-67).

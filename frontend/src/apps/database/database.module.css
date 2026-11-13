@@ -280,6 +280,23 @@
   font-weight: 600;
 }
 
+/* BD-66 */
+.importer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.importer p,
+.importer ul {
+  margin: 0;
+}
+
+.importer ul {
+  padding-left: 18px;
+  color: var(--warning);
+}
+
 .field {
   display: flex;
   flex-direction: column;

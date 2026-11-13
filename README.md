@@ -38,6 +38,8 @@ Mientras el trabajo corre se ven el estado de cada paso, el progreso de la desca
 
 **Configuración.** Todo lo que depende del equipo se escribe a mano en la sección «Configuración» de la mini app: carpetas, ruta de S3, contenedor, imagen, puertos, contraseña y scripts iniciales. Se guarda en `~/.config/cajonsastre/apps/database/config.json`, con permisos 600, y la contraseña no vuelve a mostrarse.
 
+«Importar de un .sh…» rellena el formulario con el fichero de configuración de los scripts de consola (`BASE_DIR`, `S3_PATH`, `MYSQL_IMAGE`…; la lista completa está en `specs/requisitos/database.md`, BD-66). El fichero se lee en la ventana y no se envía a ningún sitio. No guarda: dice qué ha rellenado y qué ha omitido, como los scripts iniciales que no traen la ruta completa, y hay que pulsar «Guardar». Si se cambia de sección con cambios sin guardar, pregunta si guardarlos, descartarlos o seguir en «Configuración».
+
 Necesita instalados y en el `PATH`:
 
 - `aws`, la CLI de AWS, con unas credenciales que puedan leer el bucket. Cajón de sastre no pide ni guarda credenciales de AWS: usa las que tenga el usuario, y solo para leer.
