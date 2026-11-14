@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileTime;
 import java.time.Duration;
@@ -22,7 +21,7 @@ import java.util.List;
 
 /**
  * BD-20 a BD-29: descarga de S3 con el comando aws del usuario. Solo lee: head-object, get-object y s3 cp de S3 a
- * local. No pide, lee ni guarda credenciales (ADR-0011).
+ * local. No pide, lee ni guarda credenciales (ADR-0011). Solo trae los volcados: nada de DynamoDB (BD-28, ADR-0017).
  */
 final class S3Download {
 
@@ -30,8 +29,6 @@ final class S3Download {
     static final long CHUNK_BYTES = 100L * 1024 * 1024;
     static final int MAX_ATTEMPTS = 10;
     static final Duration RETRY_WAIT = Duration.ofSeconds(10);
-    /** BD-28 */
-    static final List<String> EXTRA_FILES = List.of("dynamodb/Dockerfile", "dynamodb/dynamo-db-dump.tar.bz2");
     private static final ObjectMapper JSON = new ObjectMapper();
 
     /** BD-22: lo que dice S3 del objeto. */
@@ -72,13 +69,6 @@ final class S3Download {
                 dump(branch, chunked, force);
             } catch (StepFailed | IOException e) {
                 failures.add(fail("volcado de " + branch.id(), e));
-            }
-        }
-        for (String file : EXTRA_FILES) {
-            try {
-                extra(file);
-            } catch (StepFailed | IOException e) {
-                failures.add(fail(file, e));
             }
         }
         reporter.progress(0, 0);
@@ -237,21 +227,5 @@ final class S3Download {
             Files.deleteIfExists(part);
             throw new StepFailed("la descarga directa falló (código " + code + ")");
         }
-    }
-
-    // --- Ficheros de dynamodb/ (BD-28) ---
-
-    private void extra(String name) throws StepFailed, IOException, InterruptedException {
-        Path target = library.workDir().resolve(name);
-        Files.createDirectories(target.getParent());
-        Path part = target.resolveSibling(target.getFileName() + ".part");
-        Files.deleteIfExists(part);
-        reporter.message("Descargando " + name);
-        int code = reporter.run(runner, Command.of("aws", "s3", "cp", config.s3Url(name), part.toString()));
-        if (code != 0 || !Files.isRegularFile(part)) {
-            Files.deleteIfExists(part);
-            throw new StepFailed("código " + code);
-        }
-        Files.move(part, target, StandardCopyOption.REPLACE_EXISTING);
     }
 }

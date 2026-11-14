@@ -71,8 +71,6 @@ class DatabaseAppTest {
         pending = Path.of(config.pendingSqlDir());
         commands.put(Fixtures.s3Key(Branch.HOTFIX), "volcado de hotfix del martes", TUESDAY);
         commands.put(Fixtures.s3Key(Branch.DEVELOP), "volcado de develop del martes", TUESDAY);
-        commands.put(BUCKET + "/volcados/dynamodb/Dockerfile", "FROM demo", MONDAY);
-        commands.put(BUCKET + "/volcados/dynamodb/dynamo-db-dump.tar.bz2", "dynamo", MONDAY);
         Files.writeString(pending.resolve("TAREA-1.sql"), "UPDATE a;");
         Files.writeString(pending.resolve("TAREA-2.sql"), "UPDATE b;");
     }
@@ -258,7 +256,7 @@ class DatabaseAppTest {
         Path current = work.resolve("BBDD_hotfix_local.tar.gz");
         assertThat(Files.readString(current)).isEqualTo("volcado de hotfix del martes");
         List<String> programs = commands.commands.stream().map(c -> c.program() + " " + c.args().get(1)).distinct().toList();
-        assertThat(programs).containsExactly("aws s3api", "aws s3", "docker stop", "docker rm", "docker volume", "docker run",
+        assertThat(programs).containsExactly("aws s3api", "docker stop", "docker rm", "docker volume", "docker run",
                 "docker start", "docker exec");
         assertThat(commands.commands).anySatisfy(c -> assertThat(c.args()).contains(current.toAbsolutePath() + ":/dump.tar.gz:ro"));
         assertThat(commands.executedSql).containsExactly("-: CREATE USER demo;", "-: RENAME demo;", "demo: UPDATE a;", "demo: UPDATE b;");

@@ -41,8 +41,6 @@ class S3DownloadTest {
         part = library.part(Branch.HOTFIX);
         aws.put(Fixtures.s3Key(Branch.HOTFIX), DUMP, TUESDAY);
         aws.put(Fixtures.s3Key(Branch.DEVELOP), "volcado de develop", TUESDAY);
-        aws.put(BUCKET + "/volcados/dynamodb/Dockerfile", "FROM demo", MONDAY);
-        aws.put(BUCKET + "/volcados/dynamodb/dynamo-db-dump.tar.bz2", "dynamo", MONDAY);
     }
 
     private S3Download download() {
@@ -249,30 +247,15 @@ class S3DownloadTest {
     }
 
     @Test
-    void bd28_downloads_the_two_dynamodb_files_after_the_dumps() throws Exception {
+    void bd28_downloads_nothing_from_dynamodb_and_leaves_the_local_folder_alone() throws Exception {
         Fixtures.write(workDir().resolve("dynamodb/Dockerfile"), "FROM antiguo", MONDAY);
-        run(true, false, Branch.HOTFIX);
-        assertThat(Files.readString(workDir().resolve("dynamodb/Dockerfile"))).isEqualTo("FROM demo");
-        assertThat(Files.readString(workDir().resolve("dynamodb/dynamo-db-dump.tar.bz2"))).isEqualTo("dynamo");
-        int count = aws.commands.size();
-        assertThat(aws.commands.subList(count - 2, count)).extracting(Command::args).containsExactly(
-                List.of("aws", "s3", "cp", "s3://" + BUCKET + "/volcados/dynamodb/Dockerfile",
-                        workDir().resolve("dynamodb/Dockerfile.part").toString()),
-                List.of("aws", "s3", "cp", "s3://" + BUCKET + "/volcados/dynamodb/dynamo-db-dump.tar.bz2",
-                        workDir().resolve("dynamodb/dynamo-db-dump.tar.bz2.part").toString()));
-        assertThat(workDir().resolve("dynamodb/Dockerfile.part")).doesNotExist();
-    }
-
-    @Test
-    void bd28_a_file_that_fails_keeps_the_one_that_was_there() throws Exception {
-        Fixtures.write(workDir().resolve("dynamodb/Dockerfile"), "FROM antiguo", MONDAY);
-        aws.objects.remove(BUCKET + "/volcados/dynamodb/Dockerfile");
-        assertThatThrownBy(() -> run(true, false, Branch.HOTFIX)).isInstanceOf(StepFailed.class)
-                .hasMessageContaining("dynamodb/Dockerfile");
+        run(true, false, Branch.HOTFIX, Branch.DEVELOP);
+        run(false, true, Branch.HOTFIX);
+        assertThat(aws.commands).isNotEmpty().allSatisfy(c ->
+                assertThat(String.join(" ", c.args()).toLowerCase()).doesNotContain("dynamo"));
         assertThat(Files.readString(workDir().resolve("dynamodb/Dockerfile"))).isEqualTo("FROM antiguo");
-        // BD-29: lo demás se descargó.
+        assertThat(workDir().resolve("dynamodb/dynamo-db-dump.tar.bz2")).doesNotExist();
         assertThat(Files.readString(current)).isEqualTo(DUMP);
-        assertThat(Files.readString(workDir().resolve("dynamodb/dynamo-db-dump.tar.bz2"))).isEqualTo("dynamo");
     }
 
     @Test
@@ -284,7 +267,6 @@ class S3DownloadTest {
         assertThat(aws.commands.get(1).args()).contains("volcados/BBDD_develop_remoto.tar.gz");
         assertThat(current).doesNotExist();
         assertThat(Files.readString(library.current(Branch.DEVELOP))).isEqualTo("volcado de develop");
-        assertThat(Files.readString(workDir().resolve("dynamodb/Dockerfile"))).isEqualTo("FROM demo");
     }
 
     @Test

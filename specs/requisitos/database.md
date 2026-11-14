@@ -66,8 +66,8 @@ Términos:
 | BD-25 | Al completar una descarga se comprueba el tamaño total y se pone al fichero la fecha de modificación del objeto. Después se rota (BD-31) y `<destino>.part` pasa a ser el volcado actual. Si algo falla antes de ese momento, el volcado actual y sus copias quedan como estaban. |
 | BD-26 | Modo «Directa»: una sola llamada `aws s3 cp` a `<destino>.part`, sin reanudación; una descarga a medias anterior se descarta. Al completar, igual que BD-25. |
 | BD-27 | El paso informa del progreso del volcado en curso. En el modo «Por bloques», con los bytes descargados y totales. En el modo «Directa», con el texto de progreso que va dando la propia CLI: las líneas que un comando sobrescribe en la consola se muestran como mensaje del paso y no llenan el registro. |
-| BD-28 | Después de los volcados se descargan `<s3Path>/dynamodb/Dockerfile` y `<s3Path>/dynamodb/dynamo-db-dump.tar.bz2` a `<carpeta de trabajo>/dynamodb/`. Cada uno se descarga a un `.part` que sustituye al fichero anterior solo si la descarga termina bien. |
-| BD-29 | Dentro del paso se intentan todas las descargas aunque una falle. El paso termina como `failed` si falló alguna. |
+| BD-28 | La mini app no descarga ni importa nada de DynamoDB: el paso «Descargar» solo trae los volcados de BD-21, y el de «Importar», solo el volcado de MySQL (BD-41). No pide nada de `<s3Path>/dynamodb/` y no toca una carpeta `dynamodb/` que ya haya en la carpeta de trabajo (ADR-0017). |
+| BD-29 | Dentro del paso se intentan todas las descargas aunque una falle: con «Ambas», un fallo en `hotfix` no impide descargar `develop`. El paso termina como `failed` si falló alguna. |
 
 ## Biblioteca de copias
 
@@ -168,6 +168,7 @@ Cuerpo de `POST /job`. Un paso que no viene o es `null` no se ejecuta:
 - Adoptar los ficheros `.backup` que dejaban los scripts de consola: no se tocan y se pueden borrar a mano.
 - Consultar la base de datos, editar scripts o moverlos de «Pendientes» a una versión.
 - Subir nada a S3, o cualquier otro uso de AWS.
+- Descargar o importar los ficheros de DynamoDB (`dynamodb/Dockerfile` y `dynamodb/dynamo-db-dump.tar.bz2`) o levantar su contenedor (BD-28, ADR-0017).
 - Un perfil o una región de AWS propios de la mini app: se usan los del usuario.
 - Expandir las variables de un `.sh` al importarlo, o importar de otros formatos (BD-66).
 - Avisar de los cambios sin guardar al cerrar la mini app o la ventana (BD-67).

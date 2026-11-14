@@ -187,7 +187,6 @@ class DatabaseConfigTest {
         assertThat(config.bucket()).isEqualTo("bucket-de-prueba");
         assertThat(config.s3DumpName(Branch.HOTFIX)).isEqualTo("BBDD_hotfix_remoto.tar.gz");
         assertThat(config.key(config.s3DumpName(Branch.DEVELOP))).isEqualTo("volcados/BBDD_develop_remoto.tar.gz");
-        assertThat(config.s3Url("dynamodb/Dockerfile")).isEqualTo("s3://bucket-de-prueba/volcados/dynamodb/Dockerfile");
 
         DatabaseConfig noPrefix = DatabaseConfig.from(body(config).put("s3Path", "s3://bucket-de-prueba"), config);
         assertThat(noPrefix.bucket()).isEqualTo("bucket-de-prueba");

@@ -6,6 +6,7 @@ Mini apps:
 
 - **Base de datos** prepara la base de datos local de desarrollo y guarda copias de sus volcados (ver «Base de datos»).
 - **Calidad del dato** comprueba los datos de la base local con scripts SQL de validación (ver «Calidad del dato»).
+- **Cerrar procesos** cierra un programa colgado y los procesos que dejó en sus puertos (ver «Cerrar procesos»).
 - **Tareas**, un gestor de tareas, aparece como «En preparación».
 
 ## Uso
@@ -60,6 +61,17 @@ Sustituye a `calidad_dato.sh`: ejecuta cada `.sql` de la carpeta de calidad cont
 - **Configuración**: contenedor, contraseña de root, base de datos y carpeta de scripts de calidad, en `~/.config/cajonsastre/apps/quality/config.json` con permisos 600. Son independientes de los de «Base de datos». «Importar de un .sh…» los toma de `CONTAINER_NAME`, `MYSQL_ROOT_PASSWORD`, `DATABASE_NAME` y `QUALITY_SQL_FOLDER`.
 
 Necesita `docker` instalado y en el `PATH`. Los resultados solo viven en memoria hasta la siguiente comprobación.
+
+## Cerrar procesos
+
+Sustituye a `cerrarIntelliJ.sh`: cierra a la fuerza, como `kill -9`, un programa que se ha quedado colgado y los procesos que dejó escuchando en sus puertos.
+
+- Qué se cierra lo dice un **perfil**: un patrón que se busca en la línea de comandos de cada proceso (como `pkill -f`), un rango de puertos TCP, o las dos cosas. Viene uno creado, «IntelliJ IDEA», con el patrón `idea|IntelliJ` y los puertos 8080 a 8090. Se pueden crear, editar y eliminar; se guardan en `~/.config/cajonsastre/apps/processes/profiles.json`.
+- Al elegir un perfil se ven los procesos que cerraría en ese momento, con su PID, sus puertos y su comando. **Cerrar todo** cierra los de la tabla y dice cuántos ha cerrado.
+- No usa `sudo`: solo cierra procesos del usuario. Un puerto ocupado por un proceso de otro usuario se indica, pero no se puede liberar.
+- Cajón de sastre nunca se cierra a sí mismo.
+
+Los puertos se buscan con `ss`, que Ubuntu trae instalado.
 
 ## Requisitos
 

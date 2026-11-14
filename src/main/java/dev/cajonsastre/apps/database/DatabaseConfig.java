@@ -227,10 +227,6 @@ record DatabaseConfig(String workDir, String s3Path, String s3Suffix, String loc
         return slash < 0 ? name : rest.substring(slash + 1) + "/" + name;
     }
 
-    String s3Url(String name) {
-        return s3Path + "/" + name;
-    }
-
     /** BD-21 */
     String s3DumpName(Branch branch) {
         return DumpLibrary.PREFIX + branch.id() + s3Suffix;

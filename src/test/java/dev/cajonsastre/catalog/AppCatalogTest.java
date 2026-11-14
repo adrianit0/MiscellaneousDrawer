@@ -53,9 +53,16 @@ class AppCatalogTest {
     }
 
     @Test
-    void adr0008_adr0011_adr0016_the_built_in_catalog_has_database_and_quality_available_and_tasks_planned() {
+    void adr0008_adr0011_adr0016_adr0018_the_built_in_catalog_has_three_apps_available_and_tasks_planned() {
         AppCatalog catalog = AppCatalog.builtIn();
-        assertThat(catalog.apps()).extracting(a -> a.manifest().id()).containsExactly("database", "quality", "tasks");
+        assertThat(catalog.apps()).extracting(a -> a.manifest().id()).containsExactly("database", "quality", "processes", "tasks");
+        AppManifest processes = catalog.find("processes").orElseThrow().manifest();
+        assertThat(processes.name()).isEqualTo("Cerrar procesos");
+        assertThat(processes.description()).isEqualTo("Cierra programas colgados y libera sus puertos");
+        assertThat(processes.icon()).isEqualTo("processes");
+        assertThat(processes.color()).isEqualTo(AppColor.ORANGE);
+        assertThat(processes.category()).isEqualTo(AppCategory.UTILITIES);
+        assertThat(processes.planned()).isFalse();
         AppManifest quality = catalog.find("quality").orElseThrow().manifest();
         assertThat(quality.name()).isEqualTo("Calidad del dato");
         assertThat(quality.description()).isEqualTo("Comprueba los datos de la base local con scripts SQL");

@@ -17,7 +17,7 @@ const GROUPS: { title: string; fields: (TextField | PortField | 'rootPassword')[
 
 /** Formato de cada campo, con marcadores: nada de esto tiene valor en el código (S-32). */
 const HINTS: Record<string, string> = {
-  workDir: 'Ruta absoluta. Aquí se guardan los volcados, sus copias y la carpeta dynamodb.',
+  workDir: 'Ruta absoluta. Aquí se guardan los volcados y sus copias.',
   s3Path: 's3://<bucket>/<prefijo>, sin / final.',
   s3Suffix: 'El fichero en S3 es BBDD_<rama><sufijo>.',
   localSuffix: 'El volcado local es BBDD_<rama><sufijo>.',
