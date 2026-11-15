@@ -1,0 +1,263 @@
+/* P-17: estilos de «Repositorios», con las variables del tema (U-01). */
+.app {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 16px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.app p {
+  margin: 0;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.error {
+  color: var(--error);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.notice {
+  color: var(--warning);
+}
+
+.warn {
+  color: var(--warning);
+}
+
+.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+/* RG-42: lo que pierde cambios. */
+.danger {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.danger:disabled {
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.link {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* RG-40 */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* RG-43 */
+.summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--blue);
+  border-radius: 6px;
+}
+
+.summary[data-state='succeeded'] {
+  border-left-color: var(--green);
+}
+
+.summary[data-state='failed'] {
+  border-left-color: var(--error);
+}
+
+.summary[data-state='cancelled'] {
+  border-left-color: var(--border);
+}
+
+.tableWrap {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.table tr:last-child td {
+  border-bottom: 0;
+}
+
+.table th {
+  background: var(--surface);
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.table select {
+  max-width: 220px;
+}
+
+.dir {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  word-break: break-all;
+}
+
+.rowActions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.badge {
+  font-size: 12px;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+}
+
+.badge[data-result='updated'] {
+  color: var(--green);
+  border-color: var(--green);
+}
+
+.badge[data-result='failed'] {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.badge[data-result='running'] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* RG-42 */
+.menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 190px;
+  margin-top: 4px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.menu button {
+  background: transparent;
+  border-color: transparent;
+  text-align: left;
+}
+
+/* RG-45 */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 640px;
+}
+
+.form h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field input[type='text'] {
+  width: 100%;
+}
+
+.field input[aria-invalid='true'] {
+  border-color: var(--error);
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 14vh;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.dialog {
+  width: min(520px, calc(100vw - 32px));
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.dialog h2 {
+  font-size: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dialogBody {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
+
+.dialogBody .actions {
+  justify-content: flex-end;
+}

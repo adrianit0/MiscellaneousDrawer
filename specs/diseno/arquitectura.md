@@ -77,9 +77,10 @@ Contexto de uso: un único usuario, una única máquina con Ubuntu 22.04 y sesio
 | `catalog` | Lista de mini apps, su arranque aislado, su estado y sus rutas por mini app del shell |
 | `platform` | Contrato público para las mini apps (`MiniApp`, `AppContext`, `Notifications`…) y acceso a SQLite (`Store`) |
 | `apps.<id>` | Una mini app; solo depende de `platform` (P-18) |
-| `apps.database` | «Base de datos»: ejecuta `aws` y `docker` como comandos externos. Es la única mini app con una salida de la máquina: S3, solo para leer (BD-20, ADR-0011) |
+| `apps.database` | «Base de datos»: ejecuta `aws` y `docker` como comandos externos. Sale de la máquina a S3, solo para leer (BD-20, ADR-0011) |
 | `apps.quality` | «Calidad del dato»: ejecuta scripts SQL de validación con `docker exec … mysql --xml`, sin salir de la máquina (CD-20 a CD-30, ADR-0016) |
 | `apps.processes` | «Cerrar procesos»: busca los procesos de un perfil con `ProcessHandle` y `ss` y los termina a la fuerza, sin `sudo` (CP-10 a CP-23, ADR-0018) |
+| `apps.repos` | «Repositorios»: lee el estado local de cada repositorio y ejecuta `git` como comando externo. Sale de la máquina a los servidores git configurados, solo para traer cambios: `fetch`, `pull` y `clone` (RG-20 a RG-32, ADR-0019) |
 | Interfaz `shell/` | Disposición, navegación, lanzador, paleta, ajustes, presencia, campana de notificaciones y panel de consolas |
 | Interfaz `platform/` | API pública de interfaz para las mini apps |
 | Interfaz `apps/<id>/` | Una mini app; solo depende de `platform/` (P-18) |
@@ -131,7 +132,7 @@ Ver [requisitos/ciclo-de-vida.md](../requisitos/ciclo-de-vida.md). En resumen:
 
 - Código, identificadores, tablas y rutas de API en inglés. Paquete raíz Java: `dev.cajonsastre`.
 - Textos de interfaz, especificaciones y mensajes de commit en español.
-- Prefijos de requisitos del shell: S (seguridad), A (API), P (plataforma), N (navegación), L (lanzador), U (interfaz), C (ciclo de vida), D (datos), R (actualizaciones). Cada mini app elige un prefijo propio de dos o más letras al especificarse, para no chocar con estos: BD es el de «Base de datos», CD el de «Calidad del dato» y CP el de «Cerrar procesos».
+- Prefijos de requisitos del shell: S (seguridad), A (API), P (plataforma), N (navegación), L (lanzador), U (interfaz), C (ciclo de vida), D (datos), R (actualizaciones). Cada mini app elige un prefijo propio de dos o más letras al especificarse, para no chocar con estos: BD es el de «Base de datos», CD el de «Calidad del dato», CP el de «Cerrar procesos» y RG el de «Repositorios».
 
 ## Método de desarrollo
 
@@ -147,7 +148,7 @@ cajonsastre/
 ├── specs/
 │   ├── constitucion.md       principios que no se negocian
 │   ├── requisitos/           seguridad, api, plataforma, navegacion, interfaz, ciclo-de-vida, datos,
-│   │                         actualizaciones y uno por mini app (database, quality, processes)
+│   │                         actualizaciones y uno por mini app (database, quality, processes, repos)
 │   ├── diseno/               arquitectura, mini-apps, modelo-datos
 │   ├── sprints/              sprint-00.md …
 │   └── decisiones/           ADR-0001-….md

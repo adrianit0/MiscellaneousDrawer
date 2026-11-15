@@ -7,6 +7,7 @@ Mini apps:
 - **Base de datos** prepara la base de datos local de desarrollo y guarda copias de sus volcados (ver «Base de datos»).
 - **Calidad del dato** comprueba los datos de la base local con scripts SQL de validación (ver «Calidad del dato»).
 - **Cerrar procesos** cierra un programa colgado y los procesos que dejó en sus puertos (ver «Cerrar procesos»).
+- **Repositorios** mantiene al día las copias locales de varios repositorios git (ver «Repositorios»).
 - **Tareas**, un gestor de tareas, aparece como «En preparación».
 
 ## Uso
@@ -24,7 +25,7 @@ Mini apps:
 | Alt+W | Cerrar la mini app activa |
 | Alt+←, Alt+→ | Atrás y adelante |
 
-Todo se guarda en la máquina local. La aplicación solo se conecta a internet en dos casos, y siempre porque se pulsa un botón: para buscar e instalar actualizaciones (ver «Actualizar») y para descargar un volcado de S3 desde «Base de datos».
+Todo se guarda en la máquina local. La aplicación solo se conecta a internet en tres casos, y siempre porque se pulsa un botón: para buscar e instalar actualizaciones (ver «Actualizar»), para descargar un volcado de S3 desde «Base de datos» y para traer los cambios de los repositorios git configurados en «Repositorios», sin enviar nunca nada.
 
 ## Base de datos
 
@@ -72,6 +73,19 @@ Sustituye a `cerrarIntelliJ.sh`: cierra a la fuerza, como `kill -9`, un programa
 - Cajón de sastre nunca se cierra a sí mismo.
 
 Los puertos se buscan con `ss`, que Ubuntu trae instalado.
+
+## Repositorios
+
+Sustituye a `actualizarAPIS.sh`: mantiene al día las copias locales de varios repositorios git, por ejemplo las API de las que depende un proyecto.
+
+- La **lista** se escribe en la mini app: de cada repositorio, su nombre, su carpeta, la URL de su remoto (HTTPS o SSH, sin contraseña) y su rama por defecto (`develop` si no se dice otra). Se guarda en `~/.config/cajonsastre/apps/repos/repos.json`.
+- La tabla muestra de cada uno la rama, si tiene cambios sin confirmar y cuántos commits va por detrás o por delante del remoto según la última consulta. Esto solo lee la copia local.
+- Por repositorio: **Actualizar** (`git pull --ff-only` de la rama en la que está), cambiar de rama con el desplegable, **Consultar el remoto** (`git fetch`), **Clonar** el que falta y **Descartar cambios** (`git reset --hard`, con confirmación; no borra ficheros sin seguimiento). Si el `origin` de una copia no es la URL configurada, lo avisa y ofrece cambiarlo.
+- **Actualizar todas** pone cada repositorio en su rama por defecto y lo actualiza, sin pararse si uno falla. **Consultar todas** consulta el remoto de todos.
+- Solo trae cambios: nunca hace `push`. Nunca crea un commit de mezcla: si una rama no puede avanzar sin más, el comando falla y la copia queda como estaba.
+- Cada trabajo escribe sus comandos y su salida en una consola del panel «Consolas» y se puede cancelar. «Actualizar todas», «Consultar todas» y «Clonar» dejan además una notificación al terminar.
+
+Necesita `git` instalado y en el `PATH`, con las credenciales ya configuradas (un ayudante de credenciales o claves SSH). Cajón de sastre no pide ni guarda contraseñas de git: si git necesitara preguntar una, el trabajo falla y la consola lo dice.
 
 ## Requisitos
 

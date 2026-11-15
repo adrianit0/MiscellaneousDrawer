@@ -25,7 +25,7 @@ Plataforma: se desarrolla en Windows 10 y se ejecuta en Ubuntu 22.04 (ADR-0004).
 1. La especificación manda: se corrige primero `specs/` y después el código.
 2. Nada fuera de alcance: ni funciones, ni mini apps, ni dependencias, ni ajustes no pedidos.
 3. Mini apps aisladas: datos, rutas y estado propios; solo usan la plataforma (P-18). El fallo de una no tumba nada más.
-4. Los datos no salen de la máquina: los únicos destinos autorizados son GitHub, para el actualizador del shell (ADR-0010), y S3, solo para que «Base de datos» descargue volcados (ADR-0011); añadir otro exige autorización y ADR.
+4. Los datos no salen de la máquina: los únicos destinos autorizados son GitHub, para el actualizador del shell (ADR-0010); S3, solo para que «Base de datos» descargue volcados (ADR-0011); y los servidores git de los repositorios configurados, solo para que «Repositorios» traiga cambios, nunca `push` (ADR-0019); añadir otro exige autorización y ADR.
 5. Convive con LiteDD: puerto 47800 (Vite 5174), carpetas `cajonsastre`, cabecera `X-CajonSastre-Token`, ventana y perfil de Chrome propios (C-08).
 6. Repositorio público: reglas S-30 a S-35.
 7. Los datos del usuario no se pierden: transacciones, copia antes de migrar y guardado continuo.
@@ -39,8 +39,8 @@ Plataforma: se desarrolla en Windows 10 y se ejecuta en Ubuntu 22.04 (ADR-0004).
 - Textos de interfaz, especificaciones y mensajes de commit en **español**, neutros.
 - Las pruebas citan el identificador del requisito en su nombre (`p07_a_failed_app_answers_503…`, `it('N-05 …')`, `describe('P-15 …')`).
 - Decisiones nuevas: `specs/decisiones/ADR-NNNN-titulo.md`.
-- Prefijos del shell: S, A, P, N, L, U, C, D, R. Cada mini app usa un prefijo propio de dos o más letras: BD es el de «Base de datos», CD el de «Calidad del dato» y CP el de «Cerrar procesos».
-- Datos reales fuera del repositorio (S-30 a S-32): la configuración de «Base de datos» y de «Calidad del dato» (bucket, rutas, contraseña) se escribe en la aplicación; las pruebas usan valores inventados.
+- Prefijos del shell: S, A, P, N, L, U, C, D, R. Cada mini app usa un prefijo propio de dos o más letras: BD es el de «Base de datos», CD el de «Calidad del dato», CP el de «Cerrar procesos» y RG el de «Repositorios».
+- Datos reales fuera del repositorio (S-30 a S-32): la configuración de «Base de datos» y de «Calidad del dato» (bucket, rutas, contraseña) y la lista de «Repositorios» (nombres, carpetas, URL) se escriben en la aplicación; las pruebas usan valores inventados.
 
 ## Estructura
 
@@ -52,7 +52,7 @@ Plataforma: se desarrolla en Windows 10 y se ejecuta en Ubuntu 22.04 (ADR-0004).
   - `notifications/`: notificaciones de las mini apps (P-21 a P-24, ADR-0013): se guardan en la base del shell, llegan a la campana por `/api/events` y lanzan `notify-send` y `paplay`. Una mini app las emite con `context.notifications().send(…)`.
   - `consoles/`: consolas de las mini apps (P-25 a P-28, ADR-0014): la salida de sus ejecuciones, solo en memoria; la lista llega al panel inferior por `/api/events` y las líneas se piden a `/api/consoles/{id}`. Una mini app escribe con `context.consoles().open(…)`, `line(…)` y `finish(…)`.
   - `update/`: actualización desde GitHub, la única salida de la máquina (R-01 a R-47, ADR-0010). Ninguna mini app la usa.
-  - `apps/<id>/`: el servidor de cada mini app. `apps/database/` ejecuta `aws` y `docker` detrás de `CommandRunner`; sus pruebas usan `FakeCommands`, sin tenerlos instalados. `apps/quality/` ejecuta los scripts de calidad con `docker exec … mysql --xml` y tiene su propio `CommandRunner`, porque no puede importar el de otra mini app (P-18, ADR-0016). `apps/processes/` busca y cierra procesos detrás de `ProcessTable`; sus pruebas usan `FakeProcesses` y no cierran nada del equipo (ADR-0018).
+  - `apps/<id>/`: el servidor de cada mini app. `apps/database/` ejecuta `aws` y `docker` detrás de `CommandRunner`; sus pruebas usan `FakeCommands`, sin tenerlos instalados. `apps/quality/` ejecuta los scripts de calidad con `docker exec … mysql --xml` y tiene su propio `CommandRunner`, porque no puede importar el de otra mini app (P-18, ADR-0016). `apps/processes/` busca y cierra procesos detrás de `ProcessTable`; sus pruebas usan `FakeProcesses` y no cierran nada del equipo (ADR-0018). `apps/repos/` ejecuta `git` detrás de su propio `CommandRunner`; sus pruebas usan `FakeGit` y, con el git instalado (`RealGitTest`), un remoto que es otra carpeta temporal: ninguna contacta con un servidor (ADR-0019).
 - `src/main/resources/db/shell/` y `db/apps/<id>/`: migraciones SQLite del shell y de cada mini app.
 - `frontend/src/`: `shell/` (disposición, navegación, lanzador, campana de notificaciones, panel de consolas), `platform/` (API pública para las mini apps), `apps/<id>/` (interfaz de cada mini app).
 - `scripts/`: arranque en desarrollo, instalación y desinstalación en Ubuntu, y publicación (`release.sh`). `packaging/`: plantilla del lanzador `.desktop`. `.github/workflows/`: publicación de versiones.

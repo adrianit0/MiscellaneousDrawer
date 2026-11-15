@@ -53,9 +53,17 @@ class AppCatalogTest {
     }
 
     @Test
-    void adr0008_adr0011_adr0016_adr0018_the_built_in_catalog_has_three_apps_available_and_tasks_planned() {
+    void adr0008_adr0011_adr0016_adr0018_adr0019_the_built_in_catalog_has_four_apps_available_and_tasks_planned() {
         AppCatalog catalog = AppCatalog.builtIn();
-        assertThat(catalog.apps()).extracting(a -> a.manifest().id()).containsExactly("database", "quality", "processes", "tasks");
+        assertThat(catalog.apps()).extracting(a -> a.manifest().id())
+                .containsExactly("database", "quality", "processes", "repos", "tasks");
+        AppManifest repos = catalog.find("repos").orElseThrow().manifest();
+        assertThat(repos.name()).isEqualTo("Repositorios");
+        assertThat(repos.description()).isEqualTo("Mantiene al día los repositorios git del proyecto");
+        assertThat(repos.icon()).isEqualTo("repos");
+        assertThat(repos.color()).isEqualTo(AppColor.BLUE);
+        assertThat(repos.category()).isEqualTo(AppCategory.UTILITIES);
+        assertThat(repos.planned()).isFalse();
         AppManifest processes = catalog.find("processes").orElseThrow().manifest();
         assertThat(processes.name()).isEqualTo("Cerrar procesos");
         assertThat(processes.description()).isEqualTo("Cierra programas colgados y libera sus puertos");
