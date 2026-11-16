@@ -1,11 +1,10 @@
 package dev.cajonsastre.catalog;
 
 import dev.cajonsastre.apps.database.DatabaseApp;
+import dev.cajonsastre.apps.gestask.GestaskApp;
 import dev.cajonsastre.apps.processes.ProcessesApp;
 import dev.cajonsastre.apps.quality.QualityApp;
 import dev.cajonsastre.apps.repos.ReposApp;
-import dev.cajonsastre.platform.AppCategory;
-import dev.cajonsastre.platform.AppColor;
 import dev.cajonsastre.platform.AppManifest;
 import dev.cajonsastre.platform.MiniApp;
 
@@ -34,15 +33,14 @@ public final class AppCatalog {
         }
     }
 
-    /** El catálogo de la aplicación (ADR-0008, ADR-0011, ADR-0016, ADR-0018, ADR-0019). */
+    /** El catálogo de la aplicación (ADR-0008, ADR-0011, ADR-0016, ADR-0018, ADR-0019, ADR-0020). */
     public static AppCatalog builtIn() {
         return new AppCatalog(List.of(
                 new DatabaseApp(),
                 new QualityApp(),
                 new ProcessesApp(),
                 new ReposApp(),
-                MiniApp.of(new AppManifest("tasks", "Tareas", "Gestor de tareas", "tasks",
-                        AppColor.GREEN, AppCategory.PRODUCTIVITY, List.of("pendientes", "listas", "por hacer"), true))));
+                new GestaskApp()));
     }
 
     /** En el orden de declaración, que es el de arranque (P-10). */

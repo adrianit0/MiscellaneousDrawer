@@ -1,0 +1,741 @@
+/* P-17: estilos de «Gestask», con las variables del tema (U-01). */
+.app {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 16px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border-color: transparent;
+  border-radius: 4px 4px 0 0;
+  padding: 6px 14px;
+  color: var(--text-muted);
+}
+
+.tabs button[aria-current='page'] {
+  color: var(--text);
+  border-bottom: 2px solid var(--gold);
+}
+
+.section,
+.connection {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.connection {
+  max-width: 720px;
+}
+
+.connection fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.error {
+  color: var(--error);
+}
+
+.notice {
+  margin: 0;
+  color: var(--warning);
+}
+
+.pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.danger {
+  background: transparent;
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.link {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.link:disabled {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.actions,
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.toolbar p,
+.toolbar h2 {
+  margin: 0;
+}
+
+.inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.panel p,
+.panel h2 {
+  margin: 0;
+}
+
+.panel h2,
+.toolbar h2 {
+  font-size: 15px;
+}
+
+.errorBox {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--error);
+  border-radius: 6px;
+  color: var(--error);
+}
+
+.badge {
+  font-size: 12px;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.search {
+  flex: 1 1 240px;
+  min-width: 180px;
+}
+
+/* GT-31: los estados como casillas con su color. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.chips legend {
+  float: left;
+  margin-right: 8px;
+  padding: 0;
+  color: var(--text-muted);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.chip:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--surface-raised);
+}
+
+.chip input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.chip:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--task-color, var(--border));
+}
+
+/* GT-25: el color de cada estado, el de Gestask. */
+.task,
+.chip,
+.column {
+  --task-color: transparent;
+}
+
+[data-status='To do'] {
+  --task-color: #ffb9b9;
+}
+
+[data-status='To do'][data-priority='Trivial'] {
+  --task-color: #ffd8ce;
+}
+
+[data-status='To do'][data-priority='Menor'] {
+  --task-color: #ffcccc;
+}
+
+[data-status='To do'][data-priority='Prioritaria'] {
+  --task-color: #ffb9b9;
+}
+
+[data-status='To do'][data-priority='Crítica'] {
+  --task-color: #ffa6a6;
+}
+
+[data-status='To do'][data-priority='Bloqueante'] {
+  --task-color: #ff6d6d;
+}
+
+[data-status='Doing'] {
+  --task-color: #ffbf00;
+}
+
+[data-status='Draft'] {
+  --task-color: #999999;
+}
+
+[data-status='Undone'] {
+  --task-color: #fff5ce;
+}
+
+[data-status='Unfinished'] {
+  --task-color: #f6f9d4;
+}
+
+[data-status='Need Fix'] {
+  --task-color: #b4c7dc;
+}
+
+[data-status='Waiting'] {
+  --task-color: #ffdbb6;
+}
+
+[data-status='Done'] {
+  --task-color: #ccffcc;
+}
+
+[data-status='Warning'] {
+  --task-color: #bbbbbb;
+}
+
+/* GT-25: el borde según el estado PR. */
+[data-pr='Need PR'] {
+  --pr-color: #cc0000;
+}
+
+[data-pr='Need to Impute'] {
+  --pr-color: #ffbf00;
+}
+
+[data-pr='Imputed'] {
+  --pr-color: #b4c7dc;
+}
+
+[data-pr='Deployed'] {
+  --pr-color: #5eb91e;
+}
+
+.task {
+  background: color-mix(in srgb, var(--task-color) 22%, var(--surface));
+  cursor: pointer;
+}
+
+.task:hover {
+  background: color-mix(in srgb, var(--task-color) 32%, var(--surface));
+}
+
+.task:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+tr.task td:first-child {
+  box-shadow: inset 3px 0 0 var(--pr-color, transparent);
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+}
+
+.table th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.table tfoot td {
+  font-weight: 600;
+}
+
+.number {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rowActions {
+  white-space: nowrap;
+  text-align: right !important;
+}
+
+.rowActions button + button {
+  margin-left: 6px;
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 220px;
+}
+
+.summaryMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ticket {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+a.ticket {
+  color: var(--accent);
+}
+
+.title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.info {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.type {
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--text-muted);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.type[data-type='Bug'] {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.type[data-type='Feature'] {
+  border-color: var(--violet);
+  color: var(--violet);
+}
+
+.type[data-type='Task'] {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.pill {
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--pr-color, var(--border));
+  white-space: nowrap;
+}
+
+/* GT-50 */
+.board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(220px, 1fr);
+  gap: 10px;
+  overflow-x: auto;
+  align-items: start;
+  padding-bottom: 8px;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  min-height: 120px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--task-color);
+  border-radius: 6px;
+}
+
+.column[data-target] {
+  border-color: var(--accent);
+  background: var(--surface-raised);
+}
+
+.column > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.column h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.column p {
+  margin: 0;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--pr-color, var(--border));
+  border-radius: 6px;
+}
+
+.card > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.card > footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* GT-61 */
+.orderRow {
+  cursor: grab;
+}
+
+.orderRow[data-dragging] {
+  opacity: 0.5;
+}
+
+.orderRow[data-target] td {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.grip {
+  margin-right: 6px;
+  color: var(--text-muted);
+}
+
+/* GT-71 */
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--pr-color, var(--border));
+  border-radius: 6px;
+}
+
+.step strong {
+  font-size: 22px;
+}
+
+/* GT-27 */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 55%);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(480px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 16px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.dialog.wide {
+  width: min(860px, 100%);
+}
+
+.dialogHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dialogHeader h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.eyebrow {
+  margin: 0 0 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.dialogBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dialogBody p {
+  margin: 0;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.formGrid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.span3 {
+  grid-column: 1 / -1;
+}
+
+.deleteZone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.detailItem {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.detailItem > span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.comments {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.comments h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.comments p {
+  margin: 0;
+}
+
+.commentForm {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.commentForm label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.commentList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.commentList li {
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.commentList time {
+  font-size: 12px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 14px;
+  margin: 0;
+}
+
+.facts dt {
+  color: var(--text-muted);
+}
+
+.facts dd {
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .formGrid,
+  .detailGrid,
+  .steps {
+    grid-template-columns: 1fr;
+  }
+}

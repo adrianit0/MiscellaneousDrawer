@@ -53,10 +53,18 @@ class AppCatalogTest {
     }
 
     @Test
-    void adr0008_adr0011_adr0016_adr0018_adr0019_the_built_in_catalog_has_four_apps_available_and_tasks_planned() {
+    void adr0011_adr0016_adr0018_adr0019_adr0020_the_built_in_catalog_has_five_apps_available_and_none_planned() {
         AppCatalog catalog = AppCatalog.builtIn();
         assertThat(catalog.apps()).extracting(a -> a.manifest().id())
-                .containsExactly("database", "quality", "processes", "repos", "tasks");
+                .containsExactly("database", "quality", "processes", "repos", "gestask");
+        assertThat(catalog.find("tasks")).isEmpty();
+        AppManifest gestask = catalog.find("gestask").orElseThrow().manifest();
+        assertThat(gestask.name()).isEqualTo("Gestask");
+        assertThat(gestask.description()).isEqualTo("Backlog, tablero y cierre de tareas sobre Supabase");
+        assertThat(gestask.icon()).isEqualTo("tasks");
+        assertThat(gestask.color()).isEqualTo(AppColor.GOLD);
+        assertThat(gestask.category()).isEqualTo(AppCategory.PRODUCTIVITY);
+        assertThat(gestask.planned()).isFalse();
         AppManifest repos = catalog.find("repos").orElseThrow().manifest();
         assertThat(repos.name()).isEqualTo("Repositorios");
         assertThat(repos.description()).isEqualTo("Mantiene al día los repositorios git del proyecto");
@@ -84,10 +92,6 @@ class AppCatalogTest {
         assertThat(database.color()).isEqualTo(AppColor.VIOLET);
         assertThat(database.category()).isEqualTo(AppCategory.DATA);
         assertThat(database.planned()).isFalse();
-        AppManifest tasks = catalog.find("tasks").orElseThrow().manifest();
-        assertThat(tasks.name()).isEqualTo("Tareas");
-        assertThat(tasks.category()).isEqualTo(AppCategory.PRODUCTIVITY);
-        assertThat(tasks.planned()).isTrue();
     }
 
     @Test
