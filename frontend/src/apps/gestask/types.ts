@@ -107,15 +107,93 @@ export interface OrderUpdate {
   order_points: number;
 }
 
-/** Los datos cargados de Supabase (GT-22). */
+/** GT-81: la ordenación del parte por defecto. */
+export const DEFAULT_DAILY_SORT: Sort = { by: 'order_points', dir: 'desc' };
+
+/** GT-114: los tipos de día que se pueden elegir. */
+export const DAY_STATUSES = ['Laboral', 'Vacaciones', 'Festivos', 'Ausencia'] as const;
+
+/** Una diaria del parte, con su marca de realizada (GT-96). */
+export interface DailyTask extends Task {
+  completed_at?: string | null;
+}
+
+/** GT-80: el parte de un día, con el día que se pidió. */
+export interface Report {
+  /** El día pedido: si no es el elegido, el parte de ese día todavía no ha llegado. */
+  date: string;
+  /** Si existe el parte de ese día. */
+  exists: boolean;
+  tasks: Task[];
+  daily: DailyTask[];
+  editable: boolean;
+}
+
+/** GT-103: una diaria sin realizar en un parte. */
+export interface PendingItem {
+  task_id: string;
+  ticket?: string | null;
+  title?: string | null;
+  more_info?: string | null;
+  report_date: string;
+}
+
+/** GT-103: lo que devuelve daily-tasks-pending; today es la fecha de Supabase. */
+export interface Pending {
+  today: string;
+  items: PendingItem[];
+}
+
+/** GT-111: una tarea cerrada un día del calendario. */
+export interface CalendarTask {
+  id: string;
+  ticket?: string | null;
+  title?: string | null;
+  ticket_type?: string | null;
+  effort_points?: number | null;
+  finished_date?: string | null;
+}
+
+/** GT-111: un día de calendar-month-get. */
+export interface CalendarDay {
+  date: string;
+  day: number;
+  status: string;
+  note?: string | null;
+  is_today?: boolean;
+  completed_points?: number | null;
+  completed_tasks?: CalendarTask[] | null;
+}
+
+/** GT-110: un mes del calendario, con el mes que se pidió. */
+export interface Month {
+  year: number;
+  month: number;
+  days: CalendarDay[];
+}
+
+/** Los datos cargados de Supabase (GT-22). El parte y el mes son null hasta que llegan. */
 export interface Data {
   tasks: Task[];
   completion: Task[];
   order: Task[];
   parameters: Parameter[];
+  report: Report | null;
+  routine: Task[];
+  pending: Pending;
+  calendar: Month | null;
 }
 
-export const NO_DATA: Data = { tasks: [], completion: [], order: [], parameters: [] };
+export const NO_DATA: Data = {
+  tasks: [],
+  completion: [],
+  order: [],
+  parameters: [],
+  report: null,
+  routine: [],
+  pending: { today: '', items: [] },
+  calendar: null,
+};
 
 export function errorMessage(e: unknown): string {
   if (e instanceof ApiError) return e.message;

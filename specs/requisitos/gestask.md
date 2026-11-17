@@ -1,14 +1,14 @@
 # Mini app «Gestask»
 
-Adapta a Cajón de sastre la aplicación web Gestask: backlog, tablero, orden manual y cierre de tareas, sobre **el mismo backend de Supabase** que usa la web. La mini app no cambia ni añade nada en ese backend: llama a las mismas Edge Functions, con los mismos métodos y cuerpos, de modo que la web y la mini app se pueden usar a la vez sobre los mismos datos (ADR-0020).
+Adapta a Cajón de sastre la aplicación web Gestask: backlog, tablero, orden manual y cierre de tareas, parte diario, horario, tareas diarias y calendario, sobre **el mismo backend de Supabase** que usa la web. La mini app no cambia ni añade nada en ese backend: llama a las mismas Edge Functions, con los mismos métodos y cuerpos, de modo que la web y la mini app se pueden usar a la vez sobre los mismos datos (ADR-0020).
 
 Todo lo que identifica al proyecto de Supabase y al usuario (URL, clave publicable, email, contraseña) se escribe a mano en su sección «Conexión» y no está en el código ni en el repositorio (S-32). Los ejemplos usan marcadores. Prefijo de requisitos: **GT**.
 
-Se entrega en tres sprints. Este documento cubre el sprint 9: conexión y la sección «Tareas». «Día a día» y «Seguimiento» se especifican en sus sprints.
+Se entrega en tres sprints: el 9, conexión y «Tareas»; el 10, «Día a día» y «Calendario» (ADR-0022); y el 11, «Rendimiento» y los parámetros. Este documento cubre los dos primeros.
 
 ## Identidad
 
-`gestask`, «Gestask», «Backlog, tablero y cierre de tareas sobre Supabase», icono `tasks`, color `gold`, categoría `productivity`. Sustituye a la mini app en preparación `tasks` (ADR-0008, ADR-0020). Sin base de datos propia: sus datos están en Supabase.
+`gestask`, «Gestask», «Tareas, parte diario, horario y calendario sobre Supabase», icono `tasks`, color `gold`, categoría `productivity`. Sustituye a la mini app en preparación `tasks` (ADR-0008, ADR-0020). Sin base de datos propia: sus datos están en Supabase.
 
 ## Conexión
 
@@ -49,19 +49,22 @@ Se entrega en tres sprints. Este documento cubre el sprint 9: conexión y la sec
 | `tasks-create` | POST | 9 |
 | `tasks-update`, `tasks-completion-resolve`, `tasks-order-update`, `configuration-profile-update` | PATCH | 9 |
 | `tasks-delete` | DELETE | 9 |
-| `daily-report-get`, `daily-tasks-pending`, `calendar-month-get` | GET | 10 y 11 |
-| `daily-report-create`, `configuration-create` | POST | 10 y 11 |
-| `daily-tasks-complete`, `calendar-day-status-update` | PATCH | 10 y 11 |
+| `daily-report-get`, `daily-tasks-pending`, `calendar-month-get` | GET | 10 |
+| `daily-report-create` | POST | 10 |
+| `daily-tasks-complete`, `calendar-day-status-update` | PATCH | 10 |
+| `configuration-create` | POST | 11 |
+
+`tasks-list` con `ticket_type=Diaria` devuelve las tareas diarias (GT-100); sin ese parámetro, Supabase las excluye.
 
 ## Interfaz común
 
 | ID | Requisito |
 |---|---|
-| GT-20 | Secciones, cada una con su subruta (N-02) y su nombre en la miga de pan (N-07): «Backlog» (`''`), «Kanban» (`/kanban`), «Ordenar» (`/order`), «Completar» (`/completion`) y «Conexión» (`/connection`). «Completar» muestra el número de tareas que esperan un paso de cierre, si hay alguna. |
+| GT-20 | Secciones, cada una con su subruta (N-02) y su nombre en la miga de pan (N-07): «Backlog» (`''`), «Kanban» (`/kanban`), «Ordenar» (`/order`), «Completar» (`/completion`), «Tareas diarias» (`/daily`), «Horario diario» (`/schedule`), «Diarias» (`/routine`), «Calendario» (`/calendar`) y «Conexión» (`/connection`). «Completar» muestra el número de tareas que esperan un paso de cierre, si hay alguna, y «Diarias» el de diarias pendientes (GT-106). |
 | GT-21 | Si falta algún campo de la conexión, las secciones de tareas muestran «Falta configurar la conexión» con un botón que lleva a «Conexión», y no piden datos. |
-| GT-22 | Al abrirse con la conexión completa carga, en paralelo, las tareas, las tareas a completar, las tareas ordenables y los parámetros de Gestask. Un fallo se muestra con «Reintentar» sin descartar lo que sí se cargó. «Actualizar» (`Alt+R`) vuelve a cargar todo. |
+| GT-22 | Al abrirse con la conexión completa carga, en paralelo, las tareas, las tareas a completar, las tareas ordenables, el parte del día elegido (GT-80), las diarias (GT-100), las diarias pendientes (GT-103), el mes del calendario (GT-110) y los parámetros de Gestask. Un fallo se muestra con «Reintentar» sin descartar lo que sí se cargó. «Actualizar» (`Alt+R`) vuelve a cargar todo. |
 | GT-23 | No hay sondeos. Al volver a mostrarse la mini app (N-05) después de más de 5 minutos oculta, recarga los datos una vez. |
-| GT-24 | Tras una acción que cambia tareas se recargan las tres listas de tareas, no los parámetros. El resultado de la acción se dice con un aviso del shell (U-05). Mientras se guarda, la acción no se puede repetir. |
+| GT-24 | Tras una acción que cambia tareas se recarga todo menos los parámetros: las tres listas de tareas, el parte, las diarias, las pendientes y el mes del calendario, que también dependen de las tareas. El resultado de la acción se dice con un aviso del shell (U-05). Mientras se guarda, la acción no se puede repetir. |
 | GT-25 | Los colores de una tarea son los de Gestask: fondo según el estado (y la prioridad en `To do`) y borde izquierdo según el estado PR cuando está en `Done`, mezclados con la superficie del tema. El tipo es una etiqueta de color (`Bug`, `Feature`, `Task`). |
 | GT-26 | El ticket es un enlace si el parámetro `project-external-page` tiene valor: sustituye `{ticket}` si aparece, o lo añade al final tras una barra. Se abre fuera de la aplicación (`target="_blank"`, `rel="noreferrer"`). Sin valor, es texto. |
 | GT-27 | Los diálogos se cierran con Esc y con «Cancelar» sin hacer nada, y llevan el foco a su primer campo. |
@@ -122,6 +125,65 @@ Se entrega en tres sprints. Este documento cubre el sprint 9: conexión y la sec
 | GT-78 | Imputación masiva: tabla de las tareas en `Need to Impute` con casilla, una fecha común (hoy por defecto) y los totales de horas, de todas y de las marcadas. «Imputar seleccionadas (N)» pide confirmación y envía una llamada por tarea, en orden. |
 | GT-79 | «Informar PR de todas (N)» y «Cerrar imputadas (N)» piden confirmación y envían una llamada `{id}` por tarea, en orden. Si una llamada falla, se detiene, se dice el error y se recargan los datos. |
 
+## Tareas diarias (parte diario)
+
+| ID | Requisito |
+|---|---|
+| GT-80 | El parte que se muestra es el del día elegido, que empieza en hoy y es el mismo en «Tareas diarias» y en «Horario diario». Selector de día en las dos: «Día anterior», la fecha, «Día siguiente» y «Hoy» (desactivado si ya es hoy). Cambiar de día pide solo `daily-report-get` con `date` y la ordenación (GT-81); mientras llega, la sección dice que está cargando y no muestra el parte de otro día. |
+| GT-81 | Ordenación con los campos de GT-33, por defecto `order_points` descendente, que se envía a `daily-report-get` como `sort_by` y `sort_direction`; cambiarla vuelve a pedir solo esa función. No se recuerda entre sesiones, como en la web. |
+| GT-82 | Tabla de las tareas del parte (`tasks`, que no incluye las diarias) en el orden recibido, con su número: tarea (como en GT-30), tipo, asignación, límite, scoring, orden, estado y estado PR. Pulsar una fila, o Enter con el foco en ella, abre su detalle. Sin parte para ese día: «No existe parte diario para esta fecha.» |
+| GT-83 | Si el parte es editable (`editable`: el de hoy, según Supabase), el estado y el estado PR se cambian en la tabla con `tasks-update` (`{id, task_status}` o `{id, pr_status}`), con las reglas de GT-41. Si no lo es, se avisa «Modo histórico: el parte de un día anterior es de solo lectura.», la tabla no deja cambiar nada y el detalle es de solo lectura salvo los comentarios, como en GT-43. |
+| GT-84 | «Nuevo día» crea el parte de hoy con `daily-report-create`, sin cuerpo. Dice cuántas diarias obligatorias añadió (`added_daily_tasks`), si añadió alguna, elige hoy y recarga como tras cualquier cambio (GT-24). Si el parte ya existe, Supabase responde 409 y se dice su mensaje. |
+
+## Horario diario
+
+| ID | Requisito |
+|---|---|
+| GT-90 | Agenda del parte del día elegido (GT-80), calculada en la interfaz como en la web. Las tareas del parte van por `order_points` descendente (sin orden cuenta como 0) y, con el mismo orden, primero la creada antes. Empieza con un bloque «Daily» de 60 minutos desde la hora de inicio, y cada tarea ocupa a continuación `effort_points × Minute_PE` minutos (GT-72); las de esfuerzo 0 no aparecen. |
+| GT-91 | En jornada no intensiva, cuando una tarea llega a la hora de descanso se inserta un bloque «Descanso» de su duración, y la tarea que lo cruza se parte en dos bloques. Se planifica hasta la hora de fin: la tarea que no cabe entera termina en ella con la marca «Tarea parcial», y las siguientes no aparecen. Si el fin no es posterior al inicio, no hay agenda. |
+| GT-92 | La jornada sale de los parámetros de la tabla de abajo. Uno que falta o no es válido toma su valor por defecto, y también un objetivo, una duración o unos puntos extra que no son mayores que 0. Un día es intensivo si su día de la semana (1 lunes … 7 domingo) está en `dias_semana_intensivo` o su mes en `meses_intensivo`: usa entonces el inicio, el fin y el objetivo intensivos, y no tiene descanso. |
+| GT-93 | Cabecera: «Horario intensivo» si lo es, los puntos planificados frente al objetivo del día (`9 / 12 PE`) y el rango de la jornada. Las horas se muestran como `H:MM` sumando `hora_horario_offset` horas y dando la vuelta a medianoche; el desplazamiento solo cambia lo que se muestra. |
+| GT-94 | Al final de la agenda, «Incluir horas» alarga el fin en `PE_diario_extra × Minute_PE` minutos y pasa a «Mostrar menos horas», que lo deshace. No se guarda ni cambia la jornada: vuelve a su estado inicial al cambiar de sección. |
+| GT-95 | Cada bloque de tarea muestra sus horas de inicio y fin, ticket (GT-26), esfuerzo, «Tarea parcial» si lo es, orden, título y más info, con los colores de GT-25; pulsarlo abre su detalle. Sin parte: «No existe parte diario para mostrar el horario.»; si la agenda queda vacía (GT-91): «No hay tareas con esfuerzo para planificar en el horario diario.» |
+| GT-96 | Encima de la agenda, si el parte tiene diarias (`daily_tasks`), la lista «Tareas diarias» con «N / M realizadas» y una casilla por diaria para marcarla (GT-104). |
+
+| Parámetro | Por defecto | Uso |
+|---|---|---|
+| `hora_inicio` | `8:00` | Inicio de la jornada (`H:MM`, de 0:00 a 23:59) |
+| `hora_fin` | `17:30` | Fin de la jornada |
+| `hora_descanso` | `14:00` | Inicio del descanso |
+| `duracion_descanso` | `60` | Minutos de descanso |
+| `PE_diario` | `12` | Objetivo de puntos de esfuerzo del día |
+| `hora_inicio_intensivo` | `8:00` | Inicio de la jornada intensiva |
+| `hora_fin_intensivo` | `15:00` | Fin de la jornada intensiva |
+| `PE_diario_intensivo` | `9` | Objetivo de la jornada intensiva |
+| `dias_semana_intensivo` | `5` | Días de la semana intensivos, separados por comas |
+| `meses_intensivo` | `7,8` | Meses intensivos, separados por comas |
+| `PE_diario_extra` | `3` | Puntos que añade «Incluir horas» |
+| `hora_horario_offset` | `0` | Horas que se suman a las que se muestran |
+
+## Diarias
+
+| ID | Requisito |
+|---|---|
+| GT-100 | Las tareas `Diaria` se piden con `tasks-list` y `ticket_type=Diaria`, `sort_by=created_at` y `sort_direction=asc`, como en la web. «Activas» (sin fecha de finalización): tarea, «Desde» (fecha de asignación) y las acciones «Editar» y «Finalizar». «Finalizadas», plegada y solo si hay alguna: tarea, fecha de finalización, «Editar» y «Reactivar». |
+| GT-101 | «Nueva tarea diaria» abre un formulario reducido: título (obligatorio), ticket, fecha de inicio (obligatoria, hoy por defecto) y más info. Al editar, además, el estado «Activa» (`To do`) o «Finalizada» (`Done`) y «Eliminar tarea», que pide confirmación diciendo que también borra su historial de partes. Envía lo mismo que la web: esos campos con `ticket_type: "Diaria"`, `effort_points: 0`, `order_points: null` y `limit_date: null`, y al editar `id` y `task_status`. |
+| GT-102 | «Finalizar» pide confirmación diciendo que dejará de añadirse a los partes nuevos y envía `tasks-update` con `{id, task_status: "Done"}`. «Reactivar» envía `{id, task_status: "To do"}` sin confirmación. |
+| GT-103 | «Pendientes de realizar»: las de `daily-tasks-pending`, agrupadas por la fecha de su parte en orden ascendente. Cada grupo lleva la fecha larga en español y «Atrasada» si es anterior al `today` de la respuesta, u «Hoy» si no. Sin pendientes: «Todas las tareas diarias están realizadas.» |
+| GT-104 | Cada diaria pendiente, y cada una de la lista del horario (GT-96), tiene una casilla que envía `daily-tasks-complete` con `{task_id, report_date, completed}`. Mientras se guarda, la casilla muestra el valor nuevo y no se puede usar; después se recargan solo las pendientes y el parte. Si falla, se dice el error y la casilla vuelve a su valor. |
+| GT-105 | «Marcar todas como realizadas (N)», solo si hay pendientes y desactivado mientras se guarda alguna, pide confirmación diciendo cuántas son y cuántas de días anteriores, y envía una llamada por pendiente, en orden. Si una falla, se detiene, dice cuántas se marcaron y el error; al terminar se recargan las pendientes y el parte. |
+| GT-106 | La pestaña «Diarias» muestra el número de pendientes, en rojo si alguna es de un día anterior y en ámbar si todas son de hoy, con el texto «N tareas diarias de días anteriores sin realizar» o «N tareas diarias de hoy por realizar». Sin pendientes no muestra nada. |
+
+## Calendario
+
+| ID | Requisito |
+|---|---|
+| GT-110 | El mes que se muestra empieza en el actual. Selector: «Mes anterior», el mes, el año (de 2000 a 2100), «Mes siguiente» y «Mes actual» (desactivado si ya es el actual). Cambiar de mes pide solo `calendar-month-get` con `year` y `month`, y un año fuera de ese rango no pide nada; mientras llega, la sección dice que está cargando y no muestra otro mes. |
+| GT-111 | Cuadrícula de lunes a viernes, sin sábados ni domingos, que empieza en la columna del primer día laborable del mes. Cada día muestra número y nombre, su tipo si no es «Laboral», «Hoy» si lo es (`is_today`), la observación (hasta 70 caracteres, entera al pasar el ratón) y sus tareas cerradas (`completed_tasks`) con ticket o título y esfuerzo, con el color de su tipo. Pulsar una tarea abre su detalle. |
+| GT-112 | Un día «Laboral» muestra los puntos completados frente al objetivo de ese día (`PE_diario`, o `PE_diario_intensivo` si es intensivo, GT-92), sus horas (GT-72, con el formato de GT-75) y una barra de progreso que llega como mucho al 100 %. |
+| GT-113 | Cada día se colorea como no laborable (Vacaciones, Festivos o Ausencia), hoy, futuro (sin valorar), objetivo cumplido (puntos completados iguales o mayores que el objetivo del día) o por debajo. Una leyenda explica los colores de objetivo cumplido, por debajo y no laborable (ADR-0022). |
+| GT-114 | Pulsar un día, o Enter con el foco en él, abre un diálogo con «Tipo de día» (`Laboral`, `Vacaciones`, `Festivos` o `Ausencia`) y «Observaciones». «Guardar» envía `calendar-day-status-update` con `{day, status, note}`, con la observación sin espacios a los lados o `null` si queda vacía, y recarga solo el mes. |
+
 ## API de la mini app
 
 Prefijo `/api/apps/gestask`.
@@ -140,5 +202,6 @@ Prefijo `/api/apps/gestask`.
 - Registrar usuarios y cambiar la contraseña.
 - El «Gestor de tiempos», que en la web solo guarda en el navegador (ADR-0020).
 - El tema, el menú lateral y los avisos propios de la web: se usan los del shell.
-- Las «horas revisadas» de la imputación, que dependen de las métricas de rendimiento: llegan con «Seguimiento» (sprint 11).
+- «Rendimiento», la configuración de parámetros y las «horas revisadas» de la imputación, que dependen de las métricas de rendimiento: llegan en el sprint 11.
+- El botón «Ir al Backlog» del parte y del horario, y el salto al Backlog desde una tarea del calendario: aquí se abre el detalle de la tarea (ADR-0022).
 - Trabajar sin conexión y guardar una copia local de las tareas.

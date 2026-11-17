@@ -68,6 +68,33 @@ export function taskColors(task: Task): Record<string, string | undefined> {
   };
 }
 
+interface DailyCheckProps {
+  title: string | null | undefined;
+  ticket: string | null | undefined;
+  moreInfo: string | null | undefined;
+  parameters: Parameter[];
+  checked: boolean;
+  /** GT-104: mientras se guarda, la casilla no se puede usar. */
+  saving: boolean;
+  onChange: (checked: boolean) => void;
+}
+
+/** GT-96, GT-104: una diaria con su casilla de realizada. */
+export function DailyCheck({ title, ticket, moreInfo, parameters, checked, saving, onChange }: DailyCheckProps) {
+  return (
+    <li className={styles.check} data-done={checked || undefined}>
+      <label>
+        <input type="checkbox" checked={checked} disabled={saving} onChange={(e) => onChange(e.target.checked)} />
+        <span className={styles.checkText}>
+          <span className={styles.title}>{title || 'Sin título'}</span>
+          {moreInfo && <small className={styles.muted}>{moreInfo}</small>}
+        </span>
+      </label>
+      <TicketLink ticket={ticket} parameters={parameters} />
+    </li>
+  );
+}
+
 /** Abrir con clic, o con Enter o Espacio con el foco en la fila (GT-30). */
 export function activation(open: () => void) {
   return {

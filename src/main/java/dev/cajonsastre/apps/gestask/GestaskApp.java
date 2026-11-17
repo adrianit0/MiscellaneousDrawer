@@ -14,15 +14,17 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * «Gestask» (GT-01 a GT-79, ADR-0020): la versión web de Gestask dentro de Cajón de sastre, sobre el mismo Supabase.
+ * «Gestask» (GT-01 a GT-114, ADR-0020, ADR-0022): la versión web de Gestask dentro de Cajón de sastre, sobre el
+ * mismo Supabase.
  * El servidor solo guarda la conexión, mantiene la sesión y reenvía una lista cerrada de Edge Functions sin
  * interpretarlas. Sin base de datos propia.
  */
 public final class GestaskApp implements MiniApp {
 
     static final AppManifest MANIFEST = new AppManifest("gestask", "Gestask",
-            "Backlog, tablero y cierre de tareas sobre Supabase", "tasks", AppColor.GOLD, AppCategory.PRODUCTIVITY,
-            List.of("tareas", "backlog", "kanban", "pendientes", "tickets", "jira", "imputar", "supabase"), false);
+            "Tareas, parte diario, horario y calendario sobre Supabase", "tasks", AppColor.GOLD, AppCategory.PRODUCTIVITY,
+            List.of("tareas", "backlog", "kanban", "pendientes", "jira", "supabase", "diarias", "horario", "calendario",
+                    "parte"), false);
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final Transport transport;

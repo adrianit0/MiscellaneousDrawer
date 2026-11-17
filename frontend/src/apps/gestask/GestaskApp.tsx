@@ -1,24 +1,46 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppShortcut, useAppState, useMiniApp } from '../../platform';
 import { Backlog } from './Backlog';
+import { Calendar } from './Calendar';
 import { Completion } from './Completion';
 import { Connection } from './Connection';
+import { Daily } from './Daily';
+import { DailyTaskForm } from './DailyTaskForm';
 import styles from './gestask.module.css';
 import { Kanban } from './Kanban';
-import { cloneOf, nextOrderPoints, nextTicket, nextTicketOrderValue, TICKET_ORDER } from './logic';
+import {
+  cloneOf,
+  completionKey,
+  dailyTasksText,
+  nextOrderPoints,
+  nextTicket,
+  nextTicketOrderValue,
+  pendingSummary,
+  pendingText,
+  TICKET_ORDER,
+  todayIso,
+} from './logic';
 import { Order } from './Order';
+import { Routine } from './Routine';
+import { Schedule } from './Schedule';
 import { TaskDetail } from './TaskDetail';
 import { TaskForm } from './TaskForm';
 import {
+  DAILY_TICKET_TYPE,
+  DEFAULT_DAILY_SORT,
   DEFAULT_SORT,
   errorMessage,
   NO_DATA,
   NO_FILTERS,
+  type CalendarDay,
   type ConfigView,
+  type DailyTask,
   type Data,
   type Filters,
   type OrderUpdate,
   type Parameter,
+  type Pending,
+  type PendingItem,
   type Sort,
   type Task,
 } from './types';
@@ -29,6 +51,10 @@ const SECTIONS = [
   { path: '/kanban', label: 'Kanban' },
   { path: '/order', label: 'Ordenar' },
   { path: '/completion', label: 'Completar' },
+  { path: '/daily', label: 'Tareas diarias' },
+  { path: '/schedule', label: 'Horario diario' },
+  { path: '/routine', label: 'Diarias' },
+  { path: '/calendar', label: 'Calendario' },
   { path: '/connection', label: 'Conexión' },
 ] as const;
 
@@ -43,7 +69,19 @@ interface FormState {
   proposedTicket: string;
 }
 
-/** «Gestask» (GT-20 a GT-79): backlog, tablero, orden y cierre de tareas sobre el Supabase de su versión web. */
+interface ReportResponse {
+  report?: unknown;
+  tasks?: Task[];
+  daily_tasks?: DailyTask[];
+  editable?: boolean;
+}
+
+function currentMonth() {
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() + 1 };
+}
+
+/** «Gestask» (GT-20 a GT-114): tareas, parte diario, horario, diarias y calendario sobre el Supabase de su versión web. */
 export function GestaskApp() {
   const { api, path, navigate, setSubtitle, notify, active } = useMiniApp();
   const section = SECTIONS.find((s) => s.path === path) ?? SECTIONS[0];
@@ -57,6 +95,16 @@ export function GestaskApp() {
   // GT-34: lo guardado puede venir de otra versión.
   const filters: Filters = { ...NO_FILTERS, ...savedFilters, statuses: Array.isArray(savedFilters?.statuses) ? savedFilters.statuses : [] };
   const sort: Sort = { by: savedSort?.by || DEFAULT_SORT.by, dir: savedSort?.dir === 'asc' ? 'asc' : 'desc' };
+
+  /** GT-80, GT-81: el día del parte y su ordenación, que no se recuerdan entre sesiones. */
+  const [day, setDay] = useState(todayIso);
+  const [daySort, setDaySort] = useState<Sort>(DEFAULT_DAILY_SORT);
+  /** GT-110 */
+  const [period, setPeriod] = useState(currentMonth);
+  /** GT-94 */
+  const [includeExtra, setIncludeExtra] = useState(false);
+  /** GT-104: las marcas de diarias que se están guardando, con su valor nuevo. */
+  const [completing, setCompleting] = useState<ReadonlyMap<string, boolean>>(new Map());
 
   const [data, setData] = useState<Data>(NO_DATA);
   const [loaded, setLoaded] = useState(false);
@@ -83,12 +131,23 @@ export function GestaskApp() {
     return () => setSubtitle(null);
   }, [section.label, setSubtitle]);
 
+  // GT-94: «Incluir horas» no se guarda; al cambiar de sección vuelve a su estado inicial.
+  useEffect(() => setIncludeExtra(false), [section.path]);
+
   // --- Carga (GT-22 a GT-24) ---
 
   const sortRef = useRef(sort);
   sortRef.current = sort;
-  /** Solo vale la última respuesta de tasks-list: una ordenación anterior que llega tarde se descarta. */
+  const dayRef = useRef(day);
+  dayRef.current = day;
+  const daySortRef = useRef(daySort);
+  daySortRef.current = daySort;
+  const periodRef = useRef(period);
+  periodRef.current = period;
+  /** Solo vale la última respuesta de cada lista: una petición anterior que llega tarde se descarta. */
   const listSeq = useRef(0);
+  const reportSeq = useRef(0);
+  const calendarSeq = useRef(0);
 
   /** GT-33: la ordenación la hace Supabase. */
   const loadList = useCallback(async () => {
@@ -98,27 +157,80 @@ export function GestaskApp() {
     if (mine === listSeq.current) setData((d) => ({ ...d, tasks: result.tasks ?? [] }));
   }, [api]);
 
-  /** GT-22, GT-24: las tres listas de tareas y, si se piden, los parámetros. Lo que falla no descarta lo demás. */
+  /** GT-80, GT-81: el parte del día elegido. */
+  const loadReport = useCallback(async () => {
+    const mine = ++reportSeq.current;
+    const date = dayRef.current;
+    const query = new URLSearchParams({ date, sort_by: daySortRef.current.by, sort_direction: daySortRef.current.dir });
+    const r = await api.get<ReportResponse>(`/fn/daily-report-get?${query.toString()}`);
+    if (mine !== reportSeq.current) return;
+    setData((d) => ({
+      ...d,
+      report: { date, exists: Boolean(r.report), tasks: r.tasks ?? [], daily: r.daily_tasks ?? [], editable: Boolean(r.editable) },
+    }));
+  }, [api]);
+
+  /** GT-100 */
+  const loadRoutine = useCallback(async () => {
+    const query = new URLSearchParams({ ticket_type: DAILY_TICKET_TYPE, sort_by: 'created_at', sort_direction: 'asc' });
+    const r = await api.get<{ tasks?: Task[] }>(`/fn/tasks-list?${query.toString()}`);
+    setData((d) => ({ ...d, routine: r.tasks ?? [] }));
+  }, [api]);
+
+  /** GT-103 */
+  const loadPending = useCallback(async () => {
+    const r = await api.get<Partial<Pending>>('/fn/daily-tasks-pending');
+    setData((d) => ({ ...d, pending: { today: r.today ?? '', items: r.items ?? [] } }));
+  }, [api]);
+
+  /** GT-110 */
+  const loadCalendar = useCallback(async () => {
+    const mine = ++calendarSeq.current;
+    const { year, month } = periodRef.current;
+    const r = await api.get<{ days?: CalendarDay[] }>(`/fn/calendar-month-get?year=${year}&month=${month}`);
+    if (mine === calendarSeq.current) setData((d) => ({ ...d, calendar: { year, month, days: r.days ?? [] } }));
+  }, [api]);
+
+  /** Varias cargas a la vez; los errores, sin repetir, en el aviso de la sección. Lo que falla no descarta lo demás. */
+  const settle = useCallback(async (loads: Promise<unknown>[]) => {
+    const results = await Promise.allSettled(loads);
+    const errors = new Set<string>();
+    for (const r of results) if (r.status === 'rejected') errors.add(errorMessage(r.reason));
+    return errors;
+  }, []);
+
+  /** GT-22, GT-24: todo y, si se piden, los parámetros. */
   const load = useCallback(
     async (withParameters: boolean) => {
       setLoading(true);
-      const results = await Promise.allSettled([
+      const errors = await settle([
         loadList(),
         api.get<{ tasks?: Task[] }>('/fn/tasks-completion-list').then((r) => setData((d) => ({ ...d, completion: r.tasks ?? [] }))),
         api.get<{ tasks?: Task[] }>('/fn/tasks-order-list').then((r) => setData((d) => ({ ...d, order: r.tasks ?? [] }))),
+        loadReport(),
+        loadRoutine(),
+        loadPending(),
+        loadCalendar(),
         withParameters
           ? api
               .get<{ configurations?: Parameter[] }>('/fn/configuration-list')
               .then((r) => setData((d) => ({ ...d, parameters: r.configurations ?? [] })))
           : Promise.resolve(),
       ]);
-      const errors = new Set<string>();
-      for (const r of results) if (r.status === 'rejected') errors.add(errorMessage(r.reason));
       setError(errors.size ? [...errors].join(' ') : null);
       setLoaded(true);
       setLoading(false);
     },
-    [api, loadList],
+    [api, loadList, loadReport, loadRoutine, loadPending, loadCalendar, settle],
+  );
+
+  /** Una carga parcial: su fallo se suma al aviso con «Reintentar». */
+  const reload = useCallback(
+    (...loads: Promise<unknown>[]) =>
+      settle(loads).then((errors) => {
+        if (errors.size) setError([...errors].join(' '));
+      }),
+    [settle],
   );
 
   useEffect(() => {
@@ -133,7 +245,7 @@ export function GestaskApp() {
       return;
     }
     if (!configured) return;
-    loadList().catch((e: unknown) => setError(errorMessage(e)));
+    void reload(loadList());
     // configured no es una dependencia: su carga es la del efecto anterior.
   }, [sort.by, sort.dir, loadList]);
 
@@ -149,11 +261,34 @@ export function GestaskApp() {
     if (configured && since !== null && Date.now() - since > STALE_MS) void load(true);
   }, [active, configured, load]);
 
+  /** GT-80: cambiar de día pide solo el parte. */
+  const chooseDay = (date: string) => {
+    if (date === dayRef.current) return;
+    dayRef.current = date;
+    setDay(date);
+    void reload(loadReport());
+  };
+
+  /** GT-81 */
+  const chooseDaySort = (next: Sort) => {
+    daySortRef.current = next;
+    setDaySort(next);
+    void reload(loadReport());
+  };
+
+  /** GT-110: cambiar de mes pide solo ese mes. */
+  const chooseMonth = (year: number, month: number) => {
+    if (year === periodRef.current.year && month === periodRef.current.month) return;
+    periodRef.current = { year, month };
+    setPeriod({ year, month });
+    void reload(loadCalendar());
+  };
+
   // --- Acciones (GT-24) ---
 
-  /** Ejecuta un cambio, recarga las listas de tareas y dice el resultado. Devuelve si el cambio salió bien. */
+  /** Ejecuta un cambio, recarga todo menos los parámetros y dice el resultado. Devuelve si el cambio salió bien. */
   const run = useCallback(
-    async (action: () => Promise<void>, done: string): Promise<boolean> => {
+    async (action: () => Promise<void>, done: string | (() => string)): Promise<boolean> => {
       setSaving(true);
       let ok = true;
       try {
@@ -164,7 +299,7 @@ export function GestaskApp() {
       }
       await load(false);
       setSaving(false);
-      if (ok) notify(done);
+      if (ok) notify(typeof done === 'string' ? done : done());
       return ok;
     },
     [load, notify],
@@ -188,12 +323,13 @@ export function GestaskApp() {
   const saveTask = async (payload: Payload) => {
     const create = payload.id === undefined;
     const proposed = form?.proposedTicket ?? '';
+    const label = payload.ticket_type === DAILY_TICKET_TYPE ? 'Tarea diaria' : 'Tarea';
     const ok = await run(
       async () => {
         await api.post(create ? '/fn/tasks-create' : '/fn/tasks-update', payload);
         if (create && proposed && payload.ticket === proposed) await advanceTicketOrder();
       },
-      create ? 'Tarea creada.' : 'Tarea guardada.',
+      create ? `${label} creada.` : `${label} guardada.`,
     );
     if (ok) setForm(null);
   };
@@ -221,6 +357,84 @@ export function GestaskApp() {
     void run(() => api.post('/fn/tasks-order-update', { updates }).then(() => undefined), 'Orden actualizado.');
   };
 
+  /** GT-84: crea el parte de hoy y lo elige. */
+  const createDay = () => {
+    let added = 0;
+    void run(
+      async () => {
+        const r = await api.post<{ added_daily_tasks?: number } | null>('/fn/daily-report-create');
+        added = Number(r?.added_daily_tasks) || 0;
+        const today = todayIso();
+        dayRef.current = today;
+        setDay(today);
+      },
+      () => (added ? `Parte diario creado con ${dailyTasksText(added)} obligatoria${added === 1 ? '' : 's'}.` : 'Parte diario creado.'),
+    );
+  };
+
+  const setMarks = (keys: string[], value: boolean | null) =>
+    setCompleting((current) => {
+      const next = new Map(current);
+      for (const key of keys) {
+        if (value === null) next.delete(key);
+        else next.set(key, value);
+      }
+      return next;
+    });
+
+  /** GT-104: marca o desmarca una diaria en un parte y recarga solo las pendientes y el parte. */
+  const completeDaily = async (taskId: string, reportDate: string, completed: boolean) => {
+    const key = completionKey(taskId, reportDate);
+    if (completing.has(key)) return;
+    setMarks([key], completed);
+    try {
+      await api.post('/fn/daily-tasks-complete', { task_id: taskId, report_date: reportDate, completed });
+      notify(completed ? 'Tarea diaria marcada como realizada.' : 'Tarea diaria marcada como pendiente.');
+    } catch (e) {
+      notify(errorMessage(e), 'error');
+    }
+    await reload(loadPending(), loadReport());
+    setMarks([key], null);
+  };
+
+  /** GT-105: una llamada por pendiente, en orden; la primera que falla detiene el resto. */
+  const completeAllDaily = async () => {
+    const items: PendingItem[] = data.pending.items;
+    if (items.length === 0) return;
+    const keys = items.map((i) => completionKey(i.task_id, i.report_date));
+    setMarks(keys, true);
+    let done = 0;
+    try {
+      for (const item of items) {
+        await api.post('/fn/daily-tasks-complete', { task_id: item.task_id, report_date: item.report_date, completed: true });
+        done += 1;
+      }
+      notify(`${dailyTasksText(done)} marcada${done === 1 ? '' : 's'} como realizada${done === 1 ? '' : 's'}.`);
+    } catch (e) {
+      notify(`Marcadas ${done} de ${dailyTasksText(items.length)}. ${errorMessage(e)}`, 'error');
+    }
+    await reload(loadPending(), loadReport());
+    setMarks(keys, null);
+  };
+
+  /** GT-114: guarda el tipo de un día y recarga solo el mes. */
+  const saveDay = async (payload: { day: string; status: string; note: string | null }): Promise<boolean> => {
+    setSaving(true);
+    let ok = true;
+    try {
+      await api.post('/fn/calendar-day-status-update', payload);
+    } catch (e) {
+      ok = false;
+      notify(errorMessage(e), 'error');
+    }
+    if (ok) {
+      await reload(loadCalendar());
+      notify('Día actualizado.');
+    }
+    setSaving(false);
+    return ok;
+  };
+
   /** GT-35 */
   const openCreate = () => {
     if (!configured) return;
@@ -241,6 +455,8 @@ export function GestaskApp() {
     setForm({ task, proposedTicket: '' });
   };
 
+  const openDetail = (id: string, readonly = false) => setDetail({ id, readonly });
+
   useAppShortcut('Alt+N', () => {
     if (!configured || form || detail) return;
     if (section.path !== '') navigate('');
@@ -250,9 +466,10 @@ export function GestaskApp() {
     if (configured && !loading && !saving) void load(true);
   });
 
-  const known = [...data.tasks, ...data.completion, ...data.order];
+  const known = [...data.tasks, ...data.completion, ...data.order, ...(data.report?.tasks ?? [])];
   const detailTask = detail ? known.find((t) => t.id === detail.id) : undefined;
   const tasksSection = section.path !== '/connection';
+  const pending = pendingSummary(data.pending);
 
   return (
     <div className={styles.app}>
@@ -264,6 +481,11 @@ export function GestaskApp() {
               {s.path === '/completion' && data.completion.length > 0 && (
                 <span className={styles.badge} title="Tareas que esperan un paso de cierre">
                   {data.completion.length}
+                </span>
+              )}
+              {s.path === '/routine' && pending.count > 0 && (
+                <span className={styles.badge} data-level={pending.status} title={pendingText(pending)}>
+                  {pending.count}
                 </span>
               )}
             </button>
@@ -330,7 +552,7 @@ export function GestaskApp() {
           sort={sort}
           onSort={setSort}
           onCreate={openCreate}
-          onOpen={(t) => setDetail({ id: t.id, readonly: false })}
+          onOpen={(t) => openDetail(t.id)}
           onEdit={openEdit}
           onClone={openClone}
         />
@@ -340,7 +562,7 @@ export function GestaskApp() {
           tasks={data.tasks}
           parameters={data.parameters}
           saving={saving}
-          onOpen={(t) => setDetail({ id: t.id, readonly: false })}
+          onOpen={(t) => openDetail(t.id)}
           onMove={(t, status) => void updateTask({ id: t.id, task_status: status })}
         />
       )}
@@ -352,8 +574,65 @@ export function GestaskApp() {
           tasks={data.completion}
           parameters={data.parameters}
           saving={saving}
-          onOpen={(t) => setDetail({ id: t.id, readonly: true })}
+          onOpen={(t) => openDetail(t.id, true)}
           onResolve={resolve}
+        />
+      )}
+      {configured && loaded && section.path === '/daily' && (
+        <Daily
+          report={data.report}
+          date={day}
+          onDate={chooseDay}
+          sort={daySort}
+          onSort={chooseDaySort}
+          parameters={data.parameters}
+          saving={saving}
+          onCreateDay={createDay}
+          onOpen={(t, readonly) => openDetail(t.id, readonly)}
+          onUpdate={(payload) => void updateTask(payload)}
+        />
+      )}
+      {configured && loaded && section.path === '/schedule' && (
+        <Schedule
+          report={data.report}
+          date={day}
+          onDate={chooseDay}
+          parameters={data.parameters}
+          includeExtra={includeExtra}
+          onToggleExtra={() => setIncludeExtra((v) => !v)}
+          completing={completing}
+          onComplete={(taskId, reportDate, completed) => void completeDaily(taskId, reportDate, completed)}
+          onOpen={(t) => openDetail(t.id)}
+        />
+      )}
+      {configured && loaded && section.path === '/routine' && (
+        <Routine
+          tasks={data.routine}
+          pending={data.pending}
+          parameters={data.parameters}
+          saving={saving}
+          completing={completing}
+          onComplete={(item, completed) => void completeDaily(item.task_id, item.report_date, completed)}
+          onCompleteAll={() => void completeAllDaily()}
+          onCreate={() => {
+            setDetail(null);
+            setForm({ task: { ticket_type: DAILY_TICKET_TYPE }, proposedTicket: '' });
+          }}
+          onEdit={openEdit}
+          onFinish={(t) => void updateTask({ id: t.id, task_status: 'Done' })}
+          onReactivate={(t) => void updateTask({ id: t.id, task_status: 'To do' })}
+        />
+      )}
+      {configured && loaded && section.path === '/calendar' && (
+        <Calendar
+          calendar={data.calendar}
+          year={period.year}
+          month={period.month}
+          onMonth={chooseMonth}
+          parameters={data.parameters}
+          saving={saving}
+          onOpenTask={(id) => openDetail(id)}
+          onSaveDay={saveDay}
         />
       )}
 
@@ -368,17 +647,27 @@ export function GestaskApp() {
           onClose={() => setDetail(null)}
         />
       )}
-      {form && (
-        <TaskForm
-          // Otra tarea, otro formulario.
-          key={form.task.id ?? 'new'}
-          task={form.task}
-          saving={saving}
-          onSave={(payload) => void saveTask(payload)}
-          onDelete={(id) => void deleteTask(id)}
-          onClose={() => setForm(null)}
-        />
-      )}
+      {form &&
+        (form.task.ticket_type === DAILY_TICKET_TYPE ? (
+          <DailyTaskForm
+            key={form.task.id ?? 'new'}
+            task={form.task}
+            saving={saving}
+            onSave={(payload) => void saveTask(payload)}
+            onDelete={(id) => void deleteTask(id)}
+            onClose={() => setForm(null)}
+          />
+        ) : (
+          <TaskForm
+            // Otra tarea, otro formulario.
+            key={form.task.id ?? 'new'}
+            task={form.task}
+            saving={saving}
+            onSave={(payload) => void saveTask(payload)}
+            onDelete={(id) => void deleteTask(id)}
+            onClose={() => setForm(null)}
+          />
+        ))}
     </div>
   );
 }

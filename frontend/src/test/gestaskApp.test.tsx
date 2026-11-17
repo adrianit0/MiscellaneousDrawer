@@ -135,7 +135,14 @@ function route(call: Call): { status?: number; body?: unknown } | undefined {
   const find = (id: unknown) => backend.tasks.find((t) => t.id === id)!;
   switch (fn) {
     case 'tasks-list':
-      return { body: { tasks: backend.tasks } };
+      // Como Supabase: las diarias solo con ticket_type=Diaria (aquí no hay ninguna; gestaskDaily.test.tsx las prueba).
+      return { body: { tasks: call.url.includes('ticket_type=Diaria') ? [] : backend.tasks } };
+    case 'daily-report-get':
+      return { body: { report: null, tasks: [], daily_tasks: [], editable: false } };
+    case 'daily-tasks-pending':
+      return { body: { today: '2026-11-17', items: [] } };
+    case 'calendar-month-get':
+      return { body: { year: 2026, month: 11, days: [] } };
     case 'tasks-completion-list':
       return {
         body: {
@@ -416,8 +423,12 @@ describe('Gestask: conexión', () => {
     expect(field('Contraseña').value).toBe('');
     expect(screen.getByText('Hay una contraseña guardada. Escribe otra para cambiarla.')).toBeTruthy();
     await waitFor(() => expect(reads().map((c) => c.url.slice(BASE.length + 4).split('?')[0]).sort()).toEqual([
+      'calendar-month-get',
       'configuration-list',
+      'daily-report-get',
+      'daily-tasks-pending',
       'tasks-completion-list',
+      'tasks-list',
       'tasks-list',
       'tasks-order-list',
     ]));
@@ -455,12 +466,17 @@ describe('Gestask: conexión', () => {
 });
 
 describe('Gestask: Backlog', () => {
-  it('GT-20 GT-22 al abrir carga las cuatro listas, nombra la sección y cuenta las tareas a completar', async () => {
+  it('GT-20 GT-22 al abrir carga todas las listas, nombra la sección y cuenta las tareas a completar', async () => {
     await open();
+    const now = new Date();
     expect(reads().map((c) => c.url.slice(BASE.length))).toEqual([
       '/fn/tasks-list?sort_by=created_at&sort_direction=desc',
       '/fn/tasks-completion-list',
       '/fn/tasks-order-list',
+      `/fn/daily-report-get?date=${todayIso()}&sort_by=order_points&sort_direction=desc`,
+      '/fn/tasks-list?ticket_type=Diaria&sort_by=created_at&sort_direction=asc',
+      '/fn/daily-tasks-pending',
+      `/fn/calendar-month-get?year=${now.getFullYear()}&month=${now.getMonth() + 1}`,
       '/fn/configuration-list',
     ]);
     expect(subtitles).toContain('Backlog');
@@ -585,7 +601,11 @@ describe('Gestask: Backlog', () => {
     await settled();
     expect(lastNotice()).toEqual({ text: 'Invalid ticket type.', kind: 'error' });
     expect(field('Título').value).toBe('No se guarda');
-    expect(server.callsTo('GET', `${BASE}/fn/tasks-list`)).toHaveLength(2);
+    // GT-24: tras el cambio se recarga todo menos los parámetros (tasks-list dos veces: las tareas y las diarias).
+    expect(server.callsTo('GET', `${BASE}/fn/tasks-list`)).toHaveLength(4);
+    expect(server.callsTo('GET', `${BASE}/fn/daily-report-get`)).toHaveLength(2);
+    expect(server.callsTo('GET', `${BASE}/fn/calendar-month-get`)).toHaveLength(2);
+    expect(server.callsTo('GET', `${BASE}/fn/configuration-list`)).toHaveLength(1);
   });
 
   it('GT-36 GT-39 edita una tarea y la elimina solo tras confirmar', async () => {
@@ -676,7 +696,7 @@ describe('Gestask: Backlog', () => {
     view.rerender(<Harness active={false} />);
     now += STALE_MS + 1000;
     view.rerender(<Harness active />);
-    await waitFor(() => expect(reads()).toHaveLength(before + 4));
+    await waitFor(() => expect(reads()).toHaveLength(before + 8));
   });
 });
 

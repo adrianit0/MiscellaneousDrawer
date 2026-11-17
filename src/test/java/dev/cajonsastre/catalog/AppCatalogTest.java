@@ -60,7 +60,7 @@ class AppCatalogTest {
         assertThat(catalog.find("tasks")).isEmpty();
         AppManifest gestask = catalog.find("gestask").orElseThrow().manifest();
         assertThat(gestask.name()).isEqualTo("Gestask");
-        assertThat(gestask.description()).isEqualTo("Backlog, tablero y cierre de tareas sobre Supabase");
+        assertThat(gestask.description()).isEqualTo("Tareas, parte diario, horario y calendario sobre Supabase");
         assertThat(gestask.icon()).isEqualTo("tasks");
         assertThat(gestask.color()).isEqualTo(AppColor.GOLD);
         assertThat(gestask.category()).isEqualTo(AppCategory.PRODUCTIVITY);

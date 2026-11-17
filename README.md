@@ -8,7 +8,7 @@ Mini apps:
 - **Calidad del dato** comprueba los datos de la base local con scripts SQL de validación (ver «Calidad del dato»).
 - **Cerrar procesos** cierra un programa colgado y los procesos que dejó en sus puertos (ver «Cerrar procesos»).
 - **Repositorios** mantiene al día las copias locales de varios repositorios git (ver «Repositorios»).
-- **Gestask** lleva el backlog, el tablero y el cierre de tareas de Gestask, sobre el mismo Supabase que su versión web (ver «Gestask»).
+- **Gestask** lleva el backlog, el tablero, el cierre de tareas, el parte diario, el horario, las tareas diarias y el calendario de Gestask, sobre el mismo Supabase que su versión web (ver «Gestask»).
 
 ## Uso
 
@@ -98,9 +98,13 @@ Es la aplicación web Gestask dentro de Cajón de sastre. Usa el mismo proyecto 
 - **Kanban**: una columna por estado; arrastrar una tarjeta a otra columna cambia su estado.
 - **Ordenar**: el orden manual de las tareas pendientes, con flechas o arrastrando, y «Ordenar automáticamente».
 - **Completar**: el cierre de las tareas terminadas (informar el PR, imputar las horas y cerrar), con «Copiar para Jira» y la imputación masiva.
+- **Tareas diarias**: el parte de cada día, con «Nuevo día» para crear el de hoy. En el de hoy se cambia el estado de las tareas; los de días anteriores son de solo lectura.
+- **Horario diario**: la agenda del parte según los puntos de esfuerzo y la jornada configurada en Gestask (inicio, fin, descanso y jornada intensiva), con «Incluir horas» para planificar horas extra. Arriba, las tareas diarias del parte para marcarlas como realizadas.
+- **Diarias**: las tareas recurrentes que se añaden a cada parte hasta que se finalizan, y las que quedan por realizar, de hoy y atrasadas. La pestaña muestra cuántas faltan: en ámbar si son de hoy y en rojo si hay alguna atrasada.
+- **Calendario**: los días laborables del mes con los puntos completados frente al objetivo del día; pulsar un día lo marca como vacaciones, festivo o ausencia.
 - `Alt+R` actualiza los datos. No hay copia local: sin conexión con Supabase la mini app no muestra tareas.
 
-Las pantallas de «Día a día» y «Seguimiento» de la web llegarán en las siguientes versiones.
+«Rendimiento» y la configuración de parámetros de la web llegarán en la siguiente versión.
 
 ## Requisitos
 

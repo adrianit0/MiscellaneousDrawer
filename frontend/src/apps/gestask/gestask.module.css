@@ -17,6 +17,7 @@
 
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
 }
 
@@ -732,10 +733,316 @@ a.ticket {
   margin: 0;
 }
 
+/* GT-106, GT-113: el nivel de un número o de una etiqueta. */
+.badge[data-level='warning'] {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.badge[data-level='error'] {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.badge[data-level='ok'] {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.badge[data-level='today'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.warningBox {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--warning);
+  border-radius: 6px;
+  color: var(--warning);
+}
+
+/* GT-80, GT-110 */
+.picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.year {
+  width: 84px;
+}
+
+/* GT-96, GT-104 */
+.checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.check label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.check[data-done] .title {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.checkText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pendingGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 10px;
+  border-left: 3px solid var(--warning);
+}
+
+.pendingGroup[data-level='error'] {
+  border-left-color: var(--error);
+}
+
+.pendingGroup h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+details.panel > summary {
+  cursor: pointer;
+}
+
+/* GT-90 a GT-95 */
+.agenda {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.slot {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 12px;
+  align-items: stretch;
+  border-radius: 6px;
+}
+
+.slotTime {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding-top: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.slotTime span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.slotCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--task-color, var(--border));
+  border-radius: 6px;
+}
+
+.slot[data-kind='daily'] .slotCard {
+  border-left-color: var(--accent);
+}
+
+.slot[data-kind='break'] .slotCard {
+  border-style: dashed;
+  color: var(--text-muted);
+}
+
+.extraHours {
+  width: 100%;
+  min-height: 56px;
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--text-muted);
+}
+
+.extraHours:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* GT-110 a GT-113 */
+.legend {
+  display: flex;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.legend li::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 5px;
+  border-radius: 2px;
+  background: var(--tone-color);
+  vertical-align: -1px;
+}
+
+[data-tone='good'] {
+  --tone-color: var(--green);
+}
+
+[data-tone='low'] {
+  --tone-color: var(--error);
+}
+
+[data-tone='special'] {
+  --tone-color: var(--violet);
+}
+
+[data-tone='today'] {
+  --tone-color: var(--accent);
+}
+
+[data-tone='future'] {
+  --tone-color: var(--border);
+}
+
+.calendar {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.weekday {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.calendarDay {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 110px;
+  padding: 8px;
+  background: color-mix(in srgb, var(--tone-color) 12%, var(--surface));
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--tone-color);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.calendarDay[data-today] {
+  outline: 1px solid var(--accent);
+}
+
+.calendarDay:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+.calendarDay > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.points {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress > div {
+  height: 100%;
+  background: var(--tone-color);
+}
+
+.note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.calendarTasks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.calendarTask {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 6px;
+  align-items: baseline;
+  padding: 2px 6px;
+  font-size: 12px;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text-muted);
+}
+
+.calendarTask span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendarTask[data-type='Bug'] {
+  border-left-color: var(--error);
+}
+
+.calendarTask[data-type='Feature'] {
+  border-left-color: var(--violet);
+}
+
+.calendarTask[data-type='Task'] {
+  border-left-color: var(--blue);
+}
+
 @media (max-width: 760px) {
   .formGrid,
   .detailGrid,
-  .steps {
+  .steps,
+  .calendar {
     grid-template-columns: 1fr;
   }
 }

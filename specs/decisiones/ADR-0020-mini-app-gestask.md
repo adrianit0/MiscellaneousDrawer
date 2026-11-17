@@ -19,7 +19,7 @@ El usuario respondió a cuatro preguntas y aprobó el plan (2026-11-16):
 1. **Autoriza Supabase como destino.** El principio 4 de la constitución añade a su lista cerrada el proyecto de Supabase que el usuario escriba en «Conexión», solo para esta mini app. Es el primer destino que **recibe datos del usuario**: sus tareas viven allí, porque es donde ya las tiene la web.
 2. **La conexión está en la mini app**, en una sección «Conexión», como la «Configuración» de «Base de datos» y «Calidad del dato». «Ajustes» del shell sigue sin categorías de mini apps.
 3. **Sustituye a `tasks`.** La mini app en preparación «Tareas» (ADR-0008) desaparece del catálogo y entra `gestask`.
-4. **Tres sprints**: 9 (conexión y «Tareas»), 10 («Día a día») y 11 («Seguimiento» y parámetros). **El «Gestor de tiempos» queda fuera**: en la web solo guarda en el `localStorage` del navegador y no tiene endpoint.
+4. **Tres sprints**: 9 (conexión y «Tareas»), 10 («Día a día») y 11 («Seguimiento» y parámetros); ADR-0022 adelantó el «Calendario» al sprint 10. **El «Gestor de tiempos» queda fuera**: en la web solo guarda en el `localStorage` del navegador y no tiene endpoint.
 
 Diseño:
 
