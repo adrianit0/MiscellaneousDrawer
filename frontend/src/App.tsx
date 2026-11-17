@@ -10,6 +10,7 @@ import { ConsoleDock } from './shell/ConsoleDock';
 import { useConsoles } from './shell/consoleStore';
 import { matchShellShortcut } from './shell/keyboard';
 import { Launcher } from './shell/Launcher';
+import { startExternalLinks } from './shell/links';
 import { flushShellState, useNav } from './shell/navStore';
 import { Notices } from './shell/Notices';
 import { useNotifications } from './shell/notificationStore';
@@ -44,6 +45,8 @@ export function App() {
     const openedWithoutRoute = window.location.hash === '' || window.location.hash === '#';
     const stopRouter = startRouter();
     const stopPresence = startPresence();
+    // C-16: los enlaces externos se abren en el Chrome habitual, no en la ventana.
+    const stopLinks = startExternalLinks();
     const settings = api
       .settings()
       .then((s) => {
@@ -97,6 +100,7 @@ export function App() {
       window.removeEventListener('pagehide', onPageHide);
       stopRouter();
       stopPresence();
+      stopLinks();
     };
   }, []);
 

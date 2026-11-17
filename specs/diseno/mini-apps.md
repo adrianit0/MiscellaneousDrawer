@@ -222,10 +222,11 @@ cerrada ──abrir──▶ cargando (import bajo demanda) ──▶ visible �
 - Una mini app puede desmontarse en cualquier momento (al cerrarla o al superar el máximo de abiertas). Lo que el usuario no deba perder se guarda en el servidor según se produce, no al desmontar (constitución, principio 7). Lo que solo es estado de interfaz va en `useAppState`.
 - La interfaz de cada mini app es un fichero JavaScript aparte que solo se descarga al abrirla: el arranque de la ventana no crece con el número de mini apps.
 
-### Estilos y atajos
+### Estilos, atajos y enlaces
 
 - Estilos en CSS Modules (`TasksApp.module.css`): las clases quedan con un nombre único y una mini app no puede romper el aspecto del shell ni de otra (P-17). Se usan las variables del tema (`var(--surface)`, `var(--green)`…).
 - Los atajos se registran con `useAppShortcut` (P-16): solo actúan con la mini app visible y no pueden pisar los del shell (N-10) ni los del navegador (U-04).
+- Un enlace a una página externa es un `<a href>` normal: el shell lo abre en el Chrome habitual del usuario (C-16, ADR-0021). No se usa `window.open`, que se quedaría en la ventana de la aplicación.
 
 ## Fronteras comprobadas
 

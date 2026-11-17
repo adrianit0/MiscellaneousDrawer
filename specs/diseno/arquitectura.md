@@ -69,7 +69,7 @@ Contexto de uso: un único usuario, una única máquina con Ubuntu 22.04 y sesio
 | Componente | Responsabilidad |
 |---|---|
 | `http` | Servidor en 127.0.0.1, ficheros estáticos, token, Host, Origin, CSP y formato de errores |
-| `lifecycle` | Línea de comandos, `instance.json`, ventana de Chrome, presencia y apagado |
+| `lifecycle` | Línea de comandos, `instance.json`, ventana de Chrome, enlaces externos (C-16), presencia y apagado |
 | `settings` | `config.json` (D-05) y tabla `setting` (D-04) |
 | `update` | Búsqueda, verificación e instalación de versiones publicadas en GitHub (R-01 a R-47, ADR-0010). Es la única salida de la máquina del shell y ninguna mini app la usa (P-18) |
 | `notifications` | Guarda las notificaciones que emiten las mini apps, las reparte a las ventanas y lanza `notify-send` y `paplay` (P-21 a P-24, ADR-0013) |
@@ -114,6 +114,7 @@ Ver [requisitos/ciclo-de-vida.md](../requisitos/ciclo-de-vida.md). En resumen:
 2. Si no: base del shell, arranque aislado de las mini apps, servidor e `instance.json` (C-02).
 3. Ventana de Chrome en modo aplicación con perfil y clase propios (C-03).
 4. Presencia por `/api/events`; despedida y apagado a los 15 s (C-04, C-05).
+5. Los enlaces externos salen de la ventana al Chrome habitual del usuario por `POST /api/open-link` (C-16).
 
 ### Memoria y sesiones largas
 

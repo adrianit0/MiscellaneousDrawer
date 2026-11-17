@@ -10,6 +10,7 @@ import dev.cajonsastre.http.LocalSecurity;
 import dev.cajonsastre.lifecycle.CommandLine;
 import dev.cajonsastre.lifecycle.CommandLine.Options;
 import dev.cajonsastre.lifecycle.Desktop;
+import dev.cajonsastre.lifecycle.LinkApi;
 import dev.cajonsastre.lifecycle.InstanceFile;
 import dev.cajonsastre.lifecycle.LifecycleApi;
 import dev.cajonsastre.lifecycle.Presence;
@@ -144,6 +145,8 @@ public final class Main {
                     new CatalogApi(registry),
                     new AppStateApi(store, catalog, clock),
                     lifecycle,
+                    // C-16: los enlaces externos, al Chrome habitual del usuario.
+                    new LinkApi(),
                     notifications,
                     consoles,
                     // R-12: solo conecta cuando la interfaz llama a sus rutas.

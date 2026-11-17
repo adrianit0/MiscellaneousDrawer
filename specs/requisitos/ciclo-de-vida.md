@@ -15,6 +15,12 @@ CajonSastre es un único proceso Java. El ciclo de vida sigue el de LiteDD (inst
 | C-09 | El registro va a `<estado>/cajonsastre.log`, con rotación de 5 MB y 3 ficheros. |
 | C-10 | El apagado ordenado para el servidor, avisa a las mini apps (P-10), cierra la base del shell y borra `instance.json`. El gancho de apagado de la JVM espera a que termine un apagado en curso. |
 
+## Enlaces externos
+
+| ID | Requisito |
+|---|---|
+| C-16 | Un enlace a una página externa (`<a href>` con una URL `http` o `https` de otro origen) se abre en el Chrome habitual del usuario, no en la ventana de la aplicación, ya se pulse con clic, con Ctrl o Mayúsculas, con el botón central o con Enter. El shell intercepta el clic en todo el documento, también dentro de las mini apps, y llama a `POST /api/open-link`, que ejecuta `google-chrome <url>` sin perfil propio ni `--app`, o `xdg-open <url>` si Chrome no está; en Windows, solo para desarrollo, el navegador por defecto. El servidor solo acepta URL `http://` o `https://` con host, sin espacios ni caracteres de control y de hasta 8192 caracteres; si no, responde 400 `invalid_url` sin ejecutar nada. Si no se puede abrir, la interfaz lo avisa (U-05). Las rutas de la aplicación (`#/…`) y los enlaces a su mismo origen siguen en la ventana (ADR-0021). |
+
 ## Rutas en disco
 
 | Contenido | Ruta |

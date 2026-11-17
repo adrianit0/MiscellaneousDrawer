@@ -31,6 +31,8 @@ export interface FakeServer {
   /** P-27: lo que devuelve GET /api/consoles, la más reciente primero, y las líneas de cada una por su identificador. */
   consoles: ShellConsole[];
   consoleLines: Record<number, string[]>;
+  /** C-16: los enlaces abiertos en el Chrome habitual y, si se define, el error que responde la ruta. */
+  links: { opened: string[]; error?: string };
   /** P-23: envía un evento por /api/events a las ventanas conectadas. */
   emit: (event: string, data: unknown) => void;
   /** Rutas de las mini apps: /api/apps/... */
@@ -70,6 +72,7 @@ export function installFakeServer(init: Partial<Omit<FakeServer, 'calls' | 'call
     notifications: [],
     consoles: [],
     consoleLines: {},
+    links: { opened: [] },
     emit: (event, data) => {
       const bytes = new TextEncoder().encode(`: latido\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
       windows.forEach((w) => w.enqueue(bytes));
@@ -114,6 +117,11 @@ export function installFakeServer(init: Partial<Omit<FakeServer, 'calls' | 'call
       return json(200, { console: found, from, next: all.length, lines: all.slice(from) });
     }
     if (url === '/api/presence/bye') return json(200, { ok: true });
+    if (url === '/api/open-link') {
+      if (server.links.error) return json(500, { code: 'open_failed', message: server.links.error, details: null });
+      server.links.opened.push((body as { url: string }).url);
+      return json(200, { ok: true });
+    }
     if (url === '/api/catalog') {
       return 'error' in server.catalog
         ? json(500, { code: 'internal_error', message: server.catalog.error, details: null })

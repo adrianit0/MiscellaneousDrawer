@@ -8,13 +8,14 @@ Mini apps:
 - **Calidad del dato** comprueba los datos de la base local con scripts SQL de validación (ver «Calidad del dato»).
 - **Cerrar procesos** cierra un programa colgado y los procesos que dejó en sus puertos (ver «Cerrar procesos»).
 - **Repositorios** mantiene al día las copias locales de varios repositorios git (ver «Repositorios»).
-- **Tareas**, un gestor de tareas, aparece como «En preparación».
+- **Gestask** lleva el backlog, el tablero y el cierre de tareas de Gestask, sobre el mismo Supabase que su versión web (ver «Gestask»).
 
 ## Uso
 
 - **Inicio** muestra el buscador y las mini apps fijadas, las recientes y todas, por categoría.
 - Las mini apps abiertas siguen en la barra lateral y conservan su estado al cambiar de una a otra.
 - **Ir a…** (Ctrl+K) abre cualquier mini app escribiendo parte de su nombre.
+- Los enlaces a páginas externas, como el ticket o el PR de una tarea, se abren en el Chrome habitual y no en la ventana de Cajón de sastre.
 
 | Atajo | Acción |
 |---|---|
@@ -25,7 +26,7 @@ Mini apps:
 | Alt+W | Cerrar la mini app activa |
 | Alt+←, Alt+→ | Atrás y adelante |
 
-Todo se guarda en la máquina local. La aplicación solo se conecta a internet en tres casos, y siempre porque se pulsa un botón: para buscar e instalar actualizaciones (ver «Actualizar»), para descargar un volcado de S3 desde «Base de datos» y para traer los cambios de los repositorios git configurados en «Repositorios», sin enviar nunca nada.
+Todo se guarda en la máquina local, salvo las tareas de «Gestask», que viven en el proyecto de Supabase que se configure en ella. La aplicación solo se conecta a internet en cuatro casos: para buscar e instalar actualizaciones (ver «Actualizar»), para descargar un volcado de S3 desde «Base de datos» y para traer los cambios de los repositorios git configurados en «Repositorios», los tres porque se pulsa un botón y sin enviar nunca nada; y para leer y guardar las tareas de «Gestask» en su Supabase mientras se usa.
 
 ## Base de datos
 
@@ -86,6 +87,20 @@ Sustituye a `actualizarAPIS.sh`: mantiene al día las copias locales de varios r
 - Cada trabajo escribe sus comandos y su salida en una consola del panel «Consolas» y se puede cancelar. «Actualizar todas», «Consultar todas» y «Clonar» dejan además una notificación al terminar.
 
 Necesita `git` instalado y en el `PATH`, con las credenciales ya configuradas (un ayudante de credenciales o claves SSH). Cajón de sastre no pide ni guarda contraseñas de git: si git necesitara preguntar una, el trabajo falla y la consola lo dice.
+
+## Gestask
+
+Es la aplicación web Gestask dentro de Cajón de sastre. Usa el mismo proyecto de Supabase y las mismas funciones que la web, sin cambiar nada en él: lo que se hace en un lado se ve en el otro.
+
+- **Conexión**: la URL del proyecto de Supabase, su clave publicable, y el email y la contraseña de la cuenta de Gestask (la cuenta se crea en la web). Se guardan en `~/.config/cajonsastre/apps/gestask/config.json`, un fichero privado; la contraseña no vuelve a mostrarse. «Probar conexión» comprueba que se puede iniciar sesión.
+- No hay pantalla de acceso: la sesión se inicia sola y, si caduca, se vuelve a iniciar sin que se pierda lo que se estaba haciendo.
+- **Backlog**: todas las tareas, con búsqueda y filtros inmediatos, ordenación, y crear (`Alt+N`), editar, clonar y eliminar. El detalle de una tarea permite cambiar su estado y añadir comentarios.
+- **Kanban**: una columna por estado; arrastrar una tarjeta a otra columna cambia su estado.
+- **Ordenar**: el orden manual de las tareas pendientes, con flechas o arrastrando, y «Ordenar automáticamente».
+- **Completar**: el cierre de las tareas terminadas (informar el PR, imputar las horas y cerrar), con «Copiar para Jira» y la imputación masiva.
+- `Alt+R` actualiza los datos. No hay copia local: sin conexión con Supabase la mini app no muestra tareas.
+
+Las pantallas de «Día a día» y «Seguimiento» de la web llegarán en las siguientes versiones.
 
 ## Requisitos
 
