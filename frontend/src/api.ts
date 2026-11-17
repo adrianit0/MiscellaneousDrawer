@@ -199,6 +199,11 @@ export const api = {
     return request('POST', '/api/presence/bye', undefined, { keepalive: true }).catch(() => null);
   },
 
+  /** C-16: abre un enlace externo en el Chrome habitual del usuario, fuera de la ventana. */
+  openLink(url: string): Promise<unknown> {
+    return request('POST', '/api/open-link', { url });
+  },
+
   /** P-04 */
   async catalog(): Promise<CatalogApp[]> {
     const body = await request<{ apps: CatalogApp[] }>('GET', '/api/catalog');
