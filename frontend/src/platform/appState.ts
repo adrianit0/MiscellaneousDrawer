@@ -92,6 +92,13 @@ export class AppStateDoc {
 
   snapshot = () => this.version;
 
+  /** Solo para las pruebas: descarta el guardado pendiente, para que no llegue al servidor de la prueba siguiente. */
+  discard() {
+    clearTimeout(this.timer);
+    this.timer = undefined;
+    this.dirty = false;
+  }
+
   private schedule() {
     clearTimeout(this.timer);
     this.timer = setTimeout(() => void this.flush(), APP_STATE_DELAY);
@@ -126,6 +133,7 @@ export function unsavedAppStates(): string[] {
 
 /** Solo para las pruebas. */
 export function resetAppStates() {
+  docs.forEach((d) => d.discard());
   docs.clear();
 }
 
