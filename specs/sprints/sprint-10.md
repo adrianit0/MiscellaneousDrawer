@@ -55,7 +55,7 @@ Fecha: 2026-11-17. Hecho en el código y probado con Supabase simulado, en las p
 
 - **Verificación con el Supabase real**: comprobar que el parte, el horario (con los parámetros de jornada del usuario), las diarias y el calendario coinciden con los de la web, y que marcar una diaria o cambiar un día en un lado se ve en el otro. Sigue pendiente también la del sprint 9.
 - No se recorrieron con la aplicación arrancada la ordenación del parte, el modo histórico, «Incluir horas», el cambio de mes, ni crear, editar, finalizar, reactivar y eliminar una diaria: están cubiertos por las pruebas.
-- Sprint 11: «Rendimiento», la configuración de parámetros y las horas revisadas de la imputación.
+- Sprint 12 (antes 11, ADR-0023): «Rendimiento», la configuración de parámetros y las horas revisadas de la imputación.
 
 ### Desviaciones y decisiones
 

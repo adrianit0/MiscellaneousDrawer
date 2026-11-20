@@ -53,11 +53,18 @@ class AppCatalogTest {
     }
 
     @Test
-    void adr0011_adr0016_adr0018_adr0019_adr0020_the_built_in_catalog_has_five_apps_available_and_none_planned() {
+    void adr0011_adr0016_adr0018_adr0019_adr0020_adr0023_the_built_in_catalog_has_six_apps_available_and_none_planned() {
         AppCatalog catalog = AppCatalog.builtIn();
         assertThat(catalog.apps()).extracting(a -> a.manifest().id())
-                .containsExactly("database", "quality", "processes", "repos", "gestask");
+                .containsExactly("database", "quality", "processes", "repos", "gestask", "resubmit");
         assertThat(catalog.find("tasks")).isEmpty();
+        AppManifest resubmit = catalog.find("resubmit").orElseThrow().manifest();
+        assertThat(resubmit.name()).isEqualTo("Reenviar PR");
+        assertThat(resubmit.description()).isEqualTo("Vuelve a pedir los PR de hotfix rechazados al cerrar una versión");
+        assertThat(resubmit.icon()).isEqualTo("resubmit");
+        assertThat(resubmit.color()).isEqualTo(AppColor.GREEN);
+        assertThat(resubmit.category()).isEqualTo(AppCategory.UTILITIES);
+        assertThat(resubmit.planned()).isFalse();
         AppManifest gestask = catalog.find("gestask").orElseThrow().manifest();
         assertThat(gestask.name()).isEqualTo("Gestask");
         assertThat(gestask.description()).isEqualTo("Tareas, parte diario, horario y calendario sobre Supabase");

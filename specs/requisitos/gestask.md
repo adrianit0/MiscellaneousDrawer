@@ -202,6 +202,6 @@ Prefijo `/api/apps/gestask`.
 - Registrar usuarios y cambiar la contraseña.
 - El «Gestor de tiempos», que en la web solo guarda en el navegador (ADR-0020).
 - El tema, el menú lateral y los avisos propios de la web: se usan los del shell.
-- «Rendimiento», la configuración de parámetros y las «horas revisadas» de la imputación, que dependen de las métricas de rendimiento: llegan en el sprint 11.
+- «Rendimiento», la configuración de parámetros y las «horas revisadas» de la imputación, que dependen de las métricas de rendimiento: llegan en el sprint 12 (el 11 es el de «Reenviar PR», ADR-0023).
 - El botón «Ir al Backlog» del parte y del horario, y el salto al Backlog desde una tarea del calendario: aquí se abre el detalle de la tarea (ADR-0022).
 - Trabajar sin conexión y guardar una copia local de las tareas.

@@ -9,6 +9,7 @@ Mini apps:
 - **Cerrar procesos** cierra un programa colgado y los procesos que dejó en sus puertos (ver «Cerrar procesos»).
 - **Repositorios** mantiene al día las copias locales de varios repositorios git (ver «Repositorios»).
 - **Gestask** lleva el backlog, el tablero, el cierre de tareas, el parte diario, el horario, las tareas diarias y el calendario de Gestask, sobre el mismo Supabase que su versión web (ver «Gestask»).
+- **Reenviar PR** vuelve a pedir en Bitbucket los PR de corrección que se rechazaron al cerrar una versión, con sus commits sobre la rama `hotfix` nueva (ver «Reenviar PR»).
 
 ## Uso
 
@@ -26,7 +27,7 @@ Mini apps:
 | Alt+W | Cerrar la mini app activa |
 | Alt+←, Alt+→ | Atrás y adelante |
 
-Todo se guarda en la máquina local, salvo las tareas de «Gestask», que viven en el proyecto de Supabase que se configure en ella. La aplicación solo se conecta a internet en cuatro casos: para buscar e instalar actualizaciones (ver «Actualizar»), para descargar un volcado de S3 desde «Base de datos» y para traer los cambios de los repositorios git configurados en «Repositorios», los tres porque se pulsa un botón y sin enviar nunca nada; y para leer y guardar las tareas de «Gestask» en su Supabase mientras se usa.
+Todo se guarda en la máquina local, salvo las tareas de «Gestask», que viven en el proyecto de Supabase que se configure en ella. La aplicación solo se conecta a internet en cinco casos: para buscar e instalar actualizaciones (ver «Actualizar»), para descargar un volcado de S3 desde «Base de datos» y para traer los cambios de los repositorios git configurados en «Repositorios», los tres porque se pulsa un botón y sin enviar nunca nada; para leer y guardar las tareas de «Gestask» en su Supabase mientras se usa; y para que «Reenviar PR» liste los PR en Bitbucket y, cuando se confirma un reenvío, suba las ramas nuevas y cree los PR.
 
 ## Base de datos
 
@@ -104,7 +105,20 @@ Es la aplicación web Gestask dentro de Cajón de sastre. Usa el mismo proyecto 
 - **Calendario**: los días laborables del mes con los puntos completados frente al objetivo del día; pulsar un día lo marca como vacaciones, festivo o ausencia.
 - `Alt+R` actualiza los datos. No hay copia local: sin conexión con Supabase la mini app no muestra tareas.
 
-«Rendimiento» y la configuración de parámetros de la web llegarán en la siguiente versión.
+«Rendimiento» y la configuración de parámetros de la web llegarán en una versión próxima.
+
+## Reenviar PR
+
+Para equipos que piden los PR de corrección contra una rama `hotfix`, con una rama por ticket de Jira (`bug/<CLAVE>`), y que al cerrar una versión borran `hotfix`, la crean otra vez desde `develop` y dejan rechazados los PR que no entraron. La mini app los vuelve a pedir en un paso.
+
+- **Conexión**: la URL de Bitbucket Data Center, un token de acceso HTTP con permiso de escritura en el repositorio, el proyecto, el repositorio, tu usuario de Bitbucket y la carpeta de tu copia local. Opcionales: la rama destino (`hotfix`) y el prefijo de las ramas (`bug/`). Se guarda en `~/.config/cajonsastre/apps/resubmit/config.json`, un fichero privado; el token no vuelve a mostrarse. «Probar conexión» lee el repositorio.
+- **PR rechazados**: tus PR contra la rama destino rechazados en los últimos 30 días que aún no has vuelto a pedir, con la rama nueva que tendrá cada uno: `bug/TICKET-0001` pasa a `bug/TICKET-0001-2`, y a `-3` si esa ya existe. Los que no se pueden reenviar (una rama con otro formato o un PR desde un fork) se ven atenuados con el motivo.
+- **Reenviar seleccionados** pide confirmación y, por cada PR, aplica sus commits con `git cherry-pick` sobre la rama destino nueva, sube la rama nueva y crea el PR con el mismo título, los mismos revisores y la misma descripción, terminada en «Procede de: <enlace al PR anterior>». Son sus commits los que no están ya en la rama destino, sin los de mezcla.
+- Si un commit da conflicto, ese PR no se sube: se avisa con el commit y los ficheros, y se sigue con el siguiente. Ese se rehace a mano.
+- Los commits se aplican en una copia aparte que se borra al terminar: tu copia local no cambia de rama ni de ficheros. Solo se sube la rama nueva, sin forzar y nunca sobre una que ya exista.
+- El trabajo escribe sus comandos en una consola del panel «Consolas», se puede cancelar y deja una notificación con el resumen («2 recreados, 1 con conflictos»).
+
+Necesita `git` con las credenciales del repositorio ya configuradas, como «Repositorios», y que el `origin` de la carpeta sea el repositorio configurado. Si Bitbucket usa un certificado de una autoridad propia de la empresa, Java debe confiar en ella.
 
 ## Requisitos
 
