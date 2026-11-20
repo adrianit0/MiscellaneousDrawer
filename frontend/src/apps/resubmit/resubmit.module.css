@@ -1,0 +1,268 @@
+/* P-17: estilos de «Reenviar PR», con las variables del tema (U-01). */
+.app {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 16px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.app p {
+  margin: 0;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.error {
+  color: var(--error);
+}
+
+.ok {
+  color: var(--green);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.notice {
+  color: var(--warning);
+}
+
+.warn {
+  color: var(--warning);
+  font-size: 13px;
+}
+
+.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* RP-40 */
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tabs button {
+  background: transparent;
+  border-color: transparent;
+  border-radius: 4px 4px 0 0;
+  padding: 6px 14px;
+  color: var(--text-muted);
+}
+
+.tabs button[aria-current='page'] {
+  color: var(--text);
+  border-bottom: 2px solid var(--green);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* RP-42 */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.tableWrap {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.table tr:last-child td {
+  border-bottom: 0;
+}
+
+.table th {
+  background: var(--surface);
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.table tr[data-selectable='false'] td {
+  color: var(--text-muted);
+}
+
+.newBranch {
+  color: var(--green);
+}
+
+/* RP-44 */
+.jobBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--blue);
+  border-radius: 6px;
+}
+
+.summary[data-state='succeeded'] {
+  border-left-color: var(--green);
+}
+
+.summary[data-state='failed'] {
+  border-left-color: var(--error);
+}
+
+.summary[data-state='cancelled'] {
+  border-left-color: var(--border);
+}
+
+.badge {
+  font-size: 12px;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.badge[data-result='created'] {
+  color: var(--green);
+  border-color: var(--green);
+}
+
+.badge[data-result='conflict'] {
+  color: var(--warning);
+  border-color: var(--warning);
+}
+
+.badge[data-result='failed'] {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.badge[data-result='running'] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.detail {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+  word-break: break-word;
+}
+
+/* RP-41 */
+.connection {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 720px;
+}
+
+.connection fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field input {
+  width: 100%;
+}
+
+.field input[aria-invalid='true'] {
+  border-color: var(--error);
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 14vh;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.dialog {
+  width: min(520px, calc(100vw - 32px));
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.dialog h2 {
+  font-size: 16px;
+  margin: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dialogBody {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
+
+.dialogBody .actions {
+  justify-content: flex-end;
+}
