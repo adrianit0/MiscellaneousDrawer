@@ -41,7 +41,7 @@ Términos:
 
 | ID | Requisito |
 |---|---|
-| JR-13 | Los tableros se guardan en la base de la mini app (P-08). Puede haber de 1 a 20; la mini app nace sin ninguno. |
+| JR-13 | Los tableros se guardan en la base de la mini app (P-08, «Datos»). Puede haber hasta 20; la mini app nace sin ninguno. Crear el 21.º responde 409 `too_many_boards`. |
 | JR-14 | Un tablero tiene un nombre de 1 a 60 caracteres sin repetir (sin distinguir mayúsculas), de 1 a 10 proyectos distintos y de 1 a 12 columnas. Cada columna tiene un nombre de 1 a 40 caracteres sin repetir en el tablero y de 0 a 100 estados. Cada estado es un par proyecto-identificador (JR-12) de un proyecto del tablero, y un mismo par está como mucho en una columna. Guardar algo que no cumple esto responde 400 `invalid_board` con `details.field`. |
 | JR-15 | Guardar un tablero no contacta con Jira: se guarda lo que manda la interfaz, con el nombre de cada estado tal como lo vio para mostrarlo si Jira deja de tenerlo. Quitar un proyecto del tablero quita sus estados de las columnas. |
 | JR-16 | Borrar un tablero pide confirmación en la interfaz y no se puede deshacer. El orden de los tableros es el de creación. |
@@ -50,9 +50,9 @@ Términos:
 
 | ID | Requisito |
 |---|---|
-| JR-20 | `GET /boards/<id>/issues` consulta Jira y devuelve el tablero con sus columnas en orden y, en cada una, sus tickets, del actualizado más recientemente al más antiguo. De cada ticket: clave (`key`), resumen (`summary`), proyecto (`project`), estado (`status`, el nombre actual en Jira), asignado (`assignee`, su nombre visible, o `null`) y fecha de actualización (`updated`). Responde también la fecha de la consulta (`fetchedAt`), si hay más tickets de los devueltos (`truncated`) y los estados guardados que Jira ya no devuelve (`missingStatuses`). |
-| JR-21 | La consulta es `POST <sitio>/rest/api/3/search/jql` con `fields: ["summary", "status", "assignee", "project", "updated"]`, `maxResults: 100`, siguiendo `nextPageToken`, y este JQL armado por el servidor solo con los valores de JR-12: `project in (<claves>) AND (status in (<estados de las demás columnas>) OR (status in (<estados de la columna final>) AND updated >= -14d)) ORDER BY updated DESC`. Si una de las dos listas está vacía, su parte no se incluye; si las dos lo están, no se consulta y el tablero sale vacío. |
-| JR-22 | Un ticket se coloca en la columna que tiene el par de su proyecto y su estado. Un ticket cuyo par no está en ninguna columna no se muestra (puede llegar si dos proyectos comparten un estado y solo uno lo tiene asignado). |
+| JR-20 | `GET /boards/<id>/issues` pide primero los estados de cada proyecto del tablero (JR-11; un proyecto que responde 404 no tiene ninguno), consulta los tickets y devuelve el tablero con sus columnas en orden y, en cada una, sus tickets, del actualizado más recientemente al más antiguo. De cada ticket: clave (`key`), resumen (`summary`), proyecto (`project`), estado (`status`, el nombre actual en Jira), asignado (`assignee`, su nombre visible, o `null`) y fecha de actualización (`updated`). Responde también la fecha de la consulta (`fetchedAt`), si hay más tickets de los devueltos (`truncated`) y los estados guardados que Jira ya no tiene (`missingStatuses`, con su proyecto, su identificador, su nombre guardado y su columna), que no entran en la consulta. |
+| JR-21 | La consulta es `POST <sitio>/rest/api/3/search/jql` con `fields: ["summary", "status", "assignee", "project", "updated"]`, `maxResults: 100`, siguiendo `nextPageToken`, y un JQL armado por el servidor solo con los valores de JR-12: por cada proyecto con algún estado en columnas, `(project = "<clave>" AND (status in (<sus estados de las demás columnas>) OR (status in (<sus estados de la columna final>) AND updated >= -14d)))`, unidos con `OR` y seguidos de `ORDER BY updated DESC`. Va por proyecto porque un mismo identificador de estado puede estar en dos proyectos y en columnas distintas. Si una de las dos listas de un proyecto está vacía, su parte no se incluye; si ningún proyecto tiene estados, no se consulta y el tablero sale vacío. |
+| JR-22 | Un ticket se coloca en la columna que tiene el par de su proyecto y su estado. Un ticket cuyo par no está en ninguna columna no se muestra. |
 | JR-23 | Como mucho se leen 1000 tickets por tablero. Si Jira tiene más, se devuelven los 1000 más recientes con `truncated: true`. |
 | JR-24 | Las consultas son solo de lectura: la mini app solo usa `GET` y `POST /rest/api/3/search/jql`, que no cambia nada en Jira (constitución, principio 4; ADR-0027). |
 | JR-25 | En el registro del shell solo quedan el número del tablero, el número de tickets y los errores con su código; ni el token, ni el sitio, ni el JQL, ni datos de los tickets (S-21). |
@@ -74,6 +74,10 @@ Términos:
 | JR-43 | Un filtro de texto oculta los tickets cuya clave, resumen o asignado no contienen el texto, sin distinguir mayúsculas ni acentos, sin volver a consultar Jira. |
 | JR-44 | Mientras consulta se ve que está cargando y se conserva lo anterior. Un error se muestra con su mensaje (JR-07) y «Reintentar». Con `truncated` dice «Se muestran los 1000 tickets más recientes». Con `missingStatuses` dice qué estados ya no existen en Jira y lleva al editor. |
 
+## Datos
+
+La base de la mini app (`<datos>/apps/jira/data.db`, P-08) tiene una tabla, `board`: identificador, nombre, `definition` (los proyectos y las columnas con sus estados, en JSON) y las fechas de creación y de cambio. La migración es `db/apps/jira/V001__initial.sql`. La conexión no va en la base sino en su fichero privado (JR-01), y los tickets no se guardan: se piden a Jira cada vez.
+
 ## API
 
 Todas las rutas cuelgan de `/api/apps/jira` (P-06) y siguen A-01 a A-03.
@@ -84,9 +88,9 @@ Todas las rutas cuelgan de `/api/apps/jira` (P-06) y siguen A-01 a A-03.
 | PUT | /config | Guarda la conexión. 400 `invalid_config` |
 | POST | /connection/test | Prueba la conexión (JR-06). 409 `not_configured`, 502 `jira_error` o `jira_unreachable` |
 | GET | /projects?query= | Proyectos de Jira (JR-10). 409, 502 |
-| GET | /projects/{key}/statuses | Estados de un proyecto (JR-11). 400, 409, 502 |
+| GET | /projects/{key}/statuses | Estados de un proyecto (JR-11). 400 `invalid_project`, 409, 502 |
 | GET | /boards | `{"boards": […]}`: los tableros con su configuración (JR-13) |
-| POST | /boards | Crea un tablero. 201; 400 `invalid_board` |
+| POST | /boards | Crea un tablero. 201; 400 `invalid_board`, 409 `too_many_boards` (JR-13) |
 | PUT | /boards/{id} | Sustituye un tablero. 400 `invalid_board`, 404 `not_found` |
 | DELETE | /boards/{id} | Borra un tablero. 204; 404 `not_found` |
 | GET | /boards/{id}/issues | Los tickets del tablero por columna (JR-20 a JR-23). 404, 409, 502 |

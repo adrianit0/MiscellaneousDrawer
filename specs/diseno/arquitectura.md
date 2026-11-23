@@ -82,6 +82,7 @@ Contexto de uso: un único usuario, una única máquina con Ubuntu 22.04 y sesio
 | `apps.processes` | «Cerrar procesos»: busca los procesos de un perfil con `ProcessHandle` y `ss` y los termina a la fuerza, sin `sudo` (CP-10 a CP-23, ADR-0018) |
 | `apps.repos` | «Repositorios»: lee el estado local de cada repositorio y ejecuta `git` como comando externo. Sale de la máquina a los servidores git configurados, solo para traer cambios: `fetch`, `pull` y `clone` (RG-20 a RG-32, ADR-0019) |
 | `apps.resubmit` | «Reenviar PR»: lista los PR rechazados del usuario en Bitbucket Data Center, aplica sus commits en una copia aparte con `git` como comando externo, sube solo las ramas nuevas y crea los PR (RP-10 a RP-35, ADR-0023) |
+| `apps.jira` | «Tableros Jira»: consulta en Jira Cloud los tickets de varios proyectos y los reparte en las columnas de cada tablero, que guarda en su base. Solo lee (JR-20 a JR-25, ADR-0027) |
 | `apps.gestask` | «Gestask»: intermediario entre su interfaz y el proyecto de Supabase del usuario. Guarda la conexión, mantiene la sesión en memoria, la reinicia ante un 401 y reenvía una lista cerrada de Edge Functions sin interpretarlas (GT-10 a GT-17, ADR-0020) |
 | Interfaz `shell/` | Disposición, navegación, lanzador, paleta, ajustes, presencia, campana de notificaciones y panel de consolas |
 | Interfaz `platform/` | API pública de interfaz para las mini apps |
@@ -151,7 +152,8 @@ cajonsastre/
 ├── specs/
 │   ├── constitucion.md       principios que no se negocian
 │   ├── requisitos/           seguridad, api, plataforma, navegacion, interfaz, ciclo-de-vida, datos,
-│   │                         actualizaciones y uno por mini app (database, quality, processes, repos, gestask, resubmit)
+│   │                         actualizaciones y uno por mini app (database, quality, processes, repos, gestask, resubmit,
+│   │                         lootboxes, inventory, jira)
 │   ├── diseno/               arquitectura, mini-apps, modelo-datos
 │   ├── sprints/              sprint-00.md …
 │   └── decisiones/           ADR-0001-….md

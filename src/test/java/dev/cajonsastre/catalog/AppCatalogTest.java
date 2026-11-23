@@ -53,10 +53,10 @@ class AppCatalogTest {
     }
 
     @Test
-    void adr0011_adr0016_adr0018_adr0019_adr0020_adr0023_adr0026_the_built_in_catalog_has_eight_apps_available_and_none_planned() {
+    void adr0011_adr0016_adr0018_adr0019_adr0020_adr0023_adr0026_adr0027_the_built_in_catalog_has_nine_apps_available_and_none_planned() {
         AppCatalog catalog = AppCatalog.builtIn();
         assertThat(catalog.apps()).extracting(a -> a.manifest().id())
-                .containsExactly("database", "quality", "processes", "repos", "gestask", "resubmit", "lootboxes",
+                .containsExactly("database", "quality", "processes", "repos", "gestask", "jira", "resubmit", "lootboxes",
                         "inventory");
         AppManifest lootboxes = catalog.find("lootboxes").orElseThrow().manifest();
         assertThat(lootboxes.name()).isEqualTo("Lootboxes");
@@ -73,6 +73,13 @@ class AppCatalogTest {
         assertThat(inventory.category()).isEqualTo(AppCategory.LEISURE);
         assertThat(inventory.planned()).isFalse();
         assertThat(catalog.find("tasks")).isEmpty();
+        AppManifest jira = catalog.find("jira").orElseThrow().manifest();
+        assertThat(jira.name()).isEqualTo("Tableros Jira");
+        assertThat(jira.description()).isEqualTo("Tus columnas sobre los estados de varios proyectos de Jira Cloud");
+        assertThat(jira.icon()).isEqualTo("board");
+        assertThat(jira.color()).isEqualTo(AppColor.CYAN);
+        assertThat(jira.category()).isEqualTo(AppCategory.PRODUCTIVITY);
+        assertThat(jira.planned()).isFalse();
         AppManifest resubmit = catalog.find("resubmit").orElseThrow().manifest();
         assertThat(resubmit.name()).isEqualTo("Reenviar PR");
         assertThat(resubmit.description()).isEqualTo("Vuelve a pedir los PR de hotfix rechazados al cerrar una versión");

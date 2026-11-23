@@ -1,6 +1,6 @@
 # ADR-0027: Mini app «Tableros Jira» y Jira Cloud como destino
 
-- Estado: propuesta (2026-11-23), pendiente de que el usuario apruebe el plan del sprint 13
+- Estado: aceptada (2026-11-23)
 - Requisitos: JR-01 a JR-44 (nuevos), S-15, P-02 (icono nuevo `board`), constitución (principio 4)
 - Modifica: constitución (principio 4), que añade a la lista de destinos el sitio de Jira Cloud configurado, solo para leer; S-15. No cambia la plataforma ni las otras mini apps
 
@@ -28,7 +28,7 @@ El usuario respondió a cuatro preguntas (2026-11-23):
 3. **Las filas se eligen en el tablero**: sin agrupar, por proyecto o por asignado.
 4. **Varios tableros con nombre**, cada uno con sus proyectos, sus columnas y sus estados.
 
-Diseño (decidido en la propuesta, pendiente de la aprobación del plan):
+Diseño, presentado con el plan del sprint 13 y aprobado por el usuario (2026-11-23):
 
 - **Identidad**: `jira`, «Tableros Jira», «Tus columnas sobre los estados de varios proyectos de Jira Cloud», icono nuevo `board`, color `cyan` y categoría `productivity`.
 - **La conexión es configuración**, como en «Reenviar PR»: URL del sitio, email y token de API en un fichero privado de la carpeta de configuración. El token no vuelve a la interfaz.

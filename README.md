@@ -9,6 +9,7 @@ Mini apps:
 - **Cerrar procesos** cierra un programa colgado y los procesos que dejó en sus puertos (ver «Cerrar procesos»).
 - **Repositorios** mantiene al día las copias locales de varios repositorios git (ver «Repositorios»).
 - **Gestask** lleva el backlog, el tablero, el cierre de tareas, el parte diario, el horario, las tareas diarias y el calendario de Gestask, sobre el mismo Supabase que su versión web (ver «Gestask»).
+- **Tableros Jira** junta en tableros propios los tickets de varios proyectos de Jira Cloud, con las columnas que elijas y los estados de cada proyecto en cada una (ver «Tableros Jira»).
 - **Reenviar PR** vuelve a pedir en Bitbucket los PR de corrección que se rechazaron al cerrar una versión, con sus commits sobre la rama `hotfix` nueva (ver «Reenviar PR»).
 - **Lootboxes** e **Inventario**, en «Ocio», son un rato de descanso para la Daily: cofres que se consiguen con los PE cerrados en «Gestask» y los objetos que salen de ellos (ver «Ocio»).
 
@@ -28,7 +29,7 @@ Mini apps:
 | Alt+W | Cerrar la mini app activa |
 | Alt+←, Alt+→ | Atrás y adelante |
 
-Todo se guarda en la máquina local, salvo las tareas de «Gestask», que viven en el proyecto de Supabase que se configure en ella. La aplicación solo se conecta a internet en cinco casos: para buscar e instalar actualizaciones (ver «Actualizar»), para descargar un volcado de S3 desde «Base de datos» y para traer los cambios de los repositorios git configurados en «Repositorios», los tres porque se pulsa un botón y sin enviar nunca nada; para leer y guardar las tareas de «Gestask» en su Supabase mientras se usa; y para que «Reenviar PR» liste los PR en Bitbucket y, cuando se confirma un reenvío, suba las ramas nuevas y cree los PR.
+Todo se guarda en la máquina local, salvo las tareas de «Gestask», que viven en el proyecto de Supabase que se configure en ella. La aplicación solo se conecta a internet en seis casos: para buscar e instalar actualizaciones (ver «Actualizar»), para descargar un volcado de S3 desde «Base de datos» y para traer los cambios de los repositorios git configurados en «Repositorios», los tres porque se pulsa un botón y sin enviar nunca nada; para leer y guardar las tareas de «Gestask» en su Supabase mientras se usa; para que «Tableros Jira» lea los tickets de Jira Cloud, sin cambiar nunca nada; y para que «Reenviar PR» liste los PR en Bitbucket y, cuando se confirma un reenvío, suba las ramas nuevas y cree los PR.
 
 ## Base de datos
 
@@ -107,6 +108,16 @@ Es la aplicación web Gestask dentro de Cajón de sastre. Usa el mismo proyecto 
 - `Alt+R` actualiza los datos. No hay copia local: sin conexión con Supabase la mini app no muestra tareas.
 
 «Rendimiento» y la configuración de parámetros de la web llegarán en una versión próxima.
+
+## Tableros Jira
+
+Tableros propios sobre varios proyectos de Jira Cloud a la vez, aunque cada proyecto tenga su flujo y sus estados. Solo lee de Jira: no mueve, asigna ni cambia ningún ticket.
+
+- **Conexión**: la dirección de Jira Cloud (`https://<empresa>.atlassian.net`), el email de tu cuenta de Atlassian y un token de API, que se crea en `id.atlassian.com`, en «Seguridad» › «Tokens de API». Se guarda en `~/.config/cajonsastre/apps/jira/config.json`, un fichero privado; el token no vuelve a mostrarse. «Probar conexión» dice con qué cuenta entra. Los tokens caducan: si deja de funcionar, crea otro y guárdalo.
+- **Configurar tableros**: hasta 20 tableros, cada uno con su nombre, de 1 a 10 proyectos y hasta 12 columnas. En cada columna se eligen los estados de cada proyecto que le corresponden: «testing» de un proyecto y «En pruebas» de otro pueden ir juntos en «Testing». «Estados sin columna» dice qué estados no están en ninguna, porque sus tickets no se verán.
+- La **última columna** es la de cerrados: solo muestra los tickets actualizados en los últimos 14 días, para que no crezca sin fin.
+- **Tableros**: el tablero elegido con una tarjeta por ticket (clave, resumen, asignado y estado de Jira); la clave abre el ticket en el Chrome habitual. «Agrupar por» reparte los tickets en filas por proyecto o por asignado, y el filtro busca por clave, resumen o asignado. Se consulta al abrirlo, al cambiar de tablero y con «Actualizar», hasta 1000 tickets por tablero.
+- Si en Jira desaparece un estado que estaba en una columna, el tablero lo avisa y lleva a su configuración.
 
 ## Reenviar PR
 

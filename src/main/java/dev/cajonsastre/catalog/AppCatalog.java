@@ -3,6 +3,7 @@ package dev.cajonsastre.catalog;
 import dev.cajonsastre.apps.database.DatabaseApp;
 import dev.cajonsastre.apps.gestask.GestaskApp;
 import dev.cajonsastre.apps.inventory.InventoryApp;
+import dev.cajonsastre.apps.jira.JiraApp;
 import dev.cajonsastre.apps.lootboxes.LootboxesApp;
 import dev.cajonsastre.apps.processes.ProcessesApp;
 import dev.cajonsastre.apps.quality.QualityApp;
@@ -36,7 +37,7 @@ public final class AppCatalog {
         }
     }
 
-    /** El catálogo de la aplicación (ADR-0008, ADR-0011, ADR-0016, ADR-0018, ADR-0019, ADR-0020, ADR-0023, ADR-0026). */
+    /** El catálogo de la aplicación (ADR-0008, ADR-0011, ADR-0016, ADR-0018, ADR-0019, ADR-0020, ADR-0023, ADR-0026, ADR-0027). */
     public static AppCatalog builtIn() {
         return new AppCatalog(List.of(
                 new DatabaseApp(),
@@ -44,6 +45,7 @@ public final class AppCatalog {
                 new ProcessesApp(),
                 new ReposApp(),
                 new GestaskApp(),
+                new JiraApp(),
                 new ResubmitApp(),
                 new LootboxesApp(),
                 new InventoryApp()));
