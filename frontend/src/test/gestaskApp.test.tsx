@@ -18,6 +18,9 @@ import {
   sortCompletion,
   taskPayload,
   draftOf,
+  gestaskPriority,
+  parseEntry,
+  taskWithTicket,
   ticketUrl,
   todayIso,
 } from '../apps/gestask/logic';
@@ -103,6 +106,8 @@ interface Backend {
 let server: FakeServer;
 let backend: Backend;
 let navigations: string[];
+/** GT-124: las navegaciones que sustituyen la entrada del historial. */
+let replaced: string[];
 let notices: { text: string; kind: string }[];
 let subtitles: (string | null)[];
 let copied: string[];
@@ -202,8 +207,9 @@ function Harness({ initialPath = '', active = true }: { initialPath?: string; ac
         api,
         path,
         active,
-        navigate: (to) => {
+        navigate: (to, options) => {
           navigations.push(to);
+          if (options?.replace) replaced.push(to);
           setPath(to);
         },
         notify: (text, kind = 'info') => notices.push({ text, kind }),
@@ -246,6 +252,7 @@ async function settled() {
 beforeEach(() => {
   resetShell();
   navigations = [];
+  replaced = [];
   notices = [];
   subtitles = [];
   copied = [];
@@ -923,5 +930,90 @@ describe('Gestask: Completar', () => {
     await settled();
     expect(fn('tasks-update')[0].body).toEqual({ id: 'g', comment: 'Imputada en Jira' });
     await act(async () => {});
+  });
+});
+
+describe('Gestask: tareas desde «Tableros Jira»', () => {
+  const entry = (ticket: string, title: string, priority?: string) =>
+    `/new?ticket=${encodeURIComponent(ticket)}&title=${encodeURIComponent(title)}` +
+    (priority === undefined ? '' : `&priority=${encodeURIComponent(priority)}`);
+
+  it('GT-122: lee la subruta de entrada, la prioridad sin mayúsculas ni acentos y la tarea por su ticket', () => {
+    expect(parseEntry(entry('PROJ-42', 'Pantalla / 50% ¿#?', 'Crítica'))).toEqual({
+      kind: 'new',
+      ticket: 'PROJ-42',
+      title: 'Pantalla / 50% ¿#?',
+      priority: 'Crítica',
+    });
+    expect(parseEntry('/new')).toEqual({ kind: 'new', ticket: '', title: '', priority: '' });
+    expect(parseEntry('/ticket/PROJ-42')).toEqual({ kind: 'ticket', ticket: 'PROJ-42' });
+    expect(parseEntry('')).toBeNull();
+    expect(parseEntry('/kanban')).toBeNull();
+    expect(parseEntry('/ticket/A/B')).toBeNull();
+
+    expect(gestaskPriority(' CRITICA ')).toBe('Crítica');
+    expect(gestaskPriority('bloqueante')).toBe('Bloqueante');
+    expect(gestaskPriority('Highest')).toBe('');
+    expect(gestaskPriority('')).toBe('');
+
+    const list = [
+      task({ id: 'x1', ticket: 'PROJ-1', created_at: '2026-11-01T08:00:00Z' }),
+      task({ id: 'x2', ticket: ' proj-1 ', created_at: '2026-11-05T08:00:00Z' }),
+      task({ id: 'x3', ticket: null }),
+    ];
+    expect(taskWithTicket(list, 'PROJ-1')?.id).toBe('x2');
+    expect(taskWithTicket(list, 'PROJ-2')).toBeUndefined();
+    expect(taskWithTicket(list, '')).toBeUndefined();
+  });
+
+  it('GT-122 GT-124: abre el formulario de creación con el ticket, el título y la prioridad, sin avanzar el contador', async () => {
+    await open(entry('PROJ-42', 'Pantalla / 50% ¿#?', 'CRITICA'));
+    const form = await screen.findByRole('dialog', { name: 'Crear tarea' });
+    expect(field('Ticket').value).toBe('PROJ-42');
+    expect(field('Título').value).toBe('Pantalla / 50% ¿#?');
+    expect((within(form).getByLabelText('Prioridad') as HTMLSelectElement).value).toBe('Crítica');
+    expect(field('Puntos de orden').value).toBe('4');
+    // GT-124: vuelve a «Backlog» sin dejar la subruta de entrada en el historial.
+    expect(replaced).toEqual(['']);
+
+    fireEvent.click(within(form).getByRole('button', { name: 'Guardar' }));
+    await settled();
+    expect(fn('tasks-create')[0].body).toMatchObject({ ticket: 'PROJ-42', title: 'Pantalla / 50% ¿#?', priority: 'Crítica' });
+    expect(fn('configuration-profile-update')).toHaveLength(0);
+  });
+
+  it('GT-122: una prioridad que Gestask no tiene deja la del formulario por defecto', async () => {
+    await open(entry('PROJ-43', 'Sin prioridad conocida', 'Highest'));
+    const form = await screen.findByRole('dialog', { name: 'Crear tarea' });
+    expect((within(form).getByLabelText('Prioridad') as HTMLSelectElement).value).toBe('Menor');
+  });
+
+  it('GT-122: si el ticket ya es una tarea, abre su detalle en lugar de crear otra', async () => {
+    await open(entry(' demo-0002 ', 'Exportar a CSV'));
+    const detail = await screen.findByRole('dialog', { name: 'Exportar a CSV' });
+    expect(within(detail).getByText('Detalle de tarea · DEMO-0002')).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'Crear tarea' })).toBeNull();
+    expect(replaced).toEqual(['']);
+  });
+
+  it('GT-123 GT-124: abre el detalle de la tarea con ese ticket, o avisa si no hay ninguna', async () => {
+    const view = await open('/ticket/DEMO-0004');
+    expect(await screen.findByRole('dialog', { name: 'Botón de guardar' })).toBeTruthy();
+    expect(replaced).toEqual(['']);
+    view.unmount();
+
+    await open('/ticket/NADA-1');
+    await waitFor(() => expect(lastNotice()).toEqual({ text: 'Gestask no tiene ninguna tarea con el ticket NADA-1', kind: 'error' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(replaced).toEqual(['', '']);
+  });
+
+  it('GT-124: sin la conexión completa vuelve a «Backlog» sin abrir nada', async () => {
+    backend.config = EMPTY;
+    render(<Harness initialPath={entry('PROJ-42', 'Pantalla')} />);
+    expect(await screen.findByText('Falta configurar la conexión con Supabase.')).toBeTruthy();
+    await waitFor(() => expect(replaced).toEqual(['']));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(fn('tasks-list', 'GET')).toHaveLength(0);
   });
 });

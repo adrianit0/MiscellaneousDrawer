@@ -16,6 +16,11 @@ export function openApp(id: string) {
   useRouter.getState().navigate(appRoute(id, useNav.getState().paths[id] ?? ''));
 }
 
+/** P-33: abre una mini app en una subruta concreta, desde la interfaz de otra. Un id desconocido sigue N-01. */
+export function openAppAt(id: string, path: string) {
+  useRouter.getState().navigate(appRoute(id, path));
+}
+
 export function goHome() {
   useRouter.getState().navigate(HOME);
 }

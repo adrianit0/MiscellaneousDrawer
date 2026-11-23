@@ -15,6 +15,9 @@ import {
   nextOrderPoints,
   nextTicket,
   nextTicketOrderValue,
+  parseEntry,
+  gestaskPriority,
+  taskWithTicket,
   pendingSummary,
   pendingText,
   TICKET_ORDER,
@@ -67,6 +70,8 @@ type Payload = Record<string, unknown>;
 interface FormState {
   task: Partial<Task>;
   proposedTicket: string;
+  /** GT-122: cada entrada desde «Tableros Jira» abre un formulario nuevo, aunque ya hubiera otro abierto. */
+  entry?: number;
 }
 
 interface ReportResponse {
@@ -457,6 +462,44 @@ export function GestaskApp() {
 
   const openDetail = (id: string, readonly = false) => setDetail({ id, readonly });
 
+  // GT-122 a GT-124: las subrutas de entrada desde «Tableros Jira». Esperan a la conexión y a las tareas.
+  const handledEntry = useRef<string | null>(null);
+  useEffect(() => {
+    const entry = parseEntry(path);
+    if (!entry) {
+      handledEntry.current = null;
+      return;
+    }
+    if (config === null || handledEntry.current === path) return;
+    if (configured && (!loaded || loading)) return;
+    handledEntry.current = path;
+    if (configured) {
+      const existing = taskWithTicket(data.tasks, entry.ticket);
+      if (existing) {
+        setForm(null);
+        openDetail(existing.id);
+      } else if (entry.kind === 'ticket') {
+        notify(`Gestask no tiene ninguna tarea con el ticket ${entry.ticket}`, 'error');
+      } else if (entry.ticket === '') {
+        openCreate();
+      } else {
+        setDetail(null);
+        setForm({
+          task: {
+            order_points: nextOrderPoints(data.order, data.tasks),
+            ticket: entry.ticket,
+            title: entry.title,
+            ...(gestaskPriority(entry.priority) ? { priority: gestaskPriority(entry.priority) } : {}),
+          },
+          proposedTicket: '',
+          entry: Date.now(),
+        });
+      }
+    }
+    navigate('', { replace: true });
+    // Las acciones de abrir no son dependencias: se leen cuando la entrada está lista.
+  }, [path, config, configured, loaded, loading, data.tasks, data.order]);
+
   useAppShortcut('Alt+N', () => {
     if (!configured || form || detail) return;
     if (section.path !== '') navigate('');
@@ -660,7 +703,7 @@ export function GestaskApp() {
         ) : (
           <TaskForm
             // Otra tarea, otro formulario.
-            key={form.task.id ?? 'new'}
+            key={`${form.task.id ?? 'new'}-${form.entry ?? 0}`}
             task={form.task}
             saving={saving}
             onSave={(payload) => void saveTask(payload)}

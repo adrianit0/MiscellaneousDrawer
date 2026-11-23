@@ -25,8 +25,9 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * «Tableros Jira» (JR-01 a JR-49, ADR-0027 a ADR-0029): tableros propios sobre varios proyectos de Jira Cloud, con las columnas
- * y los estados que elige el usuario. Solo lee de Jira (JR-24).
+ * «Tableros Jira» (JR-01 a JR-53, ADR-0027 a ADR-0030): tableros propios sobre varios proyectos de Jira Cloud, con las
+ * columnas y los estados que elige el usuario. Solo lee de Jira (JR-24). Sabe qué tickets son ya tareas de «Gestask»
+ * por los mensajes que esta le envía (JR-50).
  */
 public final class JiraApp implements MiniApp {
 
@@ -55,12 +56,13 @@ public final class JiraApp implements MiniApp {
 
     @Override
     public List<String> migrations() {
-        return List.of("db/apps/jira/V001__initial.sql", "db/apps/jira/V002__filters.sql");
+        return List.of("db/apps/jira/V001__initial.sql", "db/apps/jira/V002__filters.sql",
+                "db/apps/jira/V003__gestask_tickets.sql");
     }
 
     @Override
     public List<Class<?>> mappers() {
-        return List.of(BoardMapper.class, FilterMapper.class);
+        return List.of(BoardMapper.class, FilterMapper.class, GestaskTicketMapper.class);
     }
 
     @Override
@@ -123,6 +125,10 @@ public final class JiraApp implements MiniApp {
             filters.delete(filterId(ctx));
             ctx.status(204);
         });
+
+        // JR-50: no contacta con Jira.
+        GestaskTickets tickets = new GestaskTickets(context.store(), context.messages());
+        routes.get("/gestask/tickets", ctx -> ctx.json(Map.of("tickets", tickets.list())));
 
         // JR-20 a JR-23
         routes.get("/boards/{id}/issues", ctx -> {

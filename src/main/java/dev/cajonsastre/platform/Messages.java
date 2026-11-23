@@ -11,7 +11,7 @@ import java.util.List;
 public interface Messages {
 
     /** P-29: tamaño máximo del contenido, en bytes UTF-8. */
-    int MAX_CONTENT = 4096;
+    int MAX_CONTENT = 64 * 1024;
     /** P-30: mensajes como mucho en cada {@link #pending()}. */
     int PAGE = 100;
 
@@ -20,7 +20,7 @@ public interface Messages {
      *
      * @param recipient identificador de otra mini app del catálogo
      * @param type      qué es: {@code [a-z][a-z0-9-]{0,39}}
-     * @param content   un objeto JSON de hasta 4 KB
+     * @param content   un objeto JSON de hasta 64 KB (ADR-0030)
      * @throws IllegalArgumentException si un valor no cumple el formato: es un error de programación
      * @throws RuntimeException         si no se pudo guardar: quien envía decide si reintentar
      */

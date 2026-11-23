@@ -6,6 +6,7 @@ import themeCss from '../theme.css?raw';
 import {
   assigneeColors,
   categoryColor,
+  gestaskPath,
   COLOR_VARIABLES,
   HUES,
   hueColor,
@@ -130,15 +131,20 @@ interface Backend {
   boards: Board[];
   issues: Record<number, BoardIssues>;
   filters: SavedFilter[];
+  /** JR-50: lo que responde /gestask/tickets. */
+  gestaskTickets: string[];
   fail: { status: number; code: string; message: string; details?: unknown } | null;
 }
 
 let server: FakeServer;
 let backend: Backend;
 let notices: string[];
+/** P-33: lo que la mini app pidió abrir con openApp. */
+let opened: { id: string; path: string }[];
 
 function route(call: Call): { status?: number; body?: unknown } | undefined {
   const path = call.url.slice(BASE.length);
+  if (path === '/gestask/tickets') return { body: { tickets: backend.gestaskTickets } };
   if (backend.fail && !(path === '/config' && call.method === 'GET') && path !== '/boards' && path !== '/filters') {
     const f = backend.fail;
     backend.fail = null;
@@ -216,6 +222,7 @@ function Harness({ active = true, start = '' }: { active?: boolean; start?: stri
         path,
         navigate: (next) => setPath(next),
         notify: (text) => notices.push(text),
+        openApp: (id, to = '') => opened.push({ id, path: to }),
       }),
     [active, path],
   );
@@ -243,7 +250,8 @@ async function openBoard(start = '') {
 beforeEach(() => {
   resetShell();
   notices = [];
-  backend = { config: CONFIG, boards: [EXAMPLE, SUPPORT], issues: { 1: ISSUES }, filters: [], fail: null };
+  opened = [];
+  backend = { config: CONFIG, boards: [EXAMPLE, SUPPORT], issues: { 1: ISSUES }, filters: [], gestaskTickets: [], fail: null };
   server = installFakeServer({ appRoutes: route });
 });
 
@@ -936,5 +944,94 @@ describe('JR-32 a JR-36 configurar tableros', () => {
     });
     expect(server.callsTo('DELETE', `${BASE}/boards/2`)).toHaveLength(1);
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Borrar Soporte' })).toBeNull());
+  });
+});
+
+describe('JR-50 a JR-53 Gestask y cabecera fija', () => {
+  const card = (key: string) => screen.getByRole('listitem', { name: key });
+  const gestaskCalls = () => server.callsTo('GET', `${BASE}/gestask/tickets`);
+
+  it('JR-51: «+» si el ticket no es una tarea de Gestask y «>» si ya lo es, sin distinguir mayúsculas ni espacios', async () => {
+    backend.gestaskTickets = [' pa-7 ', 'PB-1'];
+    await openBoard();
+    await waitFor(() => expect(within(card('PA-7')).getByRole('button', { name: 'Abrir en Gestask: PA-7' }).textContent).toBe('>'));
+    expect(within(card('PB-1')).getByRole('button', { name: 'Abrir en Gestask: PB-1' })).toBeTruthy();
+    const create = within(card('PA-5')).getByRole('button', { name: 'Crear en Gestask: PA-5' });
+    expect(create.textContent).toBe('+');
+    expect(create.getAttribute('title')).toBe('Crear en Gestask');
+  });
+
+  it('JR-51 P-33: «+» abre Gestask con el formulario relleno y «>» con la tarea', async () => {
+    backend.gestaskTickets = ['PA-7'];
+    await openBoard();
+    await waitFor(() => expect(within(card('PA-7')).getByRole('button', { name: /^Abrir en Gestask/ })).toBeTruthy());
+
+    fireEvent.click(within(card('PA-5')).getByRole('button', { name: /^Crear en Gestask/ }));
+    fireEvent.click(within(card('PA-6')).getByRole('button', { name: /^Crear en Gestask/ }));
+    fireEvent.click(within(card('PA-7')).getByRole('button', { name: /^Abrir en Gestask/ }));
+    expect(opened).toEqual([
+      { id: 'gestask', path: '/new?ticket=PA-5&title=Nuevo%20filtro' },
+      { id: 'gestask', path: '/new?ticket=PA-6&title=Validar%20importaci%C3%B3n&priority=Importante' },
+      { id: 'gestask', path: '/ticket/PA-7' },
+    ]);
+    // Abrir Gestask no consulta Jira.
+    expect(issueCalls()).toHaveLength(1);
+  });
+
+  it('JR-51: los valores van codificados para que Gestask los lea tal cual (P-33)', () => {
+    const tricky = issue('PA-9', 'start', 'Fallo / 50% ¿#? & más', null, { priority: { id: '1', name: 'Crítica', color: 'red' } });
+    const path = gestaskPath(tricky, false);
+    expect(path.startsWith('/new?')).toBe(true);
+    const query = new URLSearchParams(path.slice('/new?'.length));
+    expect(query.get('ticket')).toBe('PA-9');
+    expect(query.get('title')).toBe('Fallo / 50% ¿#? & más');
+    expect(query.get('priority')).toBe('Crítica');
+    expect(path.includes('/', 1)).toBe(false);
+  });
+
+  it('JR-52: la lista se pide al abrir y al volver a mostrarse, sin consultar Jira ni vaciar la caché', async () => {
+    const view = await openBoard();
+    await waitFor(() => expect(gestaskCalls()).toHaveLength(1));
+    expect(within(card('PA-5')).getByRole('button', { name: /^Crear en Gestask/ })).toBeTruthy();
+
+    // Mientras está oculta se crea la tarea en Gestask.
+    view.rerender(<Harness active={false} />);
+    backend.gestaskTickets = ['PA-5'];
+    await act(async () => {});
+    expect(gestaskCalls()).toHaveLength(1);
+
+    view.rerender(<Harness active />);
+    await waitFor(() => expect(within(card('PA-5')).getByRole('button', { name: /^Abrir en Gestask/ })).toBeTruthy());
+    expect(gestaskCalls()).toHaveLength(2);
+    expect(issueCalls()).toHaveLength(1);
+  });
+
+  it('JR-52: si falla, se conserva la última lista y no se avisa', async () => {
+    backend.gestaskTickets = ['PA-5'];
+    const view = await openBoard();
+    await waitFor(() => expect(within(card('PA-5')).getByRole('button', { name: /^Abrir en Gestask/ })).toBeTruthy());
+    view.rerender(<Harness active={false} />);
+    const ok = server.appRoutes;
+    server.appRoutes = (call) =>
+      call.url.endsWith('/gestask/tickets') ? { status: 500, body: { code: 'internal', message: 'Fallo', details: null } } : ok(call);
+    view.rerender(<Harness active />);
+    await waitFor(() => expect(gestaskCalls()).toHaveLength(2));
+    await act(async () => {});
+    expect(within(card('PA-5')).getByRole('button', { name: /^Abrir en Gestask/ })).toBeTruthy();
+    expect(notices).toEqual([]);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('JR-53 P-17: la mini app ocupa el alto de su área y solo el tablero se desplaza, con las columnas fijas', async () => {
+    await openBoard();
+    const scroll = screen.getByRole('list', { name: 'To do' }).closest('[class*="boardScroll"]');
+    expect(scroll).not.toBeNull();
+    // La cabecera del tablero queda fuera de lo que se desplaza.
+    expect(scroll!.contains(screen.getByRole('navigation', { name: 'Tableros' }))).toBe(false);
+    expect(scroll!.contains(screen.getByRole('button', { name: 'Actualizar' }))).toBe(false);
+    expect(scroll!.firstElementChild!.className).toMatch(/heads/);
+
+    // P-17: el marco tiene el alto del área (los CSS Modules se simulan en las pruebas; el resto se ve arrancada).
+    expect(/\.app-frame \{[^}]*height: 100%/.exec(themeCss)).not.toBeNull();
   });
 });

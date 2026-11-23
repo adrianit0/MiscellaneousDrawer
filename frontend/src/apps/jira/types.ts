@@ -314,3 +314,27 @@ export function assigneeColors(names: Iterable<string>): Map<string, string> {
   }
   return out;
 }
+
+/** JR-51: un ticket se compara con los de Gestask sin mayúsculas ni espacios de los extremos. */
+export function ticketKey(ticket: string): string {
+  return ticket.trim().toUpperCase();
+}
+
+/** JR-51: la mini app «Gestask» (GT-122, GT-123). */
+export const GESTASK_APP = 'gestask';
+
+/**
+ * JR-51: la subruta de Gestask que abre el botón de un ticket: su tarea si ya existe (GT-123) o el formulario de
+ * creación con la clave, el resumen y la prioridad (GT-122). Los valores van con encodeURIComponent (P-33).
+ */
+export function gestaskPath(issue: Issue, exists: boolean): string {
+  if (exists) return `/ticket/${encodeURIComponent(issue.key)}`;
+  const query = [
+    ['ticket', issue.key],
+    ['title', issue.summary],
+    ...(issue.priority ? [['priority', issue.priority.name]] : []),
+  ]
+    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+    .join('&');
+  return `/new?${query}`;
+}

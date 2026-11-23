@@ -1,5 +1,6 @@
 import {
   DAILY_TICKET_TYPE,
+  PRIORITIES,
   TASK_STATUSES,
   type CalendarDay,
   type Filters,
@@ -660,4 +661,54 @@ export function dayTone(day: CalendarDay, target: number, today = todayIso()): D
 /** GT-111: la observación recortada a max caracteres. */
 export function truncate(text: string, max = 70): string {
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+}
+
+/** GT-122, GT-123: una subruta de entrada desde «Tableros Jira» (ADR-0030). */
+export type Entry =
+  | { kind: 'new'; ticket: string; title: string; priority: string }
+  | { kind: 'ticket'; ticket: string };
+
+/** GT-122, GT-123: la entrada de la subruta, o null si es una sección normal. */
+export function parseEntry(path: string): Entry | null {
+  const [base, query = ''] = path.split('?', 2);
+  if (base === '/new') {
+    const params = new URLSearchParams(query);
+    return {
+      kind: 'new',
+      ticket: (params.get('ticket') ?? '').trim(),
+      title: (params.get('title') ?? '').trim(),
+      priority: (params.get('priority') ?? '').trim(),
+    };
+  }
+  const match = /^\/ticket\/([^/?]+)$/.exec(path);
+  if (!match) return null;
+  try {
+    return { kind: 'ticket', ticket: decodeURIComponent(match[1]).trim() };
+  } catch {
+    return { kind: 'ticket', ticket: match[1].trim() };
+  }
+}
+
+/** Sin mayúsculas, acentos ni espacios de los extremos. */
+function folded(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+/** GT-122: la prioridad de Gestask con ese nombre, sin distinguir mayúsculas ni acentos; '' si no es ninguna. */
+export function gestaskPriority(name: string): string {
+  const wanted = folded(name);
+  return wanted === '' ? '' : (PRIORITIES.find((p) => folded(p) === wanted) ?? '');
+}
+
+/** GT-122, GT-123: la tarea con ese ticket, sin distinguir mayúsculas ni espacios; la creada más recientemente. */
+export function taskWithTicket(tasks: Task[], ticket: string): Task | undefined {
+  const wanted = ticket.trim().toUpperCase();
+  if (wanted === '') return undefined;
+  return tasks
+    .filter((t) => String(t.ticket ?? '').trim().toUpperCase() === wanted)
+    .sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))[0];
 }

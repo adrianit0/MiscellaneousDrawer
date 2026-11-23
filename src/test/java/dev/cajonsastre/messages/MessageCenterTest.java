@@ -73,6 +73,15 @@ class MessageCenterTest {
     }
 
     @Test
+    void p29_content_up_to_64_kb_is_accepted() {
+        assertThat(Messages.MAX_CONTENT).isEqualTo(64 * 1024);
+        // ADR-0030: una lista de tickets de unos 60 KB cabe en un mensaje.
+        String big = "{\"x\":\"" + "a".repeat(Messages.MAX_CONTENT - 8) + "\"}";
+        center.forApp(GESTASK).send("lootboxes", "effort-points", big);
+        assertThat(center.forApp(LOOT).pending()).extracting(Message::content).containsExactly(big);
+    }
+
+    @Test
     void p29_invalid_values_are_programming_errors() {
         Messages gestask = center.forApp(GESTASK);
         assertThatThrownBy(() -> gestask.send("unknown", "effort-points", "{}"))

@@ -43,6 +43,11 @@ export interface MiniAppContextValue {
   /** Su subruta: '' o '/lista/42'. */
   path: string;
   navigate: (path: string, options?: NavigateOptions) => void;
+  /**
+   * P-33: abre otra mini app del catálogo en esa subruta, con entrada en el historial. La subruta puede acabar en una
+   * consulta (`/new?ticket=ABC-1`), con los valores codificados con encodeURIComponent.
+   */
+  openApp: (id: string, path?: string) => void;
   api: AppApi;
   /** U-05 */
   notify: (text: string, kind?: NoticeKind) => void;

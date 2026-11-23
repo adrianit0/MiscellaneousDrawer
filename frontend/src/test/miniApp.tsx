@@ -12,6 +12,7 @@ export function testContext(overrides: Partial<MiniAppContextValue> = {}): MiniA
     active: true,
     path: '',
     navigate: () => {},
+    openApp: () => {},
     api: createAppApi(id),
     notify: () => {},
     setSubtitle: () => {},

@@ -3,7 +3,7 @@ import type { CatalogApp } from '../api';
 import { createAppApi } from '../platform/appApi';
 import { MiniAppContext } from '../platform/context';
 import type { MiniAppContextValue } from '../platform/types';
-import { navigateInApp } from './actions';
+import { navigateInApp, openAppAt } from './actions';
 import { FailedPage, MissingUiPage, PlannedPage } from './AppPages';
 import { useConsoles } from './consoleStore';
 import { useNav } from './navStore';
@@ -74,6 +74,7 @@ export function AppFrame({ app, active }: { app: CatalogApp; active: boolean }) 
       active,
       path,
       navigate: (to, options) => navigateInApp(app.id, to, options),
+      openApp: (id, to = '') => openAppAt(id, to),
       api,
       notify: (text, kind) => useUi.getState().notify(text, kind),
       setSubtitle: (text) => useNav.getState().setSubtitle(app.id, text),

@@ -7,8 +7,11 @@ import { AppFrame } from './AppFrame';
 import { useCatalog } from './catalogStore';
 import { useNav } from './navStore';
 import { ModuleRegistryContext, type ModuleRegistry } from './registry';
-import { useRouter } from './router';
+import { parseRoute, useRouter } from './router';
 import { useUi } from './uiStore';
+
+/** P-33: un título con los caracteres que más se complican en una ruta. */
+const OTHER_TITLE = 'Fallo / 50% ¿#? & más';
 
 function Probe() {
   const ctx = useMiniApp();
@@ -25,6 +28,9 @@ function Probe() {
       </button>
       <button type="button" onClick={() => ctx.setSubtitle('Lista')}>
         Subtítulo
+      </button>
+      <button type="button" onClick={() => ctx.openApp('other', `/new?ticket=ABC-1&title=${encodeURIComponent(OTHER_TITLE)}`)}>
+        Abrir la otra
       </button>
       <button type="button" onClick={() => ctx.notify('Hola desde la mini app')}>
         Avisar
@@ -82,6 +88,20 @@ describe('P-11, P-12 marco de la mini app', () => {
     expect(useNav.getState().subtitles.demo).toBe('Lista');
     fireEvent.click(screen.getByText('Avisar'));
     expect(useUi.getState().notices.map((n) => n.text)).toEqual(['Hola desde la mini app']);
+  });
+
+  it('P-33 openApp abre otra mini app en una subruta con consulta, con entrada en el historial', async () => {
+    useRouter.getState().navigate({ kind: 'app', appId: 'demo', path: '' });
+    renderFrame(demo, true);
+    fireEvent.click(await screen.findByText('Abrir la otra'));
+    const route = parseRoute(window.location.hash);
+    expect(route).toEqual(useRouter.getState().route);
+    expect(route?.kind === 'app' && route.appId).toBe('other');
+    const path = route?.kind === 'app' ? route.path : '';
+    expect(path.split('?')[0]).toBe('/new');
+    const query = new URLSearchParams(path.split('?')[1]);
+    expect(query.get('ticket')).toBe('ABC-1');
+    expect(query.get('title')).toBe(OTHER_TITLE);
   });
 
   it('una mini app oculta no cambia la ruta visible al navegar: solo su subruta guardada', async () => {

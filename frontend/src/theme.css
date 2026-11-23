@@ -361,7 +361,8 @@ kbd {
 }
 
 .app-frame {
-  min-height: 100%;
+  /* P-17: el alto del espacio bajo la barra superior, para que una mini app pueda ocuparlo justo (ADR-0030). */
+  height: 100%;
 }
 
 .app-loading,

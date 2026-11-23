@@ -120,6 +120,8 @@ Tableros propios sobre varios proyectos de Jira Cloud a la vez, aunque cada proy
 - Cada tablero se consulta la primera vez que se abre, hasta 1000 tickets, y lo traído se queda en memoria: al volver a él, a la sección o a la mini app se ve lo de antes, con su hora, sin esperar. Para traer lo último, «Actualizar». Cambiar el tablero en su configuración lo vuelve a consultar, y cerrar la mini app olvida lo traído.
 - **Filtros**: filtros con nombre, comunes a todos los tableros, por estados, prioridades y asignados («es uno de» o «no es ninguno de», también «Sin prioridad» y «Sin asignar»), antigüedad (más o menos de N días desde que se creó), fecha de creación y fecha de actualización. Aparecen en la línea bajo las pestañas: «Todos» y uno por filtro, con uno activo a la vez. Filtran lo ya traído, sin consultar Jira.
 - Si en Jira desaparece un estado que estaba en una columna, el tablero lo avisa y lleva a su configuración.
+- **Gestask**: cada tarjeta lleva un botón junto al estado. «+» abre «Gestask» con el formulario de crear tarea relleno con la clave, el resumen y la prioridad, si Gestask tiene una con ese nombre. «>» aparece cuando el ticket ya es una tarea, y la abre. Para saberlo, «Gestask» pasa la lista de sus tickets cada vez que carga sus tareas en Cajón de sastre: lo que se cambie desde la web de Gestask se nota al abrir «Gestask» aquí. Si pulsas «+» en un ticket que ya tiene tarea, Gestask abre esa tarea en lugar de crear otra.
+- La cabecera (secciones, pestañas, filtros y barra) y los nombres de las columnas se quedan fijos arriba: solo se desplaza el tablero.
 
 ## Reenviar PR
 

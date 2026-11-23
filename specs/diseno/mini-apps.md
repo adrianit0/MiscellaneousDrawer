@@ -162,10 +162,10 @@ En las pruebas de una mini app, las consolas se recogen pasando un `Consoles` pr
 
 ### Mensajes entre mini apps
 
-Una mini app no lee los datos de otra, pero puede dejarle un mensaje (P-29 a P-32, ADR-0025). Es lo que usan «Gestask», para pasar a «Lootboxes» los PE cerrados de cada día, y «Lootboxes», para pasar a «Inventario» las recompensas de cada cofre.
+Una mini app no lee los datos de otra, pero puede dejarle un mensaje (P-29 a P-32, ADR-0025). Es lo que usan «Gestask», para pasar a «Lootboxes» los PE cerrados de cada día, «Lootboxes», para pasar a «Inventario» las recompensas de cada cofre, y otra vez «Gestask», para pasar a «Tableros Jira» los tickets de sus tareas (ADR-0030).
 
 ```java
-// Quien envía: un objeto JSON pequeño, con un tipo que dice qué es.
+// Quien envía: un objeto JSON de hasta 64 KB, con un tipo que dice qué es.
 messages.send("inventory", "chest-rewards", json);
 
 // Quien recibe, cuando necesita los datos: guardar y después confirmar.
@@ -233,6 +233,7 @@ export function TasksApp() {
 | `notify(texto, tipo)` | Aviso no bloqueante del shell (U-05). No es una notificación: esas se emiten desde el servidor (P-21) |
 | `setSubtitle(texto)` | Sección actual en la miga de pan (N-07) |
 | `showConsole(id)` | Despliega el panel de consolas del shell con esa consola elegida (N-15). El identificador lo da el servidor de la mini app (P-25) |
+| `openApp(id, path)` | Abre otra mini app en esa subruta, con entrada en el historial (P-33). La subruta puede llevar una consulta, `'/new?ticket=ABC-1'`, que la otra interpreta. Es lo que usa «Tableros Jira» para crear y abrir tareas de «Gestask» (ADR-0030) |
 
 ### Ciclo de vida en la interfaz
 
@@ -284,7 +285,7 @@ Se añadirán cuando una mini app real los necesite (constitución, principio 8)
 - Escribir en una consola desde la interfaz, para una mini app sin servidor, y los estados «Abierto» y «Pausado» (ADR-0014).
 - Emitir notificaciones desde la interfaz, para una mini app sin servidor (ADR-0013).
 - Una categoría propia de cada mini app en «Ajustes».
-- Abrir un elemento de otra mini app desde la interfaz, y enviar mensajes desde la interfaz de una mini app sin servidor (ADR-0025).
+- Enviar mensajes desde la interfaz de una mini app sin servidor (ADR-0025). Abrir otra mini app en una subruta ya es parte de la plataforma (P-33, ADR-0030).
 - Copias diarias, exportación e importación de los datos de las mini apps.
 - Activar y desactivar mini apps desde «Ajustes».
 - Abrir una mini app desde fuera con un enlace `cajonsastre://`.

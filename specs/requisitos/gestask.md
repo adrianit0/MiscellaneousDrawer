@@ -190,6 +190,17 @@ Se entrega en tres sprints: el 9, conexión y «Tareas»; el 10, «Día a día»
 |---|---|
 | GT-120 | Cada vez que reenvía con éxito `calendar-month-get`, el servidor lee de la respuesta los días (`days`) con `date` hasta hoy (fecha local) y `completed_points` mayor que 0. Por cada uno cuyo valor no haya enviado ya desde que arrancó, envía a `lootboxes` un mensaje `effort-points` `{"date": "AAAA-MM-DD", "points": N}` (P-29, LB-02, ADR-0026). La respuesta a la interfaz no cambia y se devuelve aunque la lectura o el envío fallen; el fallo va al registro sin el contenido (S-21). La interfaz de «Gestask» no muestra nada de esto (LB-06). |
 
+## Tareas desde «Tableros Jira»
+
+«Tableros Jira» muestra en cada tarjeta si su ticket ya es una tarea de Gestask, y lleva a crearla o a abrirla (JR-51, ADR-0030). Estos son los dos contratos de Gestask con ella: el mensaje con sus tickets y las dos subrutas de entrada.
+
+| ID | Requisito |
+|---|---|
+| GT-121 | Cada vez que reenvía con éxito `tasks-list` sin el parámetro `ticket_type`, el servidor lee de la respuesta los tickets de sus tareas (`tasks[].ticket`), sin espacios a los lados, sin los vacíos y sin repetir, en orden. Si la lista no es la última que envió desde que arrancó, envía a `jira` un mensaje `gestask-tickets` `{"tickets": ["ABC-1", …]}` (P-29, JR-50). Una lista que no cabe en un mensaje no se envía. La respuesta a la interfaz no cambia y se devuelve aunque la lectura o el envío fallen; el fallo va al registro sin el contenido (S-21). |
+| GT-122 | La subruta `/new?ticket=<clave>&title=<resumen>&priority=<prioridad>` (los tres opcionales) abre el formulario de creación con la conexión completa y las tareas cargadas. Si ya hay una tarea con ese ticket (sin distinguir mayúsculas ni espacios de los extremos), abre su detalle en su lugar. Si no, el formulario es el de GT-35 pero con ese ticket, ese título y esa prioridad si es una de las de Gestask (sin distinguir mayúsculas ni acentos) o, si no, la del formulario por defecto (GT-36); el contador de tickets no avanza (GT-37). |
+| GT-123 | La subruta `/ticket/<clave>` abre el detalle de la tarea con ese ticket (como en GT-122), con la conexión completa y las tareas cargadas; si hay varias, la creada más recientemente. Si no hay ninguna, avisa «Gestask no tiene ninguna tarea con el ticket <clave>». |
+| GT-124 | Tras GT-122 y GT-123, la subruta pasa a «Backlog» sin dejar la de entrada en el historial. Sin la conexión completa, pasa a «Backlog» sin abrir nada, y se ve GT-21. |
+
 ## API de la mini app
 
 Prefijo `/api/apps/gestask`.

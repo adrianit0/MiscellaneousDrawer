@@ -8,7 +8,7 @@ import type { SavedFilter } from './filters';
 import { FiltersSection } from './FiltersSection';
 import { useIssueCache } from './issueCache';
 import styles from './jira.module.css';
-import { errorMessage, type Board, type ConfigView } from './types';
+import { errorMessage, ticketKey, type Board, type ConfigView } from './types';
 
 /** JR-30 */
 const SECTIONS = [
@@ -25,15 +25,32 @@ function sectionOf(path: string) {
   return SECTIONS.find((s) => s.path === path) ?? SECTIONS[0];
 }
 
-/** «Tableros Jira» (JR-30 a JR-49): tableros propios sobre varios proyectos de Jira Cloud. Solo lee de Jira. */
+/** «Tableros Jira» (JR-30 a JR-53): tableros propios sobre varios proyectos de Jira Cloud. Solo lee de Jira. */
 export function JiraApp() {
-  const { api, path, navigate, setSubtitle } = useMiniApp();
+  const { api, path, navigate, setSubtitle, active } = useMiniApp();
   const section = sectionOf(path);
   const [config, setConfig] = useState<ConfigView | null>(null);
   const [boards, setBoards] = useState<Board[] | null>(null);
   const [filters, setFilters] = useState<SavedFilter[] | null>(null);
   /** JR-46: lo consultado de cada tablero, mientras la mini app está montada. */
   const cache = useIssueCache(api);
+  /** JR-50, JR-52: los tickets que ya son tareas de Gestask, normalizados con ticketKey. */
+  const [gestask, setGestask] = useState<ReadonlySet<string>>(() => new Set());
+
+  // JR-52: al abrirse y cada vez que vuelve a mostrarse; no consulta Jira. Un fallo deja la lista anterior.
+  useEffect(() => {
+    if (!active) return;
+    let current = true;
+    api
+      .get<{ tickets: string[] }>('/gestask/tickets')
+      .then((r) => {
+        if (current) setGestask(new Set(r.tickets.map(ticketKey)));
+      })
+      .catch(() => {});
+    return () => {
+      current = false;
+    };
+  }, [active, api]);
   const [error, setError] = useState<string | null>(null);
   /** JR-36: si el editor tiene cambios sin guardar, y adónde se quiere ir mientras se pregunta. */
   const [editorDirty, setEditorDirty] = useState(false);
@@ -119,58 +136,61 @@ export function JiraApp() {
         ))}
       </nav>
 
-      {error && (
-        <p className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
-      {!ready && !error && <p className={styles.muted}>Cargando…</p>}
+      {/* JR-53: lo de debajo de las secciones se desplaza; en «Tableros», solo el tablero. */}
+      <div className={section.path === '' ? `${styles.body} ${styles.boardBody}` : styles.body}>
+        {error && (
+          <p className={styles.error} role="alert">
+            {error}
+          </p>
+        )}
+        {!ready && !error && <p className={styles.muted}>Cargando…</p>}
 
-      {config && section.path === '/connection' && <Connection config={config} onSaved={setConfig} />}
+        {config && section.path === '/connection' && <Connection config={config} onSaved={setConfig} />}
 
-      {ready && section.path === '' && !configured && (
-        <div className={styles.panel}>
-          <p>Falta configurar la conexión con Jira.</p>
-          <div className={styles.actions}>
-            <button type="button" className={styles.primary} onClick={() => navigate('/connection')}>
-              Ir a Conexión
-            </button>
+        {ready && section.path === '' && !configured && (
+          <div className={styles.panel}>
+            <p>Falta configurar la conexión con Jira.</p>
+            <div className={styles.actions}>
+              <button type="button" className={styles.primary} onClick={() => navigate('/connection')}>
+                Ir a Conexión
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-      {ready && section.path === '' && configured && (
-        <BoardView boards={boards} siteUrl={config.siteUrl ?? ''} cache={cache} filters={filters} />
-      )}
+        )}
+        {ready && section.path === '' && configured && (
+          <BoardView boards={boards} siteUrl={config.siteUrl ?? ''} cache={cache} filters={filters} gestask={gestask} />
+        )}
 
-      {ready && section.path === '/filters' && (
-        <FiltersSection
-          filters={filters}
-          path={path}
-          statusNames={statusNames}
-          people={people}
-          onChanged={() => {
-            loadFilters().catch((e: unknown) => setError(errorMessage(e)));
-          }}
-        />
-      )}
-
-      {/* JR-36: el editor sigue montado al cambiar de sección, para no perder lo escrito. */}
-      {ready && (
-        <div hidden={section.path !== '/boards'}>
-          {!configured && section.path === '/boards' && (
-            <p className={styles.notice}>Sin la conexión con Jira no se pueden buscar proyectos ni estados.</p>
-          )}
-          <BoardsSection
-            boards={boards}
-            path={section.path === '/boards' ? path : boardsPath}
-            leave={go}
-            onDirtyChange={setEditorDirty}
+        {ready && section.path === '/filters' && (
+          <FiltersSection
+            filters={filters}
+            path={path}
+            statusNames={statusNames}
+            people={people}
             onChanged={() => {
-              loadBoards().catch((e: unknown) => setError(errorMessage(e)));
+              loadFilters().catch((e: unknown) => setError(errorMessage(e)));
             }}
           />
-        </div>
-      )}
+        )}
+
+        {/* JR-36: el editor sigue montado al cambiar de sección, para no perder lo escrito. */}
+        {ready && (
+          <div hidden={section.path !== '/boards'}>
+            {!configured && section.path === '/boards' && (
+              <p className={styles.notice}>Sin la conexión con Jira no se pueden buscar proyectos ni estados.</p>
+            )}
+            <BoardsSection
+              boards={boards}
+              path={section.path === '/boards' ? path : boardsPath}
+              leave={go}
+              onDirtyChange={setEditorDirty}
+              onChanged={() => {
+                loadBoards().catch((e: unknown) => setError(errorMessage(e)));
+              }}
+            />
+          </div>
+        )}
+      </div>
 
       {leavingTo !== null && (
         <Confirm

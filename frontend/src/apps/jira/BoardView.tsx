@@ -8,10 +8,13 @@ import {
   initials,
   paletteColor,
   formatTime,
+  GESTASK_APP,
+  gestaskPath,
   GROUPINGS,
   matches,
   MAX_ISSUES,
   rows,
+  ticketKey,
   UNASSIGNED,
   type Board,
   type Grouping,
@@ -25,6 +28,26 @@ interface Props {
   cache: IssueCache;
   /** JR-48 */
   filters: SavedFilter[];
+  /** JR-51: los tickets que ya son tareas de Gestask, normalizados con ticketKey. */
+  gestask: ReadonlySet<string>;
+}
+
+/** JR-51: «+» crea la tarea en Gestask y «>» abre la que ya existe (P-33). */
+function GestaskButton({ issue, exists }: { issue: Issue; exists: boolean }) {
+  const { openApp } = useMiniApp();
+  const action = exists ? 'Abrir en Gestask' : 'Crear en Gestask';
+  return (
+    <button
+      type="button"
+      className={styles.gestask}
+      data-exists={exists}
+      aria-label={`${action}: ${issue.key}`}
+      title={action}
+      onClick={() => openApp(GESTASK_APP, gestaskPath(issue, exists))}
+    >
+      {exists ? '>' : '+'}
+    </button>
+  );
 }
 
 /** JR-45: el círculo con las iniciales del asignado, o «?» en gris si no tiene. */
@@ -43,8 +66,8 @@ function Avatar({ name, color }: { name: string | null; color: string | undefine
   );
 }
 
-/** JR-41: clave y estado; resumen; asignado y su círculo; prioridad. */
-function Card({ issue, siteUrl, avatar }: { issue: Issue; siteUrl: string; avatar: string | undefined }) {
+/** JR-41: clave, estado y el botón de Gestask; resumen; asignado y su círculo; prioridad. */
+function Card({ issue, siteUrl, avatar, inGestask }: { issue: Issue; siteUrl: string; avatar: string | undefined; inGestask: boolean }) {
   return (
     <li className={styles.card} aria-label={issue.key}>
       <div className={styles.cardTop}>
@@ -52,8 +75,11 @@ function Card({ issue, siteUrl, avatar }: { issue: Issue; siteUrl: string; avata
         <a className={styles.key} href={`${siteUrl}/browse/${encodeURIComponent(issue.key)}`} target="_blank" rel="noreferrer">
           {issue.key}
         </a>
-        <span className={styles.label} data-paint={paletteColor(issue.statusColor)}>
-          {issue.status}
+        <span className={styles.cardTopEnd}>
+          <span className={styles.label} data-paint={paletteColor(issue.statusColor)}>
+            {issue.status}
+          </span>
+          <GestaskButton issue={issue} exists={inGestask} />
         </span>
       </div>
       <div className={styles.summary}>{issue.summary}</div>
@@ -71,7 +97,7 @@ function Card({ issue, siteUrl, avatar }: { issue: Issue; siteUrl: string; avata
 }
 
 /** JR-40 a JR-48: las pestañas de tableros, la línea de filtros y el tablero elegido con sus columnas y sus filas. */
-export function BoardView({ boards, siteUrl, cache, filters }: Props) {
+export function BoardView({ boards, siteUrl, cache, filters, gestask }: Props) {
   const { active, navigate } = useMiniApp();
   const [chosen, setChosen] = useAppState<number | null>('board', null);
   const [groupings, setGroupings] = useAppState<Record<string, Grouping>>('grouping', {});
@@ -215,7 +241,8 @@ export function BoardView({ boards, siteUrl, cache, filters }: Props) {
 
       {shown && (
         <div className={styles.boardScroll}>
-          <div className={styles.grid} style={template}>
+          {/* JR-53: los nombres de las columnas, fijos arriba al desplazar el tablero. */}
+          <div className={`${styles.grid} ${styles.heads}`} style={template}>
             {shown.columns.map((c, index) => (
               <div key={c.name} className={styles.columnHead}>
                 <strong>{c.name}</strong> <span className={styles.count}>{filtered[index]?.length ?? 0}</span>
@@ -240,6 +267,7 @@ export function BoardView({ boards, siteUrl, cache, filters }: Props) {
                           issue={issue}
                           siteUrl={siteUrl}
                           avatar={issue.assignee ? avatars.get(issue.assignee) : undefined}
+                          inGestask={gestask.has(ticketKey(issue.key))}
                         />
                       ))}
                     </ul>

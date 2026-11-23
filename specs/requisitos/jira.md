@@ -1,6 +1,6 @@
 # Requisitos de «Tableros Jira»
 
-La mini app «Tableros Jira» (`jira`) muestra tableros propios sobre varios proyectos de Jira Cloud a la vez. Cada tablero tiene sus columnas, y en cada columna el usuario pone los estados de cada proyecto que le corresponden, aunque los proyectos tengan flujos distintos. Solo lee de Jira: no cambia nada. Las decisiones están en [ADR-0027](../decisiones/ADR-0027-mini-app-tableros-jira.md) y, para los colores y las prioridades, en [ADR-0028](../decisiones/ADR-0028-colores-y-prioridades-en-tableros-jira.md). La caché, las pestañas y los filtros guardados están en [ADR-0029](../decisiones/ADR-0029-cache-pestanas-y-filtros-en-tableros-jira.md).
+La mini app «Tableros Jira» (`jira`) muestra tableros propios sobre varios proyectos de Jira Cloud a la vez. Cada tablero tiene sus columnas, y en cada columna el usuario pone los estados de cada proyecto que le corresponden, aunque los proyectos tengan flujos distintos. Solo lee de Jira: no cambia nada. Las decisiones están en [ADR-0027](../decisiones/ADR-0027-mini-app-tableros-jira.md) y, para los colores y las prioridades, en [ADR-0028](../decisiones/ADR-0028-colores-y-prioridades-en-tableros-jira.md). La caché, las pestañas y los filtros guardados están en [ADR-0029](../decisiones/ADR-0029-cache-pestanas-y-filtros-en-tableros-jira.md), y el botón para crear o abrir la tarea de «Gestask» y la cabecera fija, en [ADR-0030](../decisiones/ADR-0030-tableros-jira-y-gestask.md).
 
 La conexión (sitio, email y token) se escribe en la mini app: no está en el código ni en el repositorio (S-30, S-32). Los ejemplos usan marcadores. Prefijo de requisitos: **JR**.
 
@@ -83,7 +83,7 @@ Términos:
 | JR-36 | Salir del editor con cambios sin guardar pide confirmación, como en «Base de datos» (BD-67, ADR-0015). |
 | JR-37 | El editor tiene una sección «Prioridades» con las del tablero (JR-17), cada una con su selector «Color» y «Quitar». «Añadir prioridad» elige de las de Jira (JR-19) que el tablero no tiene. Una prioridad nueva toma el primer color de `red`, `orange`, `gold`, `blue`, `cyan`, `violet`, `green` y `gray` que no usa otra del tablero, o `gray` si se usan todos. Si Jira ya no tiene una prioridad guardada, se marca como en JR-34. |
 | JR-40 | «Tableros» muestra arriba los tableros como pestañas, en una sola línea horizontal y en el orden de creación, con desplazamiento horizontal si no caben. La pestaña del tablero elegido se marca (`aria-current`) y la elección se recuerda (`useAppState`). |
-| JR-41 | Cada columna muestra su nombre y su número de tickets. Cada ticket es una tarjeta de cuatro líneas: la clave y, a la derecha, el estado de Jira como etiqueta rellena de su color (`statusColor`) con el texto oscuro del tema; el resumen; el asignado («Sin asignar» si no tiene) y, a la derecha, su círculo (JR-45); y el nombre de la prioridad, sin icono, del color de la prioridad en el tablero o `gray` si el tablero no la tiene. Un ticket sin prioridad no tiene la cuarta línea. La clave enlaza a `<sitio>/browse/<clave>`, que se abre en el Chrome habitual (C-16). |
+| JR-41 | Cada columna muestra su nombre y su número de tickets. Cada ticket es una tarjeta de cuatro líneas: la clave y, a la derecha, el estado de Jira como etiqueta rellena de su color (`statusColor`) con el texto oscuro del tema, y el botón de Gestask (JR-51); el resumen; el asignado («Sin asignar» si no tiene) y, a la derecha, su círculo (JR-45); y el nombre de la prioridad, sin icono, del color de la prioridad en el tablero o `gray` si el tablero no la tiene. Un ticket sin prioridad no tiene la cuarta línea. La clave enlaza a `<sitio>/browse/<clave>`, que se abre en el Chrome habitual (C-16). |
 | JR-42 | Un selector «Agrupar por» con «Nada», «Proyecto» y «Asignado» reparte los tickets en filas horizontales con las mismas columnas; cada fila dice su nombre y su número de tickets. «Sin asignar» va la última. La elección se recuerda por tablero (`useAppState`). |
 | JR-43 | Un filtro de texto oculta los tickets cuya clave, resumen o asignado no contienen el texto, sin distinguir mayúsculas ni acentos, sin volver a consultar Jira. Se aplica a la vez que el filtro guardado activo (JR-48), y los números de columnas y filas cuentan solo los tickets visibles. |
 | JR-44 | Mientras consulta se ve que está cargando y se conserva lo anterior. Un error se muestra con su mensaje (JR-07) y «Reintentar». Con `truncated` dice «Se muestran los 1000 tickets más recientes». Con `missingStatuses` dice qué estados ya no existen en Jira y lleva al editor. |
@@ -93,12 +93,22 @@ Términos:
 | JR-48 | Justo debajo de las pestañas de tableros, una línea horizontal tiene «Todos» y un botón por filtro, en su orden. Solo hay uno activo (`aria-pressed`), y pulsar otro lo cambia. El activo es el mismo para todos los tableros y se recuerda (`useAppState`); si ya no existe, se vuelve a «Todos». Sin filtros, la línea tiene «Todos» y «Crear un filtro», que lleva a «Filtros». Aplicar un filtro no consulta Jira. |
 | JR-49 | Un ticket pasa un filtro si cumple todos sus criterios. En una lista con «Es uno de», su valor tiene que ser uno de los de la lista (o no tener prioridad o asignado si incluye «Sin prioridad» o «Sin asignar»); con «No es ninguno de», no puede serlo. Los nombres se comparan sin distinguir mayúsculas, acentos ni espacios de los extremos. «Más de N días» es una fecha anterior al momento de aplicar el filtro menos N días de 24 horas, y «Menos de N días», una igual o posterior. «Desde» y «Hasta» comparan el día de la fecha en la hora local e incluyen los dos extremos. |
 
+## Tareas de «Gestask»
+
+| ID | Requisito |
+|---|---|
+| JR-50 | La mini app recibe de `gestask` los mensajes `gestask-tickets` `{"tickets": [<texto>, …]}` (GT-121, P-30). Cada uno sustituye entero la lista de tickets de Gestask guardada en su base («Datos»), así que uno repetido no tiene efecto. Un mensaje de otro remitente, de otro tipo o con otro contenido se descarta (se registra sin su contenido). Todos se confirman después de guardarlos o descartarlos. `GET /gestask/tickets` procesa así los mensajes pendientes y responde `{"tickets": […]}` con la lista guardada, vacía si nunca llegó ninguna. No contacta con Jira. |
+| JR-51 | En cada tarjeta (JR-41), a la derecha del estado, un botón pequeño dice si el ticket es ya una tarea de Gestask: su clave está en la lista de JR-50 (sin distinguir mayúsculas ni espacios de los extremos). Si no lo es, «+» («Crear en Gestask») abre Gestask en `/new?ticket=<clave>&title=<resumen>&priority=<nombre de la prioridad>` (GT-122; sin `priority` si el ticket no tiene). Si lo es, «>» («Abrir en Gestask») lo abre en `/ticket/<clave>` (GT-123). Los dos usan `openApp` (P-33). |
+| JR-52 | La interfaz pide la lista de JR-50 al abrirse y cada vez que vuelve a mostrarse (N-05), sin consultar Jira y sin tocar lo guardado de los tableros (JR-46). Mientras no llega, o si falla, se usa la última recibida (al principio, vacía); un fallo no se avisa, porque Gestask se protege de crear otra tarea con el mismo ticket (GT-122). |
+| JR-53 | La mini app ocupa el alto de su área (P-17). En «Tableros», las secciones, las pestañas de tableros, la línea de filtros, la barra de herramientas y los avisos se quedan fijos arriba, y debajo solo se desplaza el tablero, en vertical y en horizontal, con los nombres de las columnas fijos en su parte de arriba. En las demás secciones las pestañas de secciones se quedan fijas y se desplaza lo de debajo. |
+
 ## Datos
 
-La base de la mini app (`<datos>/apps/jira/data.db`, P-08) tiene dos tablas:
+La base de la mini app (`<datos>/apps/jira/data.db`, P-08) tiene tres tablas:
 
 - `board`: identificador, nombre, `definition` (los proyectos, las columnas con sus estados y sus colores, y las prioridades con sus colores, en JSON; una definición sin colores ni prioridades se lee con `gray` y sin prioridades, JR-18) y las fechas de creación y de cambio. Migración `db/apps/jira/V001__initial.sql`.
 - `saved_filter`: identificador, nombre, `definition` (sus criterios de JR-27, en JSON) y las fechas de creación y de cambio. Migración `db/apps/jira/V002__filters.sql`.
+- `gestask_ticket`: los tickets de las tareas de Gestask de la última lista recibida (JR-50), uno por fila. Migración `db/apps/jira/V003__gestask_tickets.sql`.
 
 La conexión no va en la base sino en su fichero privado (JR-01), y los tickets no se guardan en disco: se piden a Jira y se conservan solo en la memoria de la interfaz (JR-46).
 
@@ -123,6 +133,7 @@ Todas las rutas cuelgan de `/api/apps/jira` (P-06) y siguen A-01 a A-03.
 | POST | /filters | Crea un filtro. 201; 400 `invalid_filter`, 409 `too_many_filters` (JR-26, JR-27) |
 | PUT | /filters/{id} | Sustituye un filtro. 400 `invalid_filter`, 404 `not_found` |
 | DELETE | /filters/{id} | Borra un filtro. 204; 404 `not_found` |
+| GET | /gestask/tickets | `{"tickets": […]}`: los tickets de las tareas de Gestask (JR-50). No contacta con Jira |
 
 ## Fuera de alcance
 
@@ -134,3 +145,4 @@ Todas las rutas cuelgan de `/api/apps/jira` (P-06) y siguen A-01 a A-03.
 - Ordenar por prioridad, colorear las columnas y los iconos de prioridad de Jira (ADR-0028).
 - Filtros por tablero, varios filtros activos a la vez, reordenar los filtros y filtrar en Jira con ellos (ADR-0029).
 - Guardar los tickets en disco o conservarlos al cerrar la mini app (ADR-0029).
+- Mantener al día la lista de tickets de Gestask sin abrir Gestask, y rellenar en Gestask el tipo u otros campos del ticket (ADR-0030).
