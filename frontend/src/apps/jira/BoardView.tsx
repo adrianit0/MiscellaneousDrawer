@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppState, useMiniApp } from '../../platform';
+import { passes, type SavedFilter } from './filters';
+import type { IssueCache } from './issueCache';
 import styles from './jira.module.css';
 import {
   assigneeColors,
-  errorMessage,
   initials,
   paletteColor,
   formatTime,
@@ -13,7 +14,6 @@ import {
   rows,
   UNASSIGNED,
   type Board,
-  type BoardIssues,
   type Grouping,
   type Issue,
 } from './types';
@@ -21,6 +21,10 @@ import {
 interface Props {
   boards: Board[];
   siteUrl: string;
+  /** JR-46 */
+  cache: IssueCache;
+  /** JR-48 */
+  filters: SavedFilter[];
 }
 
 /** JR-45: el círculo con las iniciales del asignado, o «?» en gris si no tiene. */
@@ -59,55 +63,41 @@ function Card({ issue, siteUrl, avatar }: { issue: Issue; siteUrl: string; avata
       </div>
       {issue.priority && (
         <div className={styles.priority} data-paint={paletteColor(issue.priority.color)} aria-label={`Prioridad ${issue.priority.name}`}>
-          <span aria-hidden="true">⌃</span> {issue.priority.name}
+          {issue.priority.name}
         </div>
       )}
     </li>
   );
 }
 
-/** JR-40 a JR-44: el tablero elegido, con sus columnas, sus filas y el filtro. */
-export function BoardView({ boards, siteUrl }: Props) {
-  const { api, active, navigate } = useMiniApp();
+/** JR-40 a JR-48: las pestañas de tableros, la línea de filtros y el tablero elegido con sus columnas y sus filas. */
+export function BoardView({ boards, siteUrl, cache, filters }: Props) {
+  const { active, navigate } = useMiniApp();
   const [chosen, setChosen] = useAppState<number | null>('board', null);
   const [groupings, setGroupings] = useAppState<Record<string, Grouping>>('grouping', {});
-  const [filter, setFilter] = useState('');
-  const [data, setData] = useState<BoardIssues | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [epoch, setEpoch] = useState(0);
-  const request = useRef(0);
+  const [activeFilter, setActiveFilter] = useAppState<number | null>('filter', null);
+  const [text, setText] = useState('');
 
   const board = boards.find((b) => b.id === chosen) ?? boards[0];
   const grouping: Grouping = (board && groupings[String(board.id)]) || 'none';
+  // JR-48: si el recordado ya no existe, «Todos».
+  const filter = filters.find((f) => f.id === activeFilter) ?? null;
 
-  // JR-40: al abrirse, al cambiar de tablero y con «Actualizar». Oculta, no consulta (N-05).
+  // JR-46: solo si nunca se consultó o cambió su configuración. Oculta, no consulta (N-05).
+  const needs = board ? cache.needs(board) : false;
   useEffect(() => {
-    if (!active || !board) return;
-    const mine = ++request.current;
-    setLoading(true);
-    api
-      .get<BoardIssues>(`/boards/${board.id}/issues`)
-      .then((r) => {
-        if (mine !== request.current) return;
-        setData(r);
-        setError(null);
-      })
-      .catch((e: unknown) => {
-        if (mine === request.current) setError(errorMessage(e));
-      })
-      .finally(() => {
-        if (mine === request.current) setLoading(false);
-      });
-  }, [api, active, board?.id, epoch]);
+    if (active && board && needs) cache.load(board);
+  }, [active, board, needs, cache]);
 
-  // Lo de otro tablero no se muestra mientras carga el nuevo.
-  const shown = data && board && data.board.id === board.id ? data : null;
+  const shown = board ? cache.data(board) : null;
+  const loading = board ? cache.loading(board) : false;
+  const error = board ? cache.error(board) : null;
 
-  const filtered = useMemo(
-    () => (shown ? shown.columns.map((c) => c.issues.filter((i) => matches(i, filter))) : []),
-    [shown, filter],
-  );
+  // JR-43, JR-49: el texto y el filtro activo, sin consultar Jira.
+  const filtered = useMemo(() => {
+    const now = new Date();
+    return shown ? shown.columns.map((c) => c.issues.filter((i) => matches(i, text) && (!filter || passes(i, filter, now)))) : [];
+  }, [shown, text, filter]);
   const grid = useMemo(() => rows(filtered, grouping, board?.projects ?? []), [filtered, grouping, board?.projects]);
   // JR-45: sobre todos los tickets del tablero, no solo los filtrados, para que el color no cambie al filtrar.
   const avatars = useMemo(
@@ -133,17 +123,39 @@ export function BoardView({ boards, siteUrl }: Props) {
 
   return (
     <section className={styles.boardView} aria-label="Tablero">
+      {/* JR-40 */}
+      <nav className={styles.strip} aria-label="Tableros">
+        {boards.map((b) => (
+          <button
+            key={b.id}
+            type="button"
+            className={styles.boardTab}
+            aria-current={b.id === board.id ? 'page' : undefined}
+            onClick={() => setChosen(b.id)}
+          >
+            {b.name}
+          </button>
+        ))}
+      </nav>
+
+      {/* JR-48 */}
+      <div className={styles.strip} role="group" aria-label="Filtros guardados">
+        <button type="button" className={styles.filterChip} aria-pressed={filter === null} onClick={() => setActiveFilter(null)}>
+          Todos
+        </button>
+        {filters.map((f) => (
+          <button key={f.id} type="button" className={styles.filterChip} aria-pressed={filter?.id === f.id} onClick={() => setActiveFilter(f.id)}>
+            {f.name}
+          </button>
+        ))}
+        {filters.length === 0 && (
+          <button type="button" className={styles.link} onClick={() => navigate('/filters')}>
+            Crear un filtro
+          </button>
+        )}
+      </div>
+
       <div className={styles.toolbar}>
-        <label className={styles.inline}>
-          <span>Tablero</span>
-          <select value={board.id} onChange={(e) => setChosen(Number(e.target.value))}>
-            {boards.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </label>
         <label className={styles.inline}>
           <span>Agrupar por</span>
           <select
@@ -161,8 +173,8 @@ export function BoardView({ boards, siteUrl }: Props) {
           type="search"
           aria-label="Filtrar tickets"
           placeholder="Filtrar por clave, resumen o asignado"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
         />
         <span className={styles.spacer} />
         {loading && (
@@ -171,16 +183,16 @@ export function BoardView({ boards, siteUrl }: Props) {
           </span>
         )}
         {!loading && shown && <span className={styles.muted}>Actualizado a las {formatTime(shown.fetchedAt)}</span>}
-        <button type="button" disabled={loading} onClick={() => setEpoch((e) => e + 1)}>
+        <button type="button" disabled={loading} onClick={() => cache.load(board)}>
           Actualizar
         </button>
       </div>
 
-      {error && (
+      {error && !loading && (
         <div className={styles.panel} role="alert">
           <p className={styles.error}>{error}</p>
           <div className={styles.actions}>
-            <button type="button" onClick={() => setEpoch((e) => e + 1)}>
+            <button type="button" onClick={() => cache.load(board)}>
               Reintentar
             </button>
           </div>

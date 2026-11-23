@@ -25,7 +25,7 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * «Tableros Jira» (JR-01 a JR-44, ADR-0027): tableros propios sobre varios proyectos de Jira Cloud, con las columnas
+ * «Tableros Jira» (JR-01 a JR-49, ADR-0027 a ADR-0029): tableros propios sobre varios proyectos de Jira Cloud, con las columnas
  * y los estados que elige el usuario. Solo lee de Jira (JR-24).
  */
 public final class JiraApp implements MiniApp {
@@ -55,12 +55,12 @@ public final class JiraApp implements MiniApp {
 
     @Override
     public List<String> migrations() {
-        return List.of("db/apps/jira/V001__initial.sql");
+        return List.of("db/apps/jira/V001__initial.sql", "db/apps/jira/V002__filters.sql");
     }
 
     @Override
     public List<Class<?>> mappers() {
-        return List.of(BoardMapper.class);
+        return List.of(BoardMapper.class, FilterMapper.class);
     }
 
     @Override
@@ -111,6 +111,16 @@ public final class JiraApp implements MiniApp {
         routes.put("/boards/{id}", ctx -> ctx.json(boards.replace(id(ctx), body(ctx)).view()));
         routes.delete("/boards/{id}", ctx -> {
             boards.delete(id(ctx));
+            ctx.status(204);
+        });
+
+        // JR-26, JR-27
+        Filters filters = new Filters(context.store(), clock);
+        routes.get("/filters", ctx -> ctx.json(Map.of("filters", filters.list().stream().map(Filter::view).toList())));
+        routes.post("/filters", ctx -> ctx.status(201).json(filters.create(body(ctx)).view()));
+        routes.put("/filters/{id}", ctx -> ctx.json(filters.replace(filterId(ctx), body(ctx)).view()));
+        routes.delete("/filters/{id}", ctx -> {
+            filters.delete(filterId(ctx));
             ctx.status(204);
         });
 
@@ -190,6 +200,7 @@ public final class JiraApp implements MiniApp {
             priority.put("color", board.priority(issue.priorityId()).map(Board.Priority::color).orElse(null));
             out.put("priority", priority);
         }
+        out.put("created", issue.created());
         out.put("updated", issue.updated());
         return out;
     }
@@ -205,6 +216,14 @@ public final class JiraApp implements MiniApp {
             return Long.parseLong(ctx.pathParam("id"));
         } catch (NumberFormatException e) {
             throw ApiError.notFound("not_found", "El tablero no existe");
+        }
+    }
+
+    private static long filterId(Context ctx) {
+        try {
+            return Long.parseLong(ctx.pathParam("id"));
+        } catch (NumberFormatException e) {
+            throw Filters.notFound();
         }
     }
 

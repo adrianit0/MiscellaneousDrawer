@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useMemo, useState } from 'react';
+import { passes, type Criteria, type SavedFilter } from '../apps/jira/filters';
 import { JiraApp } from '../apps/jira/JiraApp';
 import themeCss from '../theme.css?raw';
 import {
@@ -26,7 +27,7 @@ import { createAppApi } from '../platform/appApi';
 import { installFakeServer, resetShell, type Call, type FakeServer } from './fakeServer';
 import { InApp, testContext } from './miniApp';
 
-/** JR-30 a JR-45: la interfaz de «Tableros Jira», con su API simulada. No contacta con Jira. Datos inventados (S-31). */
+/** JR-30 a JR-49: la interfaz de «Tableros Jira», con su API simulada. No contacta con Jira. Datos inventados (S-31). */
 
 const BASE = '/api/apps/jira';
 const SITE = 'https://empresa-inventada.atlassian.net';
@@ -97,6 +98,7 @@ const issue = (key: string, status: string, summary: string, assignee: string | 
   statusColor: 'blue',
   assignee,
   priority: null,
+  created: '2026-11-01T09:00:00Z',
   updated: '2026-11-23T09:00:00Z',
   ...extra,
 });
@@ -127,6 +129,7 @@ interface Backend {
   config: ConfigView;
   boards: Board[];
   issues: Record<number, BoardIssues>;
+  filters: SavedFilter[];
   fail: { status: number; code: string; message: string; details?: unknown } | null;
 }
 
@@ -136,7 +139,7 @@ let notices: string[];
 
 function route(call: Call): { status?: number; body?: unknown } | undefined {
   const path = call.url.slice(BASE.length);
-  if (backend.fail && !(path === '/config' && call.method === 'GET') && path !== '/boards') {
+  if (backend.fail && !(path === '/config' && call.method === 'GET') && path !== '/boards' && path !== '/filters') {
     const f = backend.fail;
     backend.fail = null;
     return { status: f.status, body: { code: f.code, message: f.message, details: f.details ?? null } };
@@ -174,6 +177,22 @@ function route(call: Call): { status?: number; body?: unknown } | undefined {
   if (one && call.method === 'DELETE') {
     backend.boards = backend.boards.filter((b) => b.id !== Number(one[1]));
     // El servidor responde 204; el fetch simulado no admite un 204 con cuerpo.
+    return { status: 200, body: {} };
+  }
+  if (path === '/filters' && call.method === 'GET') return { body: { filters: backend.filters } };
+  if (path === '/filters' && call.method === 'POST') {
+    const created = { id: 20, ...(call.body as Omit<SavedFilter, 'id'>) };
+    backend.filters = [...backend.filters, created];
+    return { status: 201, body: created };
+  }
+  const oneFilter = /^\/filters\/(\d+)$/.exec(path);
+  if (oneFilter && call.method === 'PUT') {
+    const saved = { id: Number(oneFilter[1]), ...(call.body as Omit<SavedFilter, 'id'>) };
+    backend.filters = backend.filters.map((f) => (f.id === saved.id ? saved : f));
+    return { body: saved };
+  }
+  if (oneFilter && call.method === 'DELETE') {
+    backend.filters = backend.filters.filter((f) => f.id !== Number(oneFilter[1]));
     return { status: 200, body: {} };
   }
   const iss = /^\/boards\/(\d+)\/issues$/.exec(path);
@@ -224,7 +243,7 @@ async function openBoard(start = '') {
 beforeEach(() => {
   resetShell();
   notices = [];
-  backend = { config: CONFIG, boards: [EXAMPLE, SUPPORT], issues: { 1: ISSUES }, fail: null };
+  backend = { config: CONFIG, boards: [EXAMPLE, SUPPORT], issues: { 1: ISSUES }, filters: [], fail: null };
   server = installFakeServer({ appRoutes: route });
 });
 
@@ -309,24 +328,295 @@ describe('JR-40 JR-41 tablero', () => {
     expect(issueCalls()).toHaveLength(1);
   });
 
-  it('JR-40: consulta al pulsar «Actualizar» y al cambiar de tablero, no oculta', async () => {
+});
+
+describe('JR-40 JR-46 pestañas y caché', () => {
+  it('JR-40: los tableros son pestañas en una línea, con la elegida marcada y recordada', async () => {
     const view = await openBoard();
+    const tabs = within(screen.getByRole('navigation', { name: 'Tableros' })).getAllByRole('button');
+    expect(tabs.map((t) => t.textContent)).toEqual(['Equipo', 'Soporte']);
+    expect(tabs[0].getAttribute('aria-current')).toBe('page');
+    expect(screen.queryByRole('combobox', { name: 'Tablero' })).toBeNull();
     await act(async () => {
-      fireEvent.click(button('Actualizar'));
+      fireEvent.click(button('Soporte'));
+    });
+    expect(button('Soporte').getAttribute('aria-current')).toBe('page');
+    expect(issueCalls().at(-1)!.url).toBe(`${BASE}/boards/2/issues`);
+    view.unmount();
+    render(<Harness />);
+    expect((await screen.findByRole('button', { name: 'Soporte' })).getAttribute('aria-current')).toBe('page');
+  });
+
+  it('JR-46: volver a un tablero, a la sección o a la mini app no consulta; «Actualizar» sí', async () => {
+    const view = await openBoard();
+    expect(issueCalls()).toHaveLength(1);
+    await act(async () => {
+      fireEvent.click(button('Soporte'));
     });
     expect(issueCalls()).toHaveLength(2);
     await act(async () => {
-      fireEvent.change(screen.getByRole('combobox', { name: 'Tablero' }), { target: { value: '2' } });
+      fireEvent.click(button('Equipo'));
     });
-    expect(issueCalls().at(-1)!.url).toBe(`${BASE}/boards/2/issues`);
-    view.unmount();
+    // Se ve lo de antes, con su hora, sin otra consulta.
+    expect(screen.getByText('Pantalla de alta')).toBeTruthy();
+    expect(screen.getByText(/Actualizado a las/)).toBeTruthy();
+    expect(issueCalls()).toHaveLength(2);
 
-    const before = issueCalls().length;
-    render(<Harness active={false} />);
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Secciones' })).getByRole('button', { name: 'Filtros' }));
+    await screen.findByRole('button', { name: 'Nuevo filtro' });
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Secciones' })).getByRole('button', { name: 'Tableros' }));
+    expect(await screen.findByText('Pantalla de alta')).toBeTruthy();
+    expect(issueCalls()).toHaveLength(2);
+
+    // N-05: oculta y vuelta a mostrar, sigue montada.
+    view.rerender(<Harness active={false} />);
+    view.rerender(<Harness active />);
+    await act(async () => {});
+    expect(issueCalls()).toHaveLength(2);
+
+    await act(async () => {
+      fireEvent.click(button('Actualizar'));
+    });
+    expect(issueCalls()).toHaveLength(3);
+    expect(issueCalls().at(-1)!.url).toBe(`${BASE}/boards/1/issues`);
+  });
+
+  it('JR-46: oculta no consulta, y al mostrarse consulta lo que nunca consultó', async () => {
+    const view = render(<Harness active={false} />);
+    await waitFor(() => expect(server.callsTo('GET', `${BASE}/filters`)).toHaveLength(1));
+    await act(async () => {});
+    expect(issueCalls()).toHaveLength(0);
+    view.rerender(<Harness active />);
+    expect(await screen.findByText('Pantalla de alta')).toBeTruthy();
+    expect(issueCalls()).toHaveLength(1);
+  });
+
+  it('JR-46: cambiar el tablero en el editor vuelve a consultarlo al mostrarlo', async () => {
+    await openBoard();
+    expect(issueCalls()).toHaveLength(1);
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Secciones' })).getByRole('button', { name: 'Configurar tableros' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar Equipo' }));
+    const name = (await screen.findByRole('form', { name: 'Editar Equipo' })).querySelector('input')!;
+    fireEvent.change(name, { target: { value: 'Equipo nuevo' } });
+    await act(async () => {
+      fireEvent.click(button('Guardar'));
+    });
     await waitFor(() => expect(server.callsTo('GET', `${BASE}/boards`).length).toBeGreaterThan(1));
-    expect(issueCalls()).toHaveLength(before);
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Secciones' })).getByRole('button', { name: 'Tableros' }));
+    await waitFor(() => expect(issueCalls()).toHaveLength(2));
+    expect(await screen.findByText('Pantalla de alta')).toBeTruthy();
   });
 });
+
+describe('JR-48 JR-49 filtros guardados', () => {
+  const now = new Date('2026-11-23T12:00:00Z');
+  const ticket = (extra: Partial<Issue>) => issue('PA-1', 'doing', 'Algo', 'Ana', extra);
+  const only = (criteria: Partial<Criteria>): Criteria => ({
+    statuses: null,
+    priorities: null,
+    assignees: null,
+    created: null,
+    updated: null,
+    ...criteria,
+  });
+
+  it('JR-49: estados, prioridades y asignados, con «Es uno de», «No es ninguno de» y «Sin…»', () => {
+    const doing = only({ statuses: { mode: 'include', values: ['DOING ', 'testing'], none: false } });
+    expect(passes(ticket({}), doing, now)).toBe(true);
+    expect(passes(ticket({ status: 'start' }), doing, now)).toBe(false);
+    const notDoing = only({ statuses: { mode: 'exclude', values: ['doing'], none: false } });
+    expect(passes(ticket({}), notDoing, now)).toBe(false);
+    expect(passes(ticket({ status: 'start' }), notDoing, now)).toBe(true);
+
+    const critical = only({ priorities: { mode: 'include', values: ['critica'], none: true } });
+    expect(passes(ticket({ priority: { id: '2', name: 'Crítica', color: 'red' } }), critical, now)).toBe(true);
+    expect(passes(ticket({ priority: null }), critical, now)).toBe(true);
+    expect(passes(ticket({ priority: { id: '4', name: 'Trivial', color: null } }), critical, now)).toBe(false);
+
+    const notMine = only({ assignees: { mode: 'exclude', values: ['ana'], none: true } });
+    expect(passes(ticket({}), notMine, now)).toBe(false);
+    expect(passes(ticket({ assignee: null }), notMine, now)).toBe(false);
+    expect(passes(ticket({ assignee: 'Luis' }), notMine, now)).toBe(true);
+  });
+
+  it('JR-49: antigüedad y días desde la actualización, de 24 horas hacia atrás', () => {
+    const old = only({ created: { moreThanDays: 30, lessThanDays: null, from: null, to: null } });
+    expect(passes(ticket({ created: '2026-10-24T11:59:59Z' }), old, now)).toBe(true);
+    expect(passes(ticket({ created: '2026-10-24T12:00:00Z' }), old, now)).toBe(false);
+    const recent = only({ updated: { moreThanDays: null, lessThanDays: 7, from: null, to: null } });
+    expect(passes(ticket({ updated: '2026-11-16T12:00:00Z' }), recent, now)).toBe(true);
+    expect(passes(ticket({ updated: '2026-11-16T11:59:59Z' }), recent, now)).toBe(false);
+    const between = only({ created: { moreThanDays: 10, lessThanDays: 20, from: null, to: null } });
+    expect(passes(ticket({ created: '2026-11-08T12:00:00Z' }), between, now)).toBe(true);
+    expect(passes(ticket({ created: '2026-11-20T12:00:00Z' }), between, now)).toBe(false);
+    // Sin fecha, no pasa un criterio de fechas.
+    expect(passes(ticket({ created: null }), old, now)).toBe(false);
+  });
+
+  it('JR-49: desde y hasta comparan el día local e incluyen los extremos', () => {
+    const november = only({ created: { moreThanDays: null, lessThanDays: null, from: '2026-11-01', to: '2026-11-15' } });
+    const local = (y: number, m: number, d: number, h: number) => new Date(y, m - 1, d, h).toISOString();
+    expect(passes(ticket({ created: local(2026, 11, 1, 0) }), november, now)).toBe(true);
+    expect(passes(ticket({ created: local(2026, 11, 15, 23) }), november, now)).toBe(true);
+    expect(passes(ticket({ created: local(2026, 10, 31, 23) }), november, now)).toBe(false);
+    expect(passes(ticket({ created: local(2026, 11, 16, 0) }), november, now)).toBe(false);
+  });
+
+  it('JR-48: la línea de filtros bajo las pestañas, uno activo, recordado y sin consultar Jira', async () => {
+    backend.filters = [
+      { id: 1, ...only({ assignees: { mode: 'include', values: ['Ana'], none: false } }), name: 'De Ana' },
+      { id: 2, ...only({ priorities: { mode: 'include', values: ['Importante'], none: false } }), name: 'Importantes' },
+    ];
+    const view = await openBoard();
+    const line = screen.getByRole('group', { name: 'Filtros guardados' });
+    expect(within(line).getAllByRole('button').map((b) => b.textContent)).toEqual(['Todos', 'De Ana', 'Importantes']);
+    expect(within(line).getByRole('button', { name: 'Todos' }).getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(within(line).getByRole('button', { name: 'De Ana' }));
+    expect(within(line).getByRole('button', { name: 'De Ana' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(line).getByRole('button', { name: 'Todos' }).getAttribute('aria-pressed')).toBe('false');
+    expect(keysIn(column('To do'))).toEqual([]);
+    expect(keysIn(column('In progress'))).toEqual(['PA-7']);
+    expect(keysIn(column('Testing'))).toEqual(['PB-2']);
+    // JR-43: los números cuentan solo lo visible.
+    expect(screen.getByText('To do').parentElement!.textContent).toContain('0');
+
+    fireEvent.click(within(line).getByRole('button', { name: 'Importantes' }));
+    expect(keysIn(column('Testing'))).toEqual(['PA-6']);
+    // JR-43: el texto se aplica a la vez.
+    fireEvent.change(field('Filtrar tickets'), { target: { value: 'csv' } });
+    expect(keysIn(column('Testing'))).toEqual([]);
+    expect(issueCalls()).toHaveLength(1);
+
+    view.unmount();
+    render(<Harness />);
+    await screen.findByText('Validar importación');
+    const again = screen.getByRole('group', { name: 'Filtros guardados' });
+    expect(within(again).getByRole('button', { name: 'Importantes' }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('JR-48: sin filtros hay «Todos» y «Crear un filtro», y un filtro recordado que ya no existe es «Todos»', async () => {
+    backend.filters = [{ id: 7, ...only({ assignees: { mode: 'include', values: ['Ana'], none: false } }), name: 'Borrado luego' }];
+    const view = await openBoard();
+    fireEvent.click(button('Borrado luego'));
+    view.unmount();
+    backend.filters = [];
+    await openBoard();
+    const line = screen.getByRole('group', { name: 'Filtros guardados' });
+    expect(within(line).getByRole('button', { name: 'Todos' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(within(line).getByRole('button', { name: 'Crear un filtro' }));
+    expect(currentPath()).toBe('/filters');
+  });
+});
+
+describe('JR-47 sección «Filtros»', () => {
+  it('JR-47 JR-27: crea un filtro con todos los criterios', async () => {
+    await openBoard();
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Secciones' })).getByRole('button', { name: 'Filtros' }));
+    expect(await screen.findByText(/Crea un filtro para ver solo/)).toBeTruthy();
+    fireEvent.click(button('Nuevo filtro'));
+    await screen.findByRole('form', { name: 'Nuevo filtro' });
+    fireEvent.change(field('Nombre'), { target: { value: 'Míos y viejos' } });
+
+    // Estados: los nombres de todos los tableros, sin repetir.
+    fireEvent.change(screen.getByRole('combobox', { name: 'Condición de Estados' }), { target: { value: 'exclude' } });
+    const addStatus = screen.getByRole('combobox', { name: 'Añadir a Estados' });
+    expect(within(addStatus).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'Añadir…',
+      'analized',
+      'closed',
+      'created',
+      'doing',
+      'finished',
+      'inprogress',
+      'start',
+      'testing',
+    ]);
+    fireEvent.change(addStatus, { target: { value: 'closed' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Añadir a Estados' }), { target: { value: 'finished' } });
+
+    // Prioridades: las de Jira y «Sin prioridad».
+    fireEvent.change(screen.getByRole('combobox', { name: 'Condición de Prioridades' }), { target: { value: 'include' } });
+    const addPriority = await screen.findByRole('option', { name: 'Crítica' });
+    fireEvent.change(addPriority.parentElement!, { target: { value: 'Crítica' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Añadir a Prioridades' }), { target: { value: 'Sin prioridad' } });
+
+    // Asignados: las personas ya vistas, «Sin asignar» o un nombre escrito.
+    fireEvent.change(screen.getByRole('combobox', { name: 'Condición de Asignados' }), { target: { value: 'include' } });
+    expect(within(screen.getByRole('combobox', { name: 'Añadir a Asignados' })).getByRole('option', { name: 'Luis' })).toBeTruthy();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Añadir a Asignados' }), { target: { value: 'Ana' } });
+    fireEvent.change(field('Escribir un nombre'), { target: { value: 'Persona Nueva' } });
+    fireEvent.click(button('Añadir nombre'));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Añadir a Asignados' }), { target: { value: 'Sin asignar' } });
+    fireEvent.click(button('Quitar Sin asignar de Asignados'));
+
+    fireEvent.change(field('Antigüedad: Más de'), { target: { value: '30' } });
+    fireEvent.change(field('Creado: Desde'), { target: { value: '2026-01-01' } });
+    fireEvent.change(field('Actualizado: Hace menos de'), { target: { value: '7' } });
+    fireEvent.change(field('Actualizado: Hasta'), { target: { value: '2026-11-30' } });
+
+    await act(async () => {
+      fireEvent.click(button('Guardar'));
+    });
+    const [post] = server.callsTo('POST', `${BASE}/filters`);
+    expect(post.body).toEqual({
+      name: 'Míos y viejos',
+      statuses: { mode: 'exclude', values: ['closed', 'finished'], none: false },
+      priorities: { mode: 'include', values: ['Crítica'], none: true },
+      assignees: { mode: 'include', values: ['Ana', 'Persona Nueva'], none: false },
+      created: { moreThanDays: 30, lessThanDays: null, from: '2026-01-01', to: null },
+      updated: { moreThanDays: null, lessThanDays: 7, from: null, to: '2026-11-30' },
+    });
+    expect(currentPath()).toBe('/filters');
+    expect(await screen.findByText('Míos y viejos')).toBeTruthy();
+    expect(screen.getByText(/Estado no es closed, finished · Prioridad es Crítica, Sin prioridad/)).toBeTruthy();
+    expect(issueCalls()).toHaveLength(1);
+  });
+
+  it('JR-47: edita un filtro, muestra el error junto a su criterio y borra con confirmación', async () => {
+    backend.filters = [
+      {
+        id: 4,
+        name: 'Viejos',
+        statuses: { mode: 'include', values: ['estado-que-ya-no-esta'], none: false },
+        priorities: null,
+        assignees: null,
+        created: { moreThanDays: 90, lessThanDays: null, from: null, to: null },
+        updated: null,
+      },
+    ];
+    render(<Harness start="/filters/4" />);
+    await screen.findByRole('form', { name: 'Editar Viejos' });
+    // Un valor guardado que ya no está entre las opciones se sigue viendo.
+    expect(within(screen.getByRole('list', { name: 'Estados elegidos' })).getByText('estado-que-ya-no-esta')).toBeTruthy();
+    expect(field('Antigüedad: Más de').value).toBe('90');
+
+    backend.fail = { status: 400, code: 'invalid_filter', message: '«Más de» debe ser menor que «Menos de»', details: { field: 'created' } };
+    fireEvent.change(field('Antigüedad: Menos de'), { target: { value: '10' } });
+    await act(async () => {
+      fireEvent.click(button('Guardar'));
+    });
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe('«Más de» debe ser menor que «Menos de»');
+    expect(alert.closest('fieldset')!.querySelector('legend')!.textContent).toBe('Creado');
+
+    fireEvent.change(field('Antigüedad: Menos de'), { target: { value: '' } });
+    await act(async () => {
+      fireEvent.click(button('Guardar'));
+    });
+    expect(server.callsTo('PUT', `${BASE}/filters/4`).at(-1)!.body).toMatchObject({ name: 'Viejos', statuses: { mode: 'include' } });
+    await screen.findByRole('button', { name: 'Borrar Viejos' });
+
+    fireEvent.click(button('Borrar Viejos'));
+    const dialog = screen.getByRole('alertdialog', { name: 'Borrar filtro' });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Borrar' }));
+    });
+    expect(server.callsTo('DELETE', `${BASE}/filters/4`)).toHaveLength(1);
+    expect(await screen.findByText(/Crea un filtro para ver solo/)).toBeTruthy();
+  });
+});
+
 
 function themeVariable(name: string): string {
   const match = new RegExp(`--${name}:\\s*([^;]+);`).exec(themeCss);
@@ -355,7 +645,8 @@ describe('JR-18 JR-41 JR-45 colores de la tarjeta', () => {
     expect(avatar.textContent).toBe('LU');
     expect(avatar.parentElement!.textContent).toContain('Luis');
     const priority = within(card).getByLabelText('Prioridad Importante');
-    expect(priority.textContent).toBe('⌃ Importante');
+    // JR-41: solo el nombre, sin icono.
+    expect(priority.textContent).toBe('Importante');
     expect(priority.getAttribute('data-paint')).toBe('gold');
     // La prioridad es la última línea.
     expect(card.lastElementChild).toBe(priority);

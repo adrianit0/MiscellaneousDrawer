@@ -562,6 +562,9 @@ class JiraAppTest {
         assertThat(ticket.get("project").asText()).isEqualTo("PB");
         assertThat(ticket.get("status").asText()).isEqualTo("analized");
         assertThat(ticket.get("assignee").isNull()).isTrue();
+        // JR-20: las dos fechas, tal como las da Jira.
+        assertThat(ticket.get("updated").asText()).isEqualTo(FakeJira.NOW.minus(Duration.ofHours(2)).toString());
+        assertThat(ticket.get("created").asText()).isEqualTo(FakeJira.NOW.minus(Duration.ofHours(2)).minus(Duration.ofDays(10)).toString());
         assertThat(result.get("columns").get(1).get("issues").get(0).get("assignee").asText()).isEqualTo("Ana");
         assertThat(result.get("fetchedAt").asText()).isEqualTo(FakeJira.NOW.toString());
         assertThat(result.get("truncated").asBoolean()).isFalse();
@@ -573,7 +576,7 @@ class JiraAppTest {
                         + " OR (project = \"PB\" AND (status in (20001, 20002, 20003, 10003) OR (status in (20005) AND updated >= -14d)))"
                         + " ORDER BY updated DESC");
         assertThat(search.json().get("fields")).extracting(JsonNode::asText)
-                .containsExactly("summary", "status", "assignee", "project", "priority", "updated");
+                .containsExactly("summary", "status", "assignee", "project", "priority", "created", "updated");
         assertThat(search.json().get("maxResults").asInt()).isEqualTo(100);
     }
 
@@ -687,5 +690,141 @@ class JiraAppTest {
         assertThat(jira.requests).allSatisfy(r -> assertThat(r.uri().toString()).startsWith(FakeJira.SITE + "/rest/api/3/"));
         assertThat(logged.list).extracting(ILoggingEvent::getFormattedMessage)
                 .containsExactly("Tablero " + id + " consultado: 1 tickets");
+    }
+
+    // --- Filtros (JR-26, JR-27) ---
+
+    /** Un filtro con todos los criterios, con valores inventados. */
+    private static ObjectNode fullFilter(String name) {
+        ObjectNode f = JSON.createObjectNode().put("name", name);
+        ObjectNode statuses = f.putObject("statuses").put("mode", "include");
+        statuses.putArray("values").add("doing").add("testing");
+        ObjectNode priorities = f.putObject("priorities").put("mode", "exclude").put("none", true);
+        priorities.putArray("values").add("Trivial");
+        ObjectNode assignees = f.putObject("assignees").put("mode", "include").put("none", false);
+        assignees.putArray("values").add("Ana");
+        f.putObject("created").put("moreThanDays", 30).putNull("lessThanDays").putNull("from").putNull("to");
+        f.putObject("updated").putNull("moreThanDays").put("lessThanDays", 7).put("from", "2026-11-01").put("to", "2026-11-30");
+        return f;
+    }
+
+    private long createFilter(ObjectNode filter) {
+        HttpResponse<String> r = api.post(BASE + "/filters", filter.toString());
+        assertThat(r.statusCode()).as(r.body()).isEqualTo(201);
+        return TestApi.json(r).get("id").asLong();
+    }
+
+    private void assertInvalidFilter(ObjectNode filter, String field) {
+        HttpResponse<String> r = api.post(BASE + "/filters", filter.toString());
+        assertError(r, 400, "invalid_filter");
+        assertThat(TestApi.json(r).get("details").get("field").asText()).as(filter.toString()).isEqualTo(field);
+    }
+
+    @Test
+    void jr26_jr27_filters_are_created_listed_replaced_and_deleted_without_contacting_jira() {
+        assertThat(TestApi.json(api.get(BASE + "/filters")).get("filters")).isEmpty();
+        long id = createFilter(fullFilter("Míos"));
+        ObjectNode onlyAge = JSON.createObjectNode().put("name", "Viejos");
+        onlyAge.putObject("created").put("moreThanDays", 90);
+        long second = createFilter(onlyAge);
+
+        JsonNode list = TestApi.json(api.get(BASE + "/filters")).get("filters");
+        assertThat(list).extracting(f -> f.get("name").asText()).containsExactly("Míos", "Viejos");
+        JsonNode first = list.get(0);
+        assertThat(first.get("id").asLong()).isEqualTo(id);
+        assertThat(first.get("statuses").get("mode").asText()).isEqualTo("include");
+        assertThat(first.get("statuses").get("values")).extracting(JsonNode::asText).containsExactly("doing", "testing");
+        assertThat(first.get("priorities").get("none").asBoolean()).isTrue();
+        assertThat(first.get("created").get("moreThanDays").asInt()).isEqualTo(30);
+        assertThat(first.get("created").get("from").isNull()).isTrue();
+        assertThat(first.get("updated").get("to").asText()).isEqualTo("2026-11-30");
+        // JR-27: un criterio que no viene se guarda como null.
+        JsonNode viejos = list.get(1);
+        assertThat(viejos.get("statuses").isNull()).isTrue();
+        assertThat(viejos.get("created").get("lessThanDays").isNull()).isTrue();
+
+        ObjectNode renamed = fullFilter("Solo Ana");
+        renamed.putNull("statuses");
+        HttpResponse<String> put = api.put(BASE + "/filters/" + id, renamed.toString());
+        assertThat(put.statusCode()).as(put.body()).isEqualTo(200);
+        JsonNode after = TestApi.json(api.get(BASE + "/filters")).get("filters").get(0);
+        assertThat(after.get("name").asText()).isEqualTo("Solo Ana");
+        assertThat(after.get("statuses").isNull()).isTrue();
+        // El mismo nombre que otro, sin distinguir mayúsculas.
+        HttpResponse<String> repeated = api.put(BASE + "/filters/" + id, fullFilter("VIEJOS").toString());
+        assertError(repeated, 400, "invalid_filter");
+        assertError(api.put(BASE + "/filters/999", fullFilter("Otro").toString()), 404, "not_found");
+
+        assertThat(api.send("DELETE", BASE + "/filters/" + second, null).statusCode()).isEqualTo(204);
+        assertError(api.send("DELETE", BASE + "/filters/" + second, null), 404, "not_found");
+        assertError(api.send("DELETE", BASE + "/filters/abc", null), 404, "not_found");
+        assertThat(TestApi.json(api.get(BASE + "/filters")).get("filters")).hasSize(1);
+        assertThat(jira.requests).isEmpty();
+    }
+
+    @Test
+    void jr26_filters_survive_a_restart_and_there_can_be_thirty_at_most() {
+        for (int i = 1; i <= 30; i++) {
+            createFilter(fullFilter("Filtro " + i));
+        }
+        assertError(api.post(BASE + "/filters", fullFilter("Uno más").toString()), 409, "too_many_filters");
+        stop();
+        start();
+        JsonNode list = TestApi.json(api.get(BASE + "/filters")).get("filters");
+        assertThat(list).hasSize(30);
+        assertThat(list.get(0).get("assignees").get("values").get(0).asText()).isEqualTo("Ana");
+    }
+
+    @Test
+    void jr27_a_filter_that_does_not_follow_the_rules_is_rejected() {
+        assertInvalidFilter(fullFilter(""), "name");
+        assertInvalidFilter(fullFilter("x".repeat(41)), "name");
+        assertInvalidFilter(JSON.createObjectNode().put("name", "Vacío"), "criteria");
+
+        ObjectNode badMode = fullFilter("Modo");
+        ((ObjectNode) badMode.get("statuses")).put("mode", "maybe");
+        assertInvalidFilter(badMode, "statuses");
+        ObjectNode noValues = fullFilter("Sin valores");
+        ((ObjectNode) noValues.get("assignees")).putArray("values");
+        assertInvalidFilter(noValues, "assignees");
+        // «Sin prioridad» basta, pero los estados no tienen «ninguno».
+        ObjectNode onlyNone = JSON.createObjectNode().put("name", "Sin prioridad");
+        onlyNone.putObject("priorities").put("mode", "include").put("none", true).putArray("values");
+        createFilter(onlyNone);
+        ObjectNode statusNone = fullFilter("Estado ninguno");
+        ((ObjectNode) statusNone.get("statuses")).put("none", true);
+        assertInvalidFilter(statusNone, "statuses");
+        ObjectNode repeated = fullFilter("Repetido");
+        ((ArrayNode) repeated.get("statuses").get("values")).add("DOING");
+        assertInvalidFilter(repeated, "statuses");
+        ObjectNode tooMany = fullFilter("Muchos");
+        ArrayNode values = ((ObjectNode) tooMany.get("assignees")).putArray("values");
+        for (int i = 0; i < 101; i++) {
+            values.add("Persona " + i);
+        }
+        assertInvalidFilter(tooMany, "assignees");
+
+        ObjectNode emptyDates = fullFilter("Fechas vacías");
+        emptyDates.putObject("created");
+        assertInvalidFilter(emptyDates, "created");
+        ObjectNode negative = fullFilter("Negativo");
+        ((ObjectNode) negative.get("created")).put("moreThanDays", -1);
+        assertInvalidFilter(negative, "created");
+        ObjectNode tooOld = fullFilter("Demasiado");
+        ((ObjectNode) tooOld.get("created")).put("moreThanDays", 3651);
+        assertInvalidFilter(tooOld, "created");
+        ObjectNode fraction = fullFilter("Fracción");
+        ((ObjectNode) fraction.get("created")).put("moreThanDays", 1.5);
+        assertInvalidFilter(fraction, "created");
+        ObjectNode crossed = fullFilter("Cruzado");
+        ((ObjectNode) crossed.get("updated")).put("moreThanDays", 7);
+        assertInvalidFilter(crossed, "updated");
+        ObjectNode badDate = fullFilter("Fecha");
+        ((ObjectNode) badDate.get("updated")).put("from", "2026-02-30");
+        assertInvalidFilter(badDate, "updated");
+        ObjectNode reversed = fullFilter("Al revés");
+        ((ObjectNode) reversed.get("updated")).put("from", "2026-12-01");
+        assertInvalidFilter(reversed, "updated");
+        assertThat(TestApi.json(api.get(BASE + "/filters")).get("filters")).hasSize(1);
     }
 }

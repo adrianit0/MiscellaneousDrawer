@@ -129,6 +129,8 @@ export interface Issue {
   assignee: string | null;
   /** JR-20: color null si el tablero no tiene esa prioridad. */
   priority: { id: string; name: string; color: PaletteColor | null } | null;
+  /** JR-20: las fechas tal como las da Jira. */
+  created: string | null;
   updated: string | null;
 }
 

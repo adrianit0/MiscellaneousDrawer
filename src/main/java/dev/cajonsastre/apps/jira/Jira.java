@@ -27,7 +27,7 @@ final class Jira {
     static final int MAX_PROJECTS = 200;
     /** JR-21, JR-23 */
     static final int ISSUE_PAGE = 100;
-    static final List<String> FIELDS = List.of("summary", "status", "assignee", "project", "priority", "updated");
+    static final List<String> FIELDS = List.of("summary", "status", "assignee", "project", "priority", "created", "updated");
     /** JR-19 */
     static final int PRIORITY_PAGE = 50;
     static final int MAX_PRIORITIES = 200;
@@ -45,9 +45,9 @@ final class Jira {
     record Priority(String id, String name) {
     }
 
-    /** JR-20: priorityId y priorityName son null si el ticket no tiene prioridad. */
+    /** JR-20: priorityId y priorityName son null si el ticket no tiene prioridad; created y updated, como los da Jira. */
     record Issue(String key, String summary, String project, String statusId, String status, String assignee,
-                 String priorityId, String priorityName, String updated) {
+                 String priorityId, String priorityName, String created, String updated) {
     }
 
     /** JR-23: truncated si Jira tiene más de los devueltos. */
@@ -180,7 +180,7 @@ final class Jira {
                 assignee == null || assignee.isNull() ? null : assignee.path("displayName").asText(null),
                 hasPriority ? priority.path("id").asText() : null,
                 hasPriority ? priority.path("name").asText(priority.path("id").asText()) : null,
-                f.path("updated").asText(null));
+                f.path("created").asText(null), f.path("updated").asText(null));
     }
 
     // --- Llamadas ---

@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMiniApp } from '../../platform';
 import { BoardView } from './BoardView';
 import { Confirm } from './Confirm';
 import { Connection } from './Connection';
 import { BoardsSection } from './Editor';
+import type { SavedFilter } from './filters';
+import { FiltersSection } from './FiltersSection';
+import { useIssueCache } from './issueCache';
 import styles from './jira.module.css';
 import { errorMessage, type Board, type ConfigView } from './types';
 
@@ -11,21 +14,26 @@ import { errorMessage, type Board, type ConfigView } from './types';
 const SECTIONS = [
   { path: '', label: 'Tableros' },
   { path: '/boards', label: 'Configurar tableros' },
+  { path: '/filters', label: 'Filtros' },
   { path: '/connection', label: 'Conexión' },
 ];
 
-/** La sección de una subruta: «/boards/3» es «Configurar tableros». */
+/** La sección de una subruta: «/boards/3» es «Configurar tableros» y «/filters/2», «Filtros». */
 function sectionOf(path: string) {
   if (path === '/boards' || path.startsWith('/boards/')) return SECTIONS[1];
+  if (path === '/filters' || path.startsWith('/filters/')) return SECTIONS[2];
   return SECTIONS.find((s) => s.path === path) ?? SECTIONS[0];
 }
 
-/** «Tableros Jira» (JR-30 a JR-44): tableros propios sobre varios proyectos de Jira Cloud. Solo lee de Jira. */
+/** «Tableros Jira» (JR-30 a JR-49): tableros propios sobre varios proyectos de Jira Cloud. Solo lee de Jira. */
 export function JiraApp() {
   const { api, path, navigate, setSubtitle } = useMiniApp();
   const section = sectionOf(path);
   const [config, setConfig] = useState<ConfigView | null>(null);
   const [boards, setBoards] = useState<Board[] | null>(null);
+  const [filters, setFilters] = useState<SavedFilter[] | null>(null);
+  /** JR-46: lo consultado de cada tablero, mientras la mini app está montada. */
+  const cache = useIssueCache(api);
   const [error, setError] = useState<string | null>(null);
   /** JR-36: si el editor tiene cambios sin guardar, y adónde se quiere ir mientras se pregunta. */
   const [editorDirty, setEditorDirty] = useState(false);
@@ -52,9 +60,18 @@ export function JiraApp() {
     [api],
   );
 
+  const loadFilters = useCallback(
+    () =>
+      api.get<{ filters: SavedFilter[] }>('/filters').then((r) => {
+        setFilters(r.filters);
+        return r.filters;
+      }),
+    [api],
+  );
+
   // JR-30: sin conexión, abre en «Conexión»; sin tableros, en «Configurar tableros».
   useEffect(() => {
-    Promise.all([api.get<ConfigView>('/config'), loadBoards()])
+    Promise.all([api.get<ConfigView>('/config'), loadBoards(), loadFilters()])
       .then(([received, list]) => {
         setConfig(received);
         setError(null);
@@ -63,7 +80,7 @@ export function JiraApp() {
       })
       .catch((e: unknown) => setError(errorMessage(e)));
     // Solo al abrir: navigate y path no son dependencias.
-  }, [api, loadBoards]);
+  }, [api, loadBoards, loadFilters]);
 
   // JR-36: si la ruta cambia por otro camino (Atrás y Adelante), ya no hay nada que preguntar.
   useEffect(() => setLeavingTo(null), [path]);
@@ -78,6 +95,19 @@ export function JiraApp() {
   );
 
   const configured = config !== null && config.missing.length === 0;
+  const ready = config !== null && boards !== null && filters !== null;
+
+  // JR-47: los nombres de los estados de todos los tableros y las personas de lo ya consultado.
+  const statusNames = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const b of boards ?? []) for (const c of b.columns) for (const s of c.statuses) names.set(s.name.toLowerCase(), s.name);
+    return [...names.values()].sort((a, b) => a.localeCompare(b, 'es'));
+  }, [boards]);
+  const people = useMemo(() => {
+    const names = new Set<string>();
+    for (const data of cache.all()) for (const c of data.columns) for (const i of c.issues) if (i.assignee) names.add(i.assignee);
+    return [...names].sort((a, b) => a.localeCompare(b, 'es'));
+  }, [cache]);
 
   return (
     <div className={styles.app}>
@@ -94,11 +124,11 @@ export function JiraApp() {
           {error}
         </p>
       )}
-      {(!config || !boards) && !error && <p className={styles.muted}>Cargando…</p>}
+      {!ready && !error && <p className={styles.muted}>Cargando…</p>}
 
       {config && section.path === '/connection' && <Connection config={config} onSaved={setConfig} />}
 
-      {config && boards && section.path === '' && !configured && (
+      {ready && section.path === '' && !configured && (
         <div className={styles.panel}>
           <p>Falta configurar la conexión con Jira.</p>
           <div className={styles.actions}>
@@ -108,10 +138,24 @@ export function JiraApp() {
           </div>
         </div>
       )}
-      {config && boards && section.path === '' && configured && <BoardView boards={boards} siteUrl={config.siteUrl ?? ''} />}
+      {ready && section.path === '' && configured && (
+        <BoardView boards={boards} siteUrl={config.siteUrl ?? ''} cache={cache} filters={filters} />
+      )}
+
+      {ready && section.path === '/filters' && (
+        <FiltersSection
+          filters={filters}
+          path={path}
+          statusNames={statusNames}
+          people={people}
+          onChanged={() => {
+            loadFilters().catch((e: unknown) => setError(errorMessage(e)));
+          }}
+        />
+      )}
 
       {/* JR-36: el editor sigue montado al cambiar de sección, para no perder lo escrito. */}
-      {config && boards && (
+      {ready && (
         <div hidden={section.path !== '/boards'}>
           {!configured && section.path === '/boards' && (
             <p className={styles.notice}>Sin la conexión con Jira no se pueden buscar proyectos ni estados.</p>

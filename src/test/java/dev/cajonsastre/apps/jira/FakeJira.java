@@ -218,6 +218,8 @@ final class FakeJira implements Transport {
             } else {
                 f.putObject("priority").put("id", priority).put("name", priorities.getOrDefault(priority, "?"));
             }
+            // JR-20: creado diez días antes de su última actualización.
+            f.put("created", i.updated().minus(Duration.ofDays(10)).toString());
             f.put("updated", i.updated().toString());
         }
         boolean last = start + max >= matching.size();
