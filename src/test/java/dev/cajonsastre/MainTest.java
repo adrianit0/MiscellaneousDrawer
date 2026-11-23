@@ -80,7 +80,7 @@ class MainTest {
     }
 
     @Test
-    void d04_the_shell_database_has_the_setting_app_state_and_notification_tables(@TempDir Path dir) {
+    void d04_the_shell_database_has_the_setting_app_state_notification_and_app_message_tables(@TempDir Path dir) {
         try (var store = ShellDatabase.open(dir.resolve("cajonsastre.db"), dir.resolve("backups"))) {
             List<String> tables = store.read(s -> {
                 List<String> names = new ArrayList<>();
@@ -97,7 +97,7 @@ class MainTest {
             });
             // sqlite_sequence es de SQLite: la crea el AUTOINCREMENT de notification.
             assertThat(tables).filteredOn(t -> !t.startsWith("sqlite_"))
-                    .containsExactlyInAnyOrder("setting", "app_state", "notification");
+                    .containsExactlyInAnyOrder("setting", "app_state", "notification", "app_message");
         }
     }
 }

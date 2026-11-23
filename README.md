@@ -10,6 +10,7 @@ Mini apps:
 - **Repositorios** mantiene al día las copias locales de varios repositorios git (ver «Repositorios»).
 - **Gestask** lleva el backlog, el tablero, el cierre de tareas, el parte diario, el horario, las tareas diarias y el calendario de Gestask, sobre el mismo Supabase que su versión web (ver «Gestask»).
 - **Reenviar PR** vuelve a pedir en Bitbucket los PR de corrección que se rechazaron al cerrar una versión, con sus commits sobre la rama `hotfix` nueva (ver «Reenviar PR»).
+- **Lootboxes** e **Inventario**, en «Ocio», son un rato de descanso para la Daily: cofres que se consiguen con los PE cerrados en «Gestask» y los objetos que salen de ellos (ver «Ocio»).
 
 ## Uso
 
@@ -114,11 +115,20 @@ Para equipos que piden los PR de corrección contra una rama `hotfix`, con una r
 - **Conexión**: la URL de Bitbucket Data Center, un token de acceso HTTP con permiso de escritura en el repositorio, el proyecto, el repositorio, tu usuario de Bitbucket y la carpeta de tu copia local. Opcionales: la rama destino (`hotfix`) y el prefijo de las ramas (`bug/`). Se guarda en `~/.config/cajonsastre/apps/resubmit/config.json`, un fichero privado; el token no vuelve a mostrarse. «Probar conexión» lee el repositorio.
 - **PR rechazados**: tus PR contra la rama destino rechazados en los últimos 30 días que aún no has vuelto a pedir, con la rama nueva que tendrá cada uno: `bug/TICKET-0001` pasa a `bug/TICKET-0001-2`, y a `-3` si esa ya existe. Los que no se pueden reenviar (una rama con otro formato o un PR desde un fork) se ven atenuados con el motivo.
 - **Reenviar seleccionados** pide confirmación y, por cada PR, aplica sus commits con `git cherry-pick` sobre la rama destino nueva, sube la rama nueva y crea el PR con el mismo título, los mismos revisores y la misma descripción, terminada en «Procede de: <enlace al PR anterior>». Son sus commits los que no están ya en la rama destino, sin los de mezcla.
-- Si un commit da conflicto, ese PR no se sube: se avisa con el commit y los ficheros, y se sigue con el siguiente. Ese se rehace a mano.
+- Creado el PR nuevo, añade al final de la descripción del rechazado «Nuevo PR: <enlace>» y «**Pendiente de eliminar esta rama**», para saber qué ramas se pueden borrar. La rama no la borra: eso queda para ti. Si Bitbucket no deja editar el rechazado, el resultado dice «PR anterior sin anotar».
+- Si un commit da conflicto, ese PR no se sube ni se anota: se avisa con el commit y los ficheros, y se sigue con el siguiente. Ese se rehace a mano.
 - Los commits se aplican en una copia aparte que se borra al terminar: tu copia local no cambia de rama ni de ficheros. Solo se sube la rama nueva, sin forzar y nunca sobre una que ya exista.
 - El trabajo escribe sus comandos en una consola del panel «Consolas», se puede cancelar y deja una notificación con el resumen («2 recreados, 1 con conflictos»).
 
 Necesita `git` con las credenciales del repositorio ya configuradas, como «Repositorios», y que el `origin` de la carpeta sea el repositorio configurado. Si Bitbucket usa un certificado de una autoridad propia de la empresa, Java debe confiar en ella.
+
+## Ocio
+
+Dos mini apps para despejarse unos minutos durante la Daily, sin que interfieran en el trabajo. Todo cabe en 20 minutos al día como mucho.
+
+- **Lootboxes**: cada PE cerrado en «Gestask» da un cofre, hasta 8 al día. Los PE de un día son los que muestra su calendario, y llegan cuando se abre «Gestask» en Cajón de sastre: cuentan también las tareas cerradas desde la web. Los cofres de un día se desbloquean a las 8:00 del día siguiente y no caducan. Hasta entonces no se ven: conseguir uno no se anuncia en ningún sitio.
+- Cada cofre da de 1 a 3 orbes: blanco (80 %), verde (16 %), azul (3,2 %), morado (0,65 %) o dorado (0,15 %). «Abrir» muestra una animación de 3 s como mucho, que se salta pulsando o con Enter, Espacio o Esc; «Abrir todos» los abre de una vez y resume lo obtenido. Solo cuentan los días desde que se abrió «Lootboxes» por primera vez.
+- **Inventario**: los orbes conseguidos, con cuántos hay de cada uno, del más raro al más común.
 
 ## Requisitos
 

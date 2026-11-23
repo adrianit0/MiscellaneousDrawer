@@ -11,7 +11,9 @@ public enum AppCategory {
     /** «Productividad» */
     PRODUCTIVITY,
     /** «Utilidades» */
-    UTILITIES;
+    UTILITIES,
+    /** «Ocio» (ADR-0026) */
+    LEISURE;
 
     @JsonValue
     public String id() {

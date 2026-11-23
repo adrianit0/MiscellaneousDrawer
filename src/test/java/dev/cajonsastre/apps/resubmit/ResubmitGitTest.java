@@ -233,7 +233,7 @@ class ResubmitGitTest {
     }
 
     @Test
-    void rp24_rp25_rp27_rp28_rp34_rp35_a_declined_pr_is_resubmitted_with_its_own_commits_on_the_new_hotfix() throws Exception {
+    void rp24_rp25_rp27_rp28_rp34_rp35_rp36_a_declined_pr_is_resubmitted_with_its_own_commits_and_annotated() throws Exception {
         declined(12, "bug/TICKET-0001", ticket1);
         Logger logger = (Logger) LoggerFactory.getLogger(JobRunner.class);
         ListAppender<ILoggingEvent> logged = new ListAppender<>();
@@ -281,8 +281,27 @@ class ResubmitGitTest {
         assertThat(body.get("toRef").get("repository").get("project").get("key").asText()).isEqualTo("PROJ");
         assertThat(body.get("reviewers").get(0).get("user").get("name").asText()).isEqualTo("revisora");
 
+        // RP-36: el rechazado se vuelve a pedir y se anota con su versión, su título y sus revisores.
+        String link = FakeBitbucket.BASE + "/projects/PROJ/repos/demo/pull-requests/501";
+        assertThat(pr.get("annotated").asBoolean()).isTrue();
+        List<FakeBitbucket.Request> calls = bitbucket.requests;
+        int created = calls.indexOf(bitbucket.creates().get(0));
+        assertThat(calls.subList(created + 1, calls.size())).extracting(r -> r.method() + " " + r.uri().getPath()).startsWith(
+                "GET /rest/api/1.0/projects/PROJ/repos/demo/pull-requests/12",
+                "PUT /rest/api/1.0/projects/PROJ/repos/demo/pull-requests/12");
+        JsonNode update = bitbucket.updates().get(0).json();
+        String note = "Descripción inventada del PR 12\n\nNuevo PR: " + link + "\n**Pendiente de eliminar esta rama**";
+        assertThat(update.get("version").asInt()).isEqualTo(3);
+        assertThat(update.get("title").asText()).isEqualTo("Corrige el caso 12");
+        assertThat(update.get("description").asText()).isEqualTo(note);
+        assertThat(update.get("reviewers").get(0).get("user").get("name").asText()).isEqualTo("revisora");
+        assertThat(bitbucket.stored(12).get("description").asText()).isEqualTo(note);
+        assertThat(bitbucket.stored(12).get("state").asText()).isEqualTo("DECLINED");
+
         assertUserCopyUntouched();
         assertOnlyNewBranchesPushed(List.of("bug/TICKET-0001-2"));
+        // RP-36: la mini app no borra la rama del PR anterior.
+        assertThat(remoteBranches()).contains("bug/TICKET-0001");
         assertThat(notifications).containsExactly("success|1 recreado|/");
         // RP-31, RP-35
         assertThat(lines(job)).contains("## bug/TICKET-0001 → bug/TICKET-0001-2").noneMatch(l -> l.contains(FakeBitbucket.TOKEN));
@@ -293,7 +312,7 @@ class ResubmitGitTest {
     }
 
     @Test
-    void rp26_a_conflict_uploads_nothing_and_the_job_goes_on_with_the_next_pr() throws Exception {
+    void rp26_rp36_a_conflict_uploads_nothing_annotates_nothing_and_the_job_goes_on_with_the_next_pr() throws Exception {
         declined(13, "bug/TICKET-0002", ticket2);
         declined(12, "bug/TICKET-0001", ticket1);
 
@@ -304,10 +323,15 @@ class ResubmitGitTest {
         assertThat(conflict.get("result").asText()).isEqualTo("conflict");
         assertThat(conflict.get("detail").asText()).isEqualTo("Conflicto al aplicar " + ticket2.substring(0, 8) + ": base.txt");
         assertThat(conflict.get("link").isNull()).isTrue();
+        assertThat(conflict.get("annotated").isNull()).isTrue();
         assertThat(job.get("prs").get(1).get("result").asText()).isEqualTo("created");
 
         assertThat(remoteBranches()).doesNotContain("bug/TICKET-0002-2").contains("bug/TICKET-0001-2");
         assertThat(bitbucket.creates()).hasSize(1);
+        // RP-36: solo se anota el que tiene PR nuevo.
+        assertThat(bitbucket.updates()).extracting(r -> r.uri().getPath()).containsExactly(
+                "/rest/api/1.0/projects/PROJ/repos/demo/pull-requests/12");
+        assertThat(bitbucket.stored(13).get("description").asText()).isEqualTo("Descripción inventada del PR 13");
         assertUserCopyUntouched();
         assertOnlyNewBranchesPushed(List.of("bug/TICKET-0001-2"));
         assertThat(notifications).containsExactly("error|1 recreado, 1 con conflictos|/");
@@ -363,7 +387,28 @@ class ResubmitGitTest {
         assertThat(second.get("prs").get(0).get("detail").asText())
                 .isEqualTo("Rama bug/TICKET-0004-2 subida, pero no se pudo crear el PR: Título no válido");
         assertThat(remoteBranches()).contains("bug/TICKET-0004-2");
+        // RP-36: sin PR nuevo, el anterior no se anota.
+        assertThat(bitbucket.updates()).extracting(r -> r.uri().getPath()).containsExactly(
+                "/rest/api/1.0/projects/PROJ/repos/demo/pull-requests/12");
         assertUserCopyUntouched();
+    }
+
+    @Test
+    void rp32_rp36_if_the_old_pr_cannot_be_annotated_the_new_one_stays_and_the_summary_says_so() throws Exception {
+        declined(12, "bug/TICKET-0001", ticket1);
+        bitbucket.onUpdate = request -> new Transport.Reply(409, "{\"errors\":[{\"message\":\"El PR no se puede editar\"}]}");
+
+        JsonNode job = run("12");
+        assertThat(job.get("state").asText()).isEqualTo("succeeded");
+        assertThat(job.get("message").asText()).isEqualTo("1 recreado, 1 PR anterior sin anotar");
+        JsonNode pr = job.get("prs").get(0);
+        assertThat(pr.get("result").asText()).isEqualTo("created");
+        assertThat(pr.get("annotated").asBoolean()).isFalse();
+        assertThat(pr.get("link").asText()).endsWith("/pull-requests/501");
+        assertThat(pr.get("detail").asText()).isEqualTo("2 commits. No se pudo anotar el PR anterior: El PR no se puede editar");
+        assertThat(lines(job)).contains("No se pudo anotar el PR anterior: El PR no se puede editar");
+        assertThat(notifications).containsExactly("success|1 recreado, 1 PR anterior sin anotar|/");
+        assertThat(bitbucket.stored(12).get("description").asText()).isEqualTo("Descripción inventada del PR 12");
     }
 
     @Test

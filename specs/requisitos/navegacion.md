@@ -69,7 +69,7 @@ La ventana tiene cuatro zonas fijas: barra superior, barra lateral de iconos, es
 
 | ID | Requisito |
 |---|---|
-| L-01 | Inicio muestra un buscador, que recibe el foco al entrar, y debajo las secciones «Fijadas» (si hay), «Recientes» (si hay) y «Todas», esta agrupada por categoría (P-02) en el orden Datos, Productividad, Utilidades. Dentro de cada grupo, las mini apps van por orden alfabético. |
+| L-01 | Inicio muestra un buscador, que recibe el foco al entrar, y debajo las secciones «Fijadas» (si hay), «Recientes» (si hay) y «Todas», esta agrupada por categoría (P-02) en el orden Datos, Productividad, Utilidades, Ocio. Dentro de cada grupo, las mini apps van por orden alfabético. |
 | L-02 | Cada mini app es una tarjeta con su icono en su color, su nombre y su descripción. Lleva la insignia «En preparación» si es `planned` o «Error» si es `failed`, y un botón ☆/★ para fijarla o desfijarla (`aria-pressed`). |
 | L-03 | El buscador filtra por nombre, descripción y palabras clave sin distinguir mayúsculas ni acentos. Con texto, se ocultan las secciones y se muestra «Resultados»; Intro abre el primero. Sin resultados: «Ninguna mini app coincide con «<texto>»». |
 | L-04 | Las fijadas van en el orden en que se fijaron. Las recientes son las 6 últimas mini apps distintas que se abrieron, la más reciente primero. Las dos listas se guardan (D-04) y los identificadores que ya no están en el catálogo se ignoran. |

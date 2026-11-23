@@ -7,7 +7,7 @@ Una **mini app** es una aplicación pequeña que vive dentro de CajonSastre: un 
 | ID | Requisito |
 |---|---|
 | P-01 | Cada mini app tiene un identificador de 2 a 32 caracteres que cumple `[a-z][a-z0-9-]*[a-z0-9]`, en inglés. Es único e inmutable: da nombre a su carpeta de datos, a su espacio de API, a su ruta de navegación, a su paquete Java y a su carpeta de interfaz. `shell`, `cajonsastre`, `platform` y `home` están reservados. |
-| P-02 | Cada mini app declara un manifiesto: identificador, nombre visible (1 a 40 caracteres), descripción de una línea (1 a 140), icono, color, categoría, hasta 10 palabras clave y si está en preparación. Icono, color y categoría se eligen de listas cerradas: los iconos de `frontend/src/shell/icons/`, los colores `blue`, `green`, `violet`, `orange`, `cyan` y `gold` (U-01), y las categorías `data` («Datos»), `productivity` («Productividad») y `utilities` («Utilidades»). |
+| P-02 | Cada mini app declara un manifiesto: identificador, nombre visible (1 a 40 caracteres), descripción de una línea (1 a 140), icono, color, categoría, hasta 10 palabras clave y si está en preparación. Icono, color y categoría se eligen de listas cerradas: los iconos de `frontend/src/shell/icons/`, los colores `blue`, `green`, `violet`, `orange`, `cyan` y `gold` (U-01), y las categorías `data` («Datos»), `productivity` («Productividad»), `utilities` («Utilidades») y `leisure` («Ocio», ADR-0026). |
 | P-03 | El catálogo (`AppCatalog`) es el único sitio donde se declaran las mini apps. Al arrancar se valida entero: un manifiesto que no cumple P-01 o P-02, o un identificador repetido, impide arrancar la aplicación, porque es un error de programación y no de datos. |
 | P-04 | Cada mini app está en uno de tres estados: `planned` (en preparación: solo tiene manifiesto), `available` (arrancada) o `failed` (falló al arrancar, con su mensaje). `GET /api/catalog` devuelve los manifiestos con su estado. |
 
@@ -15,7 +15,7 @@ Una **mini app** es una aplicación pequeña que vive dentro de CajonSastre: un 
 
 | ID | Requisito |
 |---|---|
-| P-05 | La parte de servidor de una mini app es opcional. Si la tiene, declara sus migraciones y sus mappers de MyBatis, y recibe al arrancar su contexto (P-08, P-09, P-21, P-25) y su registro de rutas (P-06). Al apagar se le avisa para que libere sus recursos. |
+| P-05 | La parte de servidor de una mini app es opcional. Si la tiene, declara sus migraciones y sus mappers de MyBatis, y recibe al arrancar su contexto (P-08, P-09, P-21, P-25, P-29) y su registro de rutas (P-06). Al apagar se le avisa para que libere sus recursos. |
 | P-06 | Las rutas de una mini app cuelgan de `/api/apps/<id>`. Se declaran relativas, empiezan por `/` y no contienen `..`, `\`, `?` ni `#`. Una ruta que no lo cumple hace fallar el arranque de esa mini app (P-07). |
 | P-07 | Si el arranque de una mini app falla, incluida una migración, queda en `failed`, el error va al registro y sus rutas responden 503 `app_unavailable`. El shell y las demás mini apps siguen funcionando. |
 | P-08 | Una mini app con migraciones tiene su propia base SQLite en `<datos>/apps/<id>/data.db`, con migraciones propias en `db/apps/<id>/` y su propio `user_version` (D-02). Antes de migrar una base existente se copia a `backups/<id>-AAAAMMDD-HHmmss-premigracion.db`; se conservan las 2 últimas de cada mini app. Ninguna mini app abre la base de otra ni la del shell. |
@@ -44,6 +44,17 @@ Una **consola** es la salida de texto de una ejecución de una mini app, como un
 | P-26 | Las consolas solo viven en memoria: se pierden al apagar la aplicación, y sus líneas no van a disco ni al registro del shell (S-21). De cada consola se conservan las últimas 5000 líneas; cada línea tiene un índice que no cambia aunque se descarten las más antiguas. Se conservan 20 consolas: al abrir otra se descarta la terminada más antigua. Una consola en progreso nunca se descarta. |
 | P-27 | `GET /api/consoles` devuelve las consolas de la más reciente a la más antigua, sin las de mini apps que ya no están en el catálogo y sin sus líneas. `GET /api/consoles/{id}?after=N` devuelve la consola y sus líneas con índice mayor o igual que N; 404 `console_not_found` si no existe y 400 `invalid_request` si N no es un número. `DELETE /api/consoles` descarta las que no están en progreso y devuelve las que quedan. |
 | P-28 | Cada cambio en la lista de consolas (una se abre, una termina o se limpian) se envía a las ventanas abiertas por el canal `/api/events` (C-04), como un evento `consoles` con el mismo objeto que devuelve `GET /api/consoles`. Las líneas no viajan por el canal. Un fallo al repartirlo no llega a la mini app: va al registro. |
+
+## Mensajes entre mini apps
+
+Un **mensaje** es un dato pequeño que el servidor de una mini app deja para otra, como los PE de un día o las recompensas de un cofre (ADR-0025). Es lo único que pasa de una mini app a otra (constitución, principio 3).
+
+| ID | Requisito |
+|---|---|
+| P-29 | El servidor de una mini app envía un mensaje con `context.messages().send(destinataria, tipo, contenido)`: el identificador de otra mini app del catálogo, un tipo que cumple `[a-z][a-z0-9-]{0,39}` y un objeto JSON de hasta 4 KB. El shell lo guarda en su base (D-04) con el remitente y la fecha antes de volver. Una destinataria que no está en el catálogo o que es la propia mini app, un tipo o un contenido fuera de formato lanzan `IllegalArgumentException`, porque es un error de programación; un fallo al guardar también se lanza a la mini app, que decide si reintentar. Se puede llamar desde cualquier hilo. |
+| P-30 | `messages().pending()` devuelve los mensajes dirigidos a la mini app, del más antiguo al más nuevo y hasta 100, con su identificador, remitente, tipo, contenido y fecha. `ack(id)` confirma uno y lo borra; un identificador que no es suyo o que ya no existe no hace nada. Un mensaje se entrega cada vez que se piden los pendientes hasta que se confirma: la destinataria lo confirma después de guardarlo y trata un mensaje repetido sin efecto. |
+| P-31 | Los mensajes no tienen rutas de API, no viajan por `/api/events`, no se muestran en la interfaz y no van al registro (S-21). Una mini app solo ve los suyos. |
+| P-32 | Un mensaje se conserva hasta que su destinataria lo confirma, sin límite de número y también si la destinataria está en `failed` o deja el catálogo, por si vuelve. Los de un remitente que deja el catálogo se siguen entregando. |
 
 ## Interfaz
 

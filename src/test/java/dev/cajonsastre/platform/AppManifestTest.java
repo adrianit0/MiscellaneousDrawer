@@ -76,7 +76,7 @@ class AppManifestTest {
         assertThat(List.of(AppColor.values()).stream().map(AppColor::id))
                 .containsExactly("blue", "green", "violet", "orange", "cyan", "gold");
         assertThat(List.of(AppCategory.values()).stream().map(AppCategory::id))
-                .containsExactly("data", "productivity", "utilities");
+                .containsExactly("data", "productivity", "utilities", "leisure");
         assertThat(json.writeValueAsString(AppColor.VIOLET)).isEqualTo("\"violet\"");
         assertThat(json.writeValueAsString(AppCategory.DATA)).isEqualTo("\"data\"");
     }

@@ -32,4 +32,5 @@ export const CATEGORIES: readonly { id: AppCategory; label: string }[] = [
   { id: 'data', label: 'Datos' },
   { id: 'productivity', label: 'Productividad' },
   { id: 'utilities', label: 'Utilidades' },
+  { id: 'leisure', label: 'Ocio' },
 ];

@@ -27,9 +27,20 @@ CREATE TABLE notification (
   path       TEXT,              -- subruta de la mini app
   created_at TEXT NOT NULL      -- ISO-8601 UTC
 );
+
+-- V003 (db/shell/V003__app_messages.sql)
+CREATE TABLE app_message (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  sender     TEXT NOT NULL,     -- identificador de la mini app que lo envía (P-01)
+  recipient  TEXT NOT NULL,     -- identificador de la destinataria
+  type       TEXT NOT NULL,     -- [a-z][a-z0-9-]{0,39} (P-29)
+  content    TEXT NOT NULL,     -- objeto JSON de hasta 4 KB
+  sent_at    TEXT NOT NULL      -- ISO-8601 UTC
+);
+CREATE INDEX app_message_recipient ON app_message (recipient, id);
 ```
 
-`notification` conserva las 50 últimas filas (P-22): las anteriores se borran al insertar.
+`notification` conserva las 50 últimas filas (P-22): las anteriores se borran al insertar. `app_message` no tiene límite: cada fila se borra cuando su destinataria la confirma (P-30, P-32).
 
 `app_state` no tiene clave ajena: el catálogo vive en el código, no en la base. Una fila de una mini app que ya no está en el catálogo se conserva, por si vuelve, y no se sirve (A-04).
 

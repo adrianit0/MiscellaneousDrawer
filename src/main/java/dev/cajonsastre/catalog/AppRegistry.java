@@ -9,6 +9,8 @@ import dev.cajonsastre.platform.AppRoutes;
 import dev.cajonsastre.platform.Console;
 import dev.cajonsastre.platform.ConsoleState;
 import dev.cajonsastre.platform.Consoles;
+import dev.cajonsastre.platform.Message;
+import dev.cajonsastre.platform.Messages;
 import dev.cajonsastre.platform.MiniApp;
 import dev.cajonsastre.platform.Notifications;
 import dev.cajonsastre.platform.Store;
@@ -71,19 +73,43 @@ public final class AppRegistry implements ApiRoutes, AutoCloseable {
      *
      * @param notifications P-21: las notificaciones que recibe cada mini app en su contexto
      * @param consoles      P-25: las consolas que recibe cada mini app en su contexto
+     * @param messages      P-29: el buzón que recibe cada mini app en su contexto
      */
     public static AppRegistry start(AppCatalog catalog, AppPaths paths, Clock clock,
                                     Function<AppManifest, Notifications> notifications,
-                                    Function<AppManifest, Consoles> consoles) {
+                                    Function<AppManifest, Consoles> consoles,
+                                    Function<AppManifest, Messages> messages) {
         Map<String, Entry> entries = new LinkedHashMap<>();
         for (MiniApp app : catalog.apps()) {
             Entry entry = app.manifest().planned()
                     ? new Entry(app, Status.PLANNED, null, null, List.of())
-                    : startOne(app, paths, clock, notifications, consoles);
+                    : startOne(app, paths, clock, notifications, consoles, messages);
             entries.put(app.manifest().id(), entry);
         }
         return new AppRegistry(catalog, entries);
     }
+
+    /** Sin buzón del shell (P-29): lo que se envía se descarta y no llega nada. */
+    public static AppRegistry start(AppCatalog catalog, AppPaths paths, Clock clock,
+                                    Function<AppManifest, Notifications> notifications,
+                                    Function<AppManifest, Consoles> consoles) {
+        return start(catalog, paths, clock, notifications, consoles, manifest -> NO_MESSAGES);
+    }
+
+    private static final Messages NO_MESSAGES = new Messages() {
+        @Override
+        public void send(String recipient, String type, String content) {
+        }
+
+        @Override
+        public List<Message> pending() {
+            return List.of();
+        }
+
+        @Override
+        public void ack(long id) {
+        }
+    };
 
     /** Sin shell que muestre las consolas (P-25): lo que se escribe en ellas se descarta. */
     public static AppRegistry start(AppCatalog catalog, AppPaths paths, Clock clock,
@@ -114,7 +140,8 @@ public final class AppRegistry implements ApiRoutes, AutoCloseable {
 
     private static Entry startOne(MiniApp app, AppPaths paths, Clock clock,
                                   Function<AppManifest, Notifications> notifications,
-                                  Function<AppManifest, Consoles> consoles) {
+                                  Function<AppManifest, Consoles> consoles,
+                                  Function<AppManifest, Messages> messages) {
         String id = app.manifest().id();
         Store store = null;
         try {
@@ -131,7 +158,8 @@ public final class AppRegistry implements ApiRoutes, AutoCloseable {
             }
             AppRoutes routes = new AppRoutes(id);
             app.start(new RunningContext(id, store, paths.dataDir(id), paths.configDir(id), clock,
-                    notifications.apply(app.manifest()), consoles.apply(app.manifest())), routes);
+                    notifications.apply(app.manifest()), consoles.apply(app.manifest()),
+                    messages.apply(app.manifest())), routes);
             log.info("Mini app {} disponible", id);
             return new Entry(app, Status.AVAILABLE, null, store, routes.routes());
         } catch (Exception | LinkageError e) {
@@ -230,9 +258,10 @@ public final class AppRegistry implements ApiRoutes, AutoCloseable {
         }
     }
 
-    /** P-08, P-09, P-21, P-25 */
+    /** P-08, P-09, P-21, P-25, P-29 */
     private record RunningContext(String appId, Store database, Path appDataDir, Path appConfigDir, Clock clock,
-                                  Notifications notifications, Consoles consoles) implements AppContext {
+                                  Notifications notifications, Consoles consoles, Messages messages)
+            implements AppContext {
 
         @Override
         public Store store() {

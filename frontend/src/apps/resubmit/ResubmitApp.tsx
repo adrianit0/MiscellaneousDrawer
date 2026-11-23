@@ -285,6 +285,12 @@ export function ResubmitApp() {
                               Abrir PR nuevo
                             </a>
                           )}
+                          {p.annotated !== null && (
+                            <span className={p.annotated ? styles.muted : styles.warn} data-annotated={p.annotated}>
+                              {' · '}
+                              {p.annotated ? 'PR anterior anotado' : 'PR anterior sin anotar'}
+                            </span>
+                          )}
                           {p.detail && <div className={styles.detail}>{p.detail}</div>}
                         </td>
                       </tr>

@@ -53,10 +53,25 @@ class AppCatalogTest {
     }
 
     @Test
-    void adr0011_adr0016_adr0018_adr0019_adr0020_adr0023_the_built_in_catalog_has_six_apps_available_and_none_planned() {
+    void adr0011_adr0016_adr0018_adr0019_adr0020_adr0023_adr0026_the_built_in_catalog_has_eight_apps_available_and_none_planned() {
         AppCatalog catalog = AppCatalog.builtIn();
         assertThat(catalog.apps()).extracting(a -> a.manifest().id())
-                .containsExactly("database", "quality", "processes", "repos", "gestask", "resubmit");
+                .containsExactly("database", "quality", "processes", "repos", "gestask", "resubmit", "lootboxes",
+                        "inventory");
+        AppManifest lootboxes = catalog.find("lootboxes").orElseThrow().manifest();
+        assertThat(lootboxes.name()).isEqualTo("Lootboxes");
+        assertThat(lootboxes.description()).isEqualTo("Cofres que se consiguen con los PE de Gestask");
+        assertThat(lootboxes.icon()).isEqualTo("chest");
+        assertThat(lootboxes.color()).isEqualTo(AppColor.ORANGE);
+        assertThat(lootboxes.category()).isEqualTo(AppCategory.LEISURE);
+        assertThat(lootboxes.planned()).isFalse();
+        AppManifest inventory = catalog.find("inventory").orElseThrow().manifest();
+        assertThat(inventory.name()).isEqualTo("Inventario");
+        assertThat(inventory.description()).isEqualTo("Los objetos conseguidos en los cofres");
+        assertThat(inventory.icon()).isEqualTo("inventory");
+        assertThat(inventory.color()).isEqualTo(AppColor.VIOLET);
+        assertThat(inventory.category()).isEqualTo(AppCategory.LEISURE);
+        assertThat(inventory.planned()).isFalse();
         assertThat(catalog.find("tasks")).isEmpty();
         AppManifest resubmit = catalog.find("resubmit").orElseThrow().manifest();
         assertThat(resubmit.name()).isEqualTo("Reenviar PR");

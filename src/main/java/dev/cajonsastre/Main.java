@@ -15,6 +15,7 @@ import dev.cajonsastre.lifecycle.InstanceFile;
 import dev.cajonsastre.lifecycle.LifecycleApi;
 import dev.cajonsastre.lifecycle.Presence;
 import dev.cajonsastre.notifications.DesktopAnnouncer;
+import dev.cajonsastre.messages.MessageCenter;
 import dev.cajonsastre.notifications.NotificationCenter;
 import dev.cajonsastre.platform.Store;
 import dev.cajonsastre.settings.AppSettings;
@@ -106,8 +107,10 @@ public final class Main {
                 new DesktopAnnouncer(settings::get));
         // P-25: y sus consolas, que solo viven en memoria.
         ConsoleCenter consoles = new ConsoleCenter(clock, catalog::contains);
+        // P-29: y su buzón de mensajes con las demás, en la base del shell.
+        MessageCenter messages = new MessageCenter(store, clock, catalog::contains);
         AppRegistry registry = AppRegistry.start(catalog, DataPaths.appPaths(), clock, notifications::forApp,
-                consoles::forApp);
+                consoles::forApp, messages::forApp);
 
         String token = sessionToken();
         AtomicBoolean stopped = new AtomicBoolean();

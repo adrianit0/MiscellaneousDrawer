@@ -36,7 +36,7 @@ describe('L-01 orden', () => {
     ]);
   });
 
-  it('las categorías van en el orden Datos, Productividad, Utilidades', () => {
-    expect(CATEGORIES.map((c) => c.label)).toEqual(['Datos', 'Productividad', 'Utilidades']);
+  it('las categorías van en el orden Datos, Productividad, Utilidades, Ocio', () => {
+    expect(CATEGORIES.map((c) => c.label)).toEqual(['Datos', 'Productividad', 'Utilidades', 'Ocio']);
   });
 });

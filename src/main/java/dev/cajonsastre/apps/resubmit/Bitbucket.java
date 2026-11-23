@@ -15,14 +15,17 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * RP-05, RP-06, RP-10, RP-28: la API REST 1.0 de Bitbucket Data Center. Solo tres llamadas: leer el repositorio, listar
- * los PR del usuario contra la rama destino y crear uno.
+ * RP-05, RP-06, RP-10, RP-28, RP-36: la API REST 1.0 de Bitbucket Data Center. Solo estas llamadas: leer el
+ * repositorio, listar los PR del usuario contra la rama destino, crear uno, y leer y actualizar uno rechazado.
  */
 final class Bitbucket {
 
     /** RP-10 */
     static final int PAGE = 50;
     static final int MAX_PULL_REQUESTS = 200;
+    /** RP-36 */
+    static final String NEW_PR = "Nuevo PR: ";
+    static final String DELETE_BRANCH = "**Pendiente de eliminar esta rama**";
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -82,6 +85,44 @@ final class Bitbucket {
         }
         JsonNode created = ok(reply);
         return new Created(created.path("id").asLong(), link(created), warning);
+    }
+
+    /**
+     * RP-36: añade a la descripción del PR rechazado el enlace al nuevo. Lo vuelve a pedir para tener su versión, y
+     * envía su título y sus revisores porque una actualización sin revisores los quita.
+     *
+     * @return false si ya estaba anotado con ese enlace
+     */
+    boolean annotate(ResubmitConfig config, long id, String newLink) throws InterruptedException {
+        URI uri = repoUri(config, "/pull-requests/" + id);
+        JsonNode pr = ok(call(config, "GET", uri, null));
+        String description = annotated(text(pr.get("description")), newLink);
+        if (description == null) {
+            return false;
+        }
+        ObjectNode body = JSON.createObjectNode();
+        body.put("version", pr.path("version").asInt());
+        body.put("title", pr.path("title").asText(""));
+        body.put("description", description);
+        ArrayNode reviewers = body.putArray("reviewers");
+        pr.path("reviewers").forEach(r -> {
+            String name = r.path("user").path("name").asText(null);
+            if (name != null) {
+                reviewers.addObject().putObject("user").put("name", name);
+            }
+        });
+        ok(call(config, "PUT", uri, body.toString()));
+        return true;
+    }
+
+    /** RP-36: la descripción con la nota al final, tras una línea en blanco; null si ya tiene la línea del enlace. */
+    static String annotated(String description, String newLink) {
+        String line = NEW_PR + newLink;
+        if (description != null && description.lines().anyMatch(l -> l.strip().equals(line))) {
+            return null;
+        }
+        String note = line + "\n" + DELETE_BRANCH;
+        return description == null || description.isBlank() ? note : description.stripTrailing() + "\n\n" + note;
     }
 
     /** RP-28: la descripción del rechazado y, tras una línea en blanco, de dónde procede. */

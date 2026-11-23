@@ -4,7 +4,7 @@ import type { ComponentType } from 'react';
 export type AppColor = 'blue' | 'green' | 'violet' | 'orange' | 'cyan' | 'gold';
 
 /** P-02, L-01: categorías del lanzador. */
-export type AppCategory = 'data' | 'productivity' | 'utilities';
+export type AppCategory = 'data' | 'productivity' | 'utilities' | 'leisure';
 
 /** P-02: identidad de una mini app, declarada en el catálogo del servidor. */
 export interface AppManifest {

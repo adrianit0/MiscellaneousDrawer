@@ -104,11 +104,29 @@ class BranchesTest {
     }
 
     @Test
-    void rp32_the_summary_counts_each_result() {
-        JobRunner.PrResult created = new JobRunner.PrResult(1, null, null, null, "created", null, null);
-        JobRunner.PrResult conflict = created.with("conflict", null);
+    void rp32_rp36_the_summary_counts_each_result_and_the_old_prs_not_annotated() {
+        JobRunner.PrResult created = new JobRunner.PrResult(1, null, null, null, "created", null, null, true);
+        JobRunner.PrResult unnoted = new JobRunner.PrResult(2, null, null, null, "created", null, null, false);
+        JobRunner.PrResult conflict = new JobRunner.PrResult(3, null, null, null, "conflict", null, null, null);
         assertThat(JobRunner.summary(List.of(created, created, conflict))).isEqualTo("2 recreados, 1 con conflictos");
-        assertThat(JobRunner.summary(List.of(created, created.with("skipped", null), created.with("failed", null))))
+        assertThat(JobRunner.summary(List.of(created, conflict.with("skipped", null), conflict.with("failed", null))))
                 .isEqualTo("1 recreado, 1 omitido, 1 con error");
+        assertThat(JobRunner.summary(List.of(unnoted, created))).isEqualTo("2 recreados, 1 PR anterior sin anotar");
+        assertThat(JobRunner.summary(List.of(unnoted, unnoted, conflict)))
+                .isEqualTo("2 recreados, 1 con conflictos, 2 PR anteriores sin anotar");
+    }
+
+    @Test
+    void rp36_the_note_goes_at_the_end_of_the_old_description_and_only_once() {
+        String link = "https://bitbucket.example.test/pr/501";
+        assertThat(Bitbucket.annotated("Texto del PR\n\nProcede de: https://x/1\n", link)).isEqualTo(
+                "Texto del PR\n\nProcede de: https://x/1\n\nNuevo PR: " + link + "\n**Pendiente de eliminar esta rama**");
+        assertThat(Bitbucket.annotated(null, link)).isEqualTo("Nuevo PR: " + link + "\n**Pendiente de eliminar esta rama**");
+        assertThat(Bitbucket.annotated("  ", link)).isEqualTo("Nuevo PR: " + link + "\n**Pendiente de eliminar esta rama**");
+        // Ya anotado con ese enlace: no se repite; con otro enlace, se añade.
+        String once = Bitbucket.annotated("Texto", link);
+        assertThat(Bitbucket.annotated(once, link)).isNull();
+        assertThat(Bitbucket.annotated(once, "https://bitbucket.example.test/pr/502")).endsWith(
+                "Nuevo PR: https://bitbucket.example.test/pr/502\n**Pendiente de eliminar esta rama**");
     }
 }

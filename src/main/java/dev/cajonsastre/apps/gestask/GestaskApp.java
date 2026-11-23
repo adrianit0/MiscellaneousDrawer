@@ -10,6 +10,7 @@ import dev.cajonsastre.platform.AppRoutes;
 import dev.cajonsastre.platform.MiniApp;
 import io.javalin.http.Context;
 
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
@@ -17,7 +18,8 @@ import java.util.Map;
  * «Gestask» (GT-01 a GT-114, ADR-0020, ADR-0022): la versión web de Gestask dentro de Cajón de sastre, sobre el
  * mismo Supabase.
  * El servidor solo guarda la conexión, mantiene la sesión y reenvía una lista cerrada de Edge Functions sin
- * interpretarlas. Sin base de datos propia.
+ * interpretarlas; la única excepción son los PE del calendario, que pasa a «Lootboxes» (GT-120, ADR-0026). Sin base de
+ * datos propia.
  */
 public final class GestaskApp implements MiniApp {
 
@@ -47,6 +49,7 @@ public final class GestaskApp implements MiniApp {
     public void start(AppContext context, AppRoutes routes) {
         ConfigStore configs = new ConfigStore(context.configDir().resolve("config.json"));
         Session session = new Session(configs, transport);
+        EffortPoints points = new EffortPoints(context.messages(), context.clock(), ZoneId.systemDefault());
 
         // GT-01 a GT-05
         routes.get("/config", ctx -> ctx.json(configs.get().view()));
@@ -64,12 +67,12 @@ public final class GestaskApp implements MiniApp {
         });
 
         // GT-10, GT-11
-        routes.get("/fn/{name}", ctx -> forward(ctx, session, true));
-        routes.post("/fn/{name}", ctx -> forward(ctx, session, false));
+        routes.get("/fn/{name}", ctx -> forward(ctx, session, points, true));
+        routes.post("/fn/{name}", ctx -> forward(ctx, session, points, false));
     }
 
     /** GT-11, GT-13: el método real lo fija la lista; la interfaz solo distingue lectura y escritura. */
-    private static void forward(Context ctx, Session session, boolean read) {
+    private static void forward(Context ctx, Session session, EffortPoints points, boolean read) {
         String name = ctx.pathParam("name");
         String method = Functions.method(name)
                 .orElseThrow(() -> ApiError.notFound("unknown_function", "Gestask no tiene la función «" + name + "»"));
@@ -78,6 +81,9 @@ public final class GestaskApp implements MiniApp {
                     "La función «" + name + "» se pide con " + (read ? "POST" : "GET"));
         }
         String body = read || ctx.body().isBlank() ? null : ctx.body();
-        ctx.contentType("application/json").result(session.call(name, method, ctx.queryString(), body));
+        String result = session.call(name, method, ctx.queryString(), body);
+        // GT-120: no cambia la respuesta y no puede hacerla fallar.
+        points.forwarded(name, result);
+        ctx.contentType("application/json").result(result);
     }
 }

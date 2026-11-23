@@ -55,6 +55,15 @@ beforeEach(() => {
 });
 
 describe('L-01 a L-03 lanzador', () => {
+  it('L-01 el grupo «Ocio» va el último', async () => {
+    server.catalog = [...CATALOG, app({ id: 'lootboxes', name: 'Lootboxes', category: 'leisure' })];
+    renderApp();
+    await launcher();
+    const all = screen.getByRole('region', { name: 'Todas' });
+    const groups = within(all).getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+    expect(groups).toEqual(['Datos', 'Productividad', 'Utilidades', 'Ocio']);
+  });
+
   it('muestra el buscador con el foco y las mini apps agrupadas por categoría en orden alfabético', async () => {
     renderApp();
     const search = await launcher();

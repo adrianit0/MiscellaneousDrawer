@@ -60,7 +60,7 @@ Fecha: 2026-11-20. Hecho en el código y probado con Bitbucket simulado y git re
 
 - **Verificación con el Bitbucket real**: configurar la conexión y reenviar los PR rechazados de la última versión. En particular, comprobar que el filtro `role.1=AUTHOR&username.1=<usuario>` y `at=refs/heads/hotfix` devuelve los rechazados aunque la rama destino se borrara y se creara de nuevo, que los PR rechazados conservan `fromRef.latestCommit`, y que el certificado del servidor es de confianza para Java.
 - No se recorrieron con la aplicación arrancada la cancelación ni el fallo al crear el PR: están cubiertos por las pruebas.
-- Sprint 12: «Rendimiento», la configuración de parámetros y las horas revisadas de «Gestask».
+- Sprint 13: «Rendimiento», la configuración de parámetros y las horas revisadas de «Gestask» (el 12 es el de «Lootboxes» e «Inventario», ADR-0026).
 
 ### Desviaciones y decisiones
 
@@ -71,3 +71,46 @@ Fecha: 2026-11-20. Hecho en el código y probado con Bitbucket simulado y git re
 - **La carpeta debe ser el repositorio configurado:** el trabajo comprueba que el `origin` termina en `<proyecto>/<repositorio>` antes de subir nada (RP-21).
 - **Si Bitbucket rechaza a los revisores, el PR se crea sin ellos** y el resultado lo dice (RP-28), en lugar de fallar.
 - **El resultado del trabajo se muestra en su propia tabla**, encima de la lista: tras terminar, la lista se vuelve a pedir y los PR reenviados desaparecen de ella.
+
+## Ampliación: anotar el PR anterior
+
+Pedida tras usar la mini app con el Bitbucket real: como los PR con conflictos no se reenvían, el usuario quiere que cada PR rechazado que sí tiene uno nuevo lo diga en su descripción, para saber qué ramas borrar (ADR-0024).
+
+### Requisitos
+
+- Reenviar PR: RP-36 (nuevo); RP-32, RP-34 y RP-44 (ampliados).
+- Seguridad: S-15. Constitución: principio 4.
+
+### Tareas
+
+1. **Especificación.** RP-36, RP-32, RP-34, RP-44 y fuera de alcance; ADR-0024; el principio 4, S-15, `CLAUDE.md` y esta ampliación.
+2. **Servidor.** En `Bitbucket`, pedir el PR rechazado y actualizar su descripción con su versión, su título y sus revisores; en `JobRunner`, anotarlo tras crear el nuevo, el campo `annotated` y el resumen.
+3. **Interfaz.** «PR anterior anotado» o «PR anterior sin anotar» en el resultado de cada PR.
+4. **Pruebas.** `FakeBitbucket` entiende pedir y actualizar un PR; las de backend comprueban la llamada, el texto, que no se anota un PR con conflictos y el fallo al anotar; las de interfaz, el texto de cada fila.
+5. **Documentación.** `README.md`.
+6. **Verificación.** `./mvnw verify` en verde y un reenvío con la aplicación arrancada.
+
+### Criterios de aceptación
+
+- Con Bitbucket simulado: el PR rechazado cuyo nuevo se creó termina su descripción con «Nuevo PR: <enlace>» y «\*\*Pendiente de eliminar esta rama\*\*», y conserva su título y sus revisores.
+- Un PR con conflictos o cuyo nuevo no se creó no se toca.
+- Si Bitbucket no deja actualizar el rechazado, el nuevo sigue creado y el resultado y el resumen lo dicen.
+
+### Resultado
+
+Fecha: 2026-11-21. Hecho en el código y probado con Bitbucket simulado y git real, en las pruebas y con la aplicación arrancada. Sin commits todavía. Falta la verificación con el Bitbucket real del usuario.
+
+- **Especificación:** RP-36 nuevo; RP-32, RP-34, RP-44 y fuera de alcance ampliados; ADR-0024 aceptada; el principio 4, S-15, `CLAUDE.md` y esta ampliación.
+- **Servidor:** `Bitbucket.annotate` pide el PR rechazado y lo actualiza con su versión, su título, sus revisores y la descripción con la nota; `Bitbucket.annotated` compone el texto y no lo repite. `JobRunner` anota tras crear el nuevo, guarda `annotated` en el resultado y cuenta en el resumen los que no se pudieron anotar. Si el trabajo se cancela tras crear el PR nuevo, este queda `created` y el detalle dice que no se anotó el anterior.
+- **Interfaz:** cada PR recreado dice «PR anterior anotado» o, en ámbar, «PR anterior sin anotar».
+- **Documentación:** `README.md`.
+- **Pruebas:** `./mvnw verify` en verde, con 484 de backend (19 omitidas en Windows, las mismas de antes) y 372 de interfaz.
+  - Backend: 1 nueva en `BranchesTest` (el texto de la nota) y otra ampliada (el resumen); 1 nueva en `ResubmitGitTest` (Bitbucket no deja anotar) y 3 ampliadas: la llamada y el texto de la nota con su versión, título y revisores, que la rama anterior no se borra, y que no se anota un PR con conflictos ni uno cuyo nuevo no se creó. `FakeBitbucket` entiende pedir y actualizar un PR y, como Bitbucket, exige la versión actual.
+  - Interfaz: la prueba del resultado del trabajo comprueba «PR anterior anotado» y «PR anterior sin anotar».
+- **Recorrido con la aplicación arrancada**, contra su API (el panel del navegador estaba oculto), con datos aislados, un remoto de prueba y el Bitbucket simulado ampliado: de tres PR, dos se recrean y uno da conflicto; los dos recreados reciben `GET` y `PUT` de su PR anterior con la versión, el título, los revisores y la descripción terminada en «Nuevo PR: <enlace>» y «\*\*Pendiente de eliminar esta rama\*\*»; el del conflicto no se toca; las ramas anteriores siguen en el remoto; el token no aparece en el registro.
+
+#### Pendiente
+
+- **Verificación con el Bitbucket real**: que la nota se guarda en un PR rechazado (el usuario comprobó en la web que se puede editar) y que la actualización conserva los revisores.
+- **Un revisor dado de baja en el PR anterior** se vuelve a enviar al actualizarlo, para no quitarlo. Si Bitbucket lo rechazara, ese PR quedaría «sin anotar» y habría que anotarlo a mano; no se quitan revisores para poder anotarlo (fuera de alcance).
+- Los PR reenviados antes de esta ampliación no se anotan: ya no están en la lista.

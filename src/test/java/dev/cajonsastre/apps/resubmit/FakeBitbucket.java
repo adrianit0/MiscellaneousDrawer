@@ -65,6 +65,8 @@ final class FakeBitbucket implements Transport {
     volatile Function<Request, Reply> onCreate;
     /** Si no es null, crear un PR espera aquí hasta que se interrumpa. */
     volatile CountDownLatch createReached;
+    /** Si no es null, la respuesta a actualizar un PR (RP-36); si devuelve null, se actualiza. */
+    volatile Function<Request, Reply> onUpdate;
 
     List<Request> lists() {
         return requests.stream().filter(r -> r.method().equals("GET") && r.uri().getPath().endsWith("/pull-requests")).toList();
@@ -72,6 +74,16 @@ final class FakeBitbucket implements Transport {
 
     List<Request> creates() {
         return requests.stream().filter(r -> r.method().equals("POST")).toList();
+    }
+
+    /** RP-36 */
+    List<Request> updates() {
+        return requests.stream().filter(r -> r.method().equals("PUT")).toList();
+    }
+
+    /** El PR de la lista con ese número, como lo guarda Bitbucket. */
+    ObjectNode stored(long id) {
+        return pullRequests.stream().filter(p -> p.get("id").asLong() == id).findFirst().orElse(null);
     }
 
     /** Un PR como lo devuelve Bitbucket. */
@@ -141,6 +153,30 @@ final class FakeBitbucket implements Transport {
                 page.put("nextPageStart", end);
             }
             return new Reply(200, page.toString());
+        }
+        if (path.startsWith(repoPath + "/pull-requests/") && (method.equals("GET") || method.equals("PUT"))) {
+            ObjectNode pr = stored(Long.parseLong(path.substring(path.lastIndexOf('/') + 1)));
+            if (pr == null) {
+                return new Reply(404, "{\"errors\":[{\"message\":\"No existe el PR\"}]}");
+            }
+            if (method.equals("GET")) {
+                return new Reply(200, pr.toString());
+            }
+            Function<Request, Reply> custom = onUpdate;
+            Reply reply = custom == null ? null : custom.apply(request);
+            if (reply != null) {
+                return reply;
+            }
+            JsonNode update = request.json();
+            // Como Bitbucket: la versión debe ser la actual, y lo que no se envía se pierde.
+            if (update.get("version").asInt() != pr.get("version").asInt()) {
+                return new Reply(409, "{\"errors\":[{\"message\":\"La versión del PR no es la actual\"}]}");
+            }
+            pr.put("version", pr.get("version").asInt() + 1);
+            pr.put("title", update.path("title").asText());
+            pr.put("description", update.path("description").asText());
+            pr.set("reviewers", update.path("reviewers").deepCopy());
+            return new Reply(200, pr.toString());
         }
         if (method.equals("POST") && path.equals(repoPath + "/pull-requests")) {
             CountDownLatch reached = createReached;

@@ -47,11 +47,12 @@ final class JobRunner {
     private static final Pattern COMMIT = Pattern.compile("[0-9a-fA-F]{7,64}");
     private static final String REMOTE_REFS = "refs/remotes/origin/";
 
-    /** RP-34 */
-    record PrResult(long id, String title, String branch, String newBranch, String result, String detail, String link) {
+    /** RP-34. annotated: si se anotó el PR anterior (RP-36); null si no se creó el nuevo. */
+    record PrResult(long id, String title, String branch, String newBranch, String result, String detail, String link,
+                    Boolean annotated) {
 
         PrResult with(String result, String detail) {
-            return new PrResult(id, title, branch, newBranch, result, detail, link);
+            return new PrResult(id, title, branch, newBranch, result, detail, link, annotated);
         }
     }
 
@@ -91,7 +92,7 @@ final class JobRunner {
             this.config = config;
             this.startedAt = startedAt;
             this.console = console;
-            prIds.forEach(pr -> results.add(new PrResult(pr, null, null, null, "pending", null, null)));
+            prIds.forEach(pr -> results.add(new PrResult(pr, null, null, null, "pending", null, null, null)));
         }
     }
 
@@ -266,6 +267,11 @@ final class JobRunner {
         if (failed > 0) {
             out.append(", ").append(failed).append(" con error");
         }
+        // RP-36
+        long unnoted = results.stream().filter(r -> r.result().equals("created") && Boolean.FALSE.equals(r.annotated())).count();
+        if (unnoted > 0) {
+            out.append(", ").append(unnoted).append(unnoted == 1 ? " PR anterior sin anotar" : " PR anteriores sin anotar");
+        }
         return out.toString();
     }
 
@@ -320,7 +326,7 @@ final class JobRunner {
             PrResult r = result(job, i);
             Candidates.Candidate c = byId.get(r.id());
             PullRequest pr = c != null ? c.pr() : prs.stream().filter(p -> p.id() == r.id()).findFirst().orElse(null);
-            PrResult named = pr == null ? r : new PrResult(r.id(), pr.title(), pr.branch(), null, r.result(), null, null);
+            PrResult named = pr == null ? r : new PrResult(r.id(), pr.title(), pr.branch(), null, r.result(), null, null, null);
             if (c == null || !c.selectable()) {
                 set(job, i, named.with("skipped", NOT_PENDING));
                 console.line("## PR " + r.id() + ": " + NOT_PENDING);
@@ -344,7 +350,7 @@ final class JobRunner {
         // RP-14, RP-23: nunca una rama que ya exista.
         String branch = Branches.next(config.prefix(), candidate.ticket(), job.known);
         job.known.add(branch);
-        PrResult base = new PrResult(pr.id(), pr.title(), pr.branch(), branch, "running", null, null);
+        PrResult base = new PrResult(pr.id(), pr.title(), pr.branch(), branch, "running", null, null, null);
         set(job, index, base);
         console.line("## " + pr.branch() + " → " + branch);
 
@@ -377,6 +383,8 @@ final class JobRunner {
             throw new Failed(add.error());
         }
         boolean pushed = false;
+        Bitbucket.Created created = null;
+        String done = null;
         try {
             String wt = tree.toString();
             Run pick = git(job, Command.gitIn(wt, Stream.concat(Stream.of("cherry-pick"), commits.stream()).toArray(String[]::new)),
@@ -404,25 +412,47 @@ final class JobRunner {
             pushed = true;
             // RP-28, RP-29
             console.line("Bitbucket: crear el PR de " + branch + " contra " + target);
-            Bitbucket.Created created;
             try {
                 created = bitbucket.create(config, pr, branch);
             } catch (ApiError e) {
                 throw new Failed("Rama " + branch + " subida, pero no se pudo crear el PR: " + e.getMessage());
             }
-            String detail = commits.size() + (commits.size() == 1 ? " commit" : " commits")
+            done = commits.size() + (commits.size() == 1 ? " commit" : " commits")
                     + (created.warning() == null ? "" : ". " + created.warning());
-            set(job, index, new PrResult(pr.id(), pr.title(), pr.branch(), branch, "created", shorten(detail, 300),
-                    created.link()));
             console.line("PR creado: " + (created.link() == null ? "#" + created.id() : created.link()));
             if (created.warning() != null) {
                 console.line(created.warning());
             }
+
+            // RP-36: solo con el PR nuevo creado.
+            String unnoted = null;
+            if (created.link() == null) {
+                unnoted = "No se pudo anotar el PR anterior: Bitbucket no devolvió el enlace del PR nuevo";
+            } else {
+                console.line("Bitbucket: anotar en el PR " + pr.id() + " el enlace al nuevo");
+                try {
+                    if (!bitbucket.annotate(config, pr.id(), created.link())) {
+                        console.line("El PR anterior ya tenía el enlace al nuevo");
+                    }
+                } catch (ApiError e) {
+                    unnoted = "No se pudo anotar el PR anterior: " + e.getMessage();
+                }
+            }
+            if (unnoted != null) {
+                console.line(unnoted);
+            }
+            set(job, index, new PrResult(pr.id(), pr.title(), pr.branch(), branch, "created",
+                    shorten(unnoted == null ? done : done + ". " + unnoted, 300), created.link(), unnoted == null));
         } catch (InterruptedException e) {
-            // RP-33: un PR a medias vuelve a pendiente, salvo que su rama ya esté subida.
-            set(job, index, pushed
-                    ? base.with("failed", "Rama " + branch + " subida, pero el trabajo se canceló antes de crear el PR")
-                    : base.with("pending", null));
+            // RP-33: un PR a medias vuelve a pendiente, salvo que su rama ya esté subida o su PR creado.
+            if (created != null) {
+                set(job, index, new PrResult(pr.id(), pr.title(), pr.branch(), branch, "created",
+                        shorten(done + ". El trabajo se canceló antes de anotar el PR anterior", 300), created.link(), false));
+            } else {
+                set(job, index, pushed
+                        ? base.with("failed", "Rama " + branch + " subida, pero el trabajo se canceló antes de crear el PR")
+                        : base.with("pending", null));
+            }
             throw e;
         } finally {
             remove(job, dir, tree);

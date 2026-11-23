@@ -53,6 +53,8 @@ export interface PrResult {
   result: Result;
   detail: string | null;
   link: string | null;
+  /** RP-36: si se anotó el PR anterior; null si no se creó el nuevo. */
+  annotated: boolean | null;
 }
 
 export interface Job {

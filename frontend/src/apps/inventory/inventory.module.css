@@ -1,0 +1,88 @@
+/* P-17: estilos de «Inventario», con las variables del tema (U-01). */
+.app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--error);
+}
+
+.empty {
+  color: var(--text-muted);
+  text-align: center;
+  padding-top: 40px;
+}
+
+.total {
+  font-size: 18px;
+  margin: 0;
+}
+
+.grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 14px 10px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+/* IN-10, LB-26: el orbe del color de su rareza. */
+.orb {
+  --rarity: var(--text);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff 0, var(--rarity) 40%, color-mix(in srgb, var(--rarity) 55%, black) 100%);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--rarity) 50%, transparent);
+}
+
+.name {
+  font-weight: 600;
+  text-align: center;
+}
+
+.rarity {
+  font-size: 12px;
+}
+
+.count {
+  font-family: var(--font-mono);
+  font-size: 16px;
+}
+
+/* IN-12: las fechas, al pasar el ratón o con el foco. */
+.dates {
+  display: none;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.card:hover .dates,
+.card:focus .dates {
+  display: block;
+}

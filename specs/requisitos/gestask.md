@@ -184,6 +184,12 @@ Se entrega en tres sprints: el 9, conexión y «Tareas»; el 10, «Día a día»
 | GT-113 | Cada día se colorea como no laborable (Vacaciones, Festivos o Ausencia), hoy, futuro (sin valorar), objetivo cumplido (puntos completados iguales o mayores que el objetivo del día) o por debajo. Una leyenda explica los colores de objetivo cumplido, por debajo y no laborable (ADR-0022). |
 | GT-114 | Pulsar un día, o Enter con el foco en él, abre un diálogo con «Tipo de día» (`Laboral`, `Vacaciones`, `Festivos` o `Ausencia`) y «Observaciones». «Guardar» envía `calendar-day-status-update` con `{day, status, note}`, con la observación sin espacios a los lados o `null` si queda vacía, y recarga solo el mes. |
 
+## PE para «Lootboxes»
+
+| ID | Requisito |
+|---|---|
+| GT-120 | Cada vez que reenvía con éxito `calendar-month-get`, el servidor lee de la respuesta los días (`days`) con `date` hasta hoy (fecha local) y `completed_points` mayor que 0. Por cada uno cuyo valor no haya enviado ya desde que arrancó, envía a `lootboxes` un mensaje `effort-points` `{"date": "AAAA-MM-DD", "points": N}` (P-29, LB-02, ADR-0026). La respuesta a la interfaz no cambia y se devuelve aunque la lectura o el envío fallen; el fallo va al registro sin el contenido (S-21). La interfaz de «Gestask» no muestra nada de esto (LB-06). |
+
 ## API de la mini app
 
 Prefijo `/api/apps/gestask`.
@@ -202,6 +208,6 @@ Prefijo `/api/apps/gestask`.
 - Registrar usuarios y cambiar la contraseña.
 - El «Gestor de tiempos», que en la web solo guarda en el navegador (ADR-0020).
 - El tema, el menú lateral y los avisos propios de la web: se usan los del shell.
-- «Rendimiento», la configuración de parámetros y las «horas revisadas» de la imputación, que dependen de las métricas de rendimiento: llegan en el sprint 12 (el 11 es el de «Reenviar PR», ADR-0023).
+- «Rendimiento», la configuración de parámetros y las «horas revisadas» de la imputación, que dependen de las métricas de rendimiento: llegan en el sprint 13 (el 11 es el de «Reenviar PR», ADR-0023, y el 12 el de «Lootboxes» e «Inventario», ADR-0026).
 - El botón «Ir al Backlog» del parte y del horario, y el salto al Backlog desde una tarea del calendario: aquí se abre el detalle de la tarea (ADR-0022).
 - Trabajar sin conexión y guardar una copia local de las tareas.

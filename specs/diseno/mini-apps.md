@@ -80,6 +80,7 @@ public interface AppContext {
     Clock clock();
     Notifications notifications();   // P-21: notificaciones del shell
     Consoles consoles();             // P-25: consolas del shell
+    Messages messages();             // P-29: buzón de mensajes con otras mini apps
 }
 ```
 
@@ -158,6 +159,31 @@ Reglas de uso:
 - `console.id()` es su identificador. La interfaz de la mini app puede desplegar el panel en esa consola con `showConsole(id)` de `useMiniApp()`.
 
 En las pruebas de una mini app, las consolas se recogen pasando un `Consoles` propio a `AppRegistry.start` (véase `DatabaseAppTest`).
+
+### Mensajes entre mini apps
+
+Una mini app no lee los datos de otra, pero puede dejarle un mensaje (P-29 a P-32, ADR-0025). Es lo que usan «Gestask», para pasar a «Lootboxes» los PE cerrados de cada día, y «Lootboxes», para pasar a «Inventario» las recompensas de cada cofre.
+
+```java
+// Quien envía: un objeto JSON pequeño, con un tipo que dice qué es.
+messages.send("inventory", "chest-rewards", json);
+
+// Quien recibe, cuando necesita los datos: guardar y después confirmar.
+for (Message m : messages.pending()) {
+    store.write(s -> aplicar(s, m));   // idempotente: el mensaje puede llegar dos veces
+    messages.ack(m.id());
+}
+```
+
+Reglas de uso:
+
+- La entrega es **al menos una vez**: si la mini app se cae entre guardar y confirmar, recibirá el mensaje otra vez. Cada mensaje debe llevar lo necesario para reconocerlo (un identificador, un día) o sustituir un valor en lugar de sumarlo.
+- Los mensajes se piden cuando hacen falta (al arrancar, antes de responder a la interfaz). No hay manejadores ni eventos.
+- La destinataria descarta lo que no entiende: otro tipo, otro remitente o un contenido inválido. Lo confirma igualmente para no recibirlo siempre, y lo registra sin su contenido.
+- `send` lanza si no puede guardar. Quien no puede perder el mensaje lo apunta en su base como pendiente de envío y lo reintenta.
+- Nada de secretos: un mensaje es un dato del usuario que se queda en la base del shell hasta que se confirma.
+
+En las pruebas de una mini app, los mensajes se recogen y se inyectan pasando un `Messages` propio a `AppRegistry.start`.
 
 ### Datos
 
@@ -258,7 +284,7 @@ Se añadirán cuando una mini app real los necesite (constitución, principio 8)
 - Escribir en una consola desde la interfaz, para una mini app sin servidor, y los estados «Abierto» y «Pausado» (ADR-0014).
 - Emitir notificaciones desde la interfaz, para una mini app sin servidor (ADR-0013).
 - Una categoría propia de cada mini app en «Ajustes».
-- Comunicación entre mini apps (abrir un elemento de otra, compartir datos).
+- Abrir un elemento de otra mini app desde la interfaz, y enviar mensajes desde la interfaz de una mini app sin servidor (ADR-0025).
 - Copias diarias, exportación e importación de los datos de las mini apps.
 - Activar y desactivar mini apps desde «Ajustes».
 - Abrir una mini app desde fuera con un enlace `cajonsastre://`.

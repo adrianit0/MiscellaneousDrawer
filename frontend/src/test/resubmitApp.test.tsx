@@ -106,7 +106,7 @@ function route(call: Call): { status?: number; body?: unknown } | undefined {
       finishedAt: null,
       message: null,
       consoleId: 41,
-      prs: prIds.map((id) => ({ id, title: null, branch: null, newBranch: null, result: 'pending', detail: null, link: null })),
+      prs: prIds.map((id) => ({ id, title: null, branch: null, newBranch: null, result: 'pending', detail: null, link: null, annotated: null })),
     };
     return { status: 202, body: { job: backend.job } };
   }
@@ -290,13 +290,14 @@ describe('RP-42 RP-43 PR rechazados', () => {
 });
 
 describe('RP-44 RP-45 trabajo', () => {
-  it('RP-44: muestra el avance, el resultado de cada PR con su enlace, avisa y vuelve a pedir la lista', async () => {
+  it('RP-44 RP-36: muestra el avance, el resultado de cada PR con su enlace y si se anotó el anterior, avisa y vuelve a pedir la lista', async () => {
     backend.outcome = {
       state: 'failed',
       message: '1 recreado, 1 con conflictos',
       prs: [
-        { id: 12, title: ONE.title, branch: ONE.branch, newBranch: 'bug/TICKET-0001-2', result: 'created', detail: '2 commits', link: 'https://bitbucket.example.test/pr/501' },
-        { id: 13, title: TWO.title, branch: TWO.branch, newBranch: 'bug/TICKET-0002-3', result: 'conflict', detail: 'Conflicto al aplicar abcdef01: base.txt', link: null },
+        { id: 12, title: ONE.title, branch: ONE.branch, newBranch: 'bug/TICKET-0001-2', result: 'created', detail: '2 commits', link: 'https://bitbucket.example.test/pr/501', annotated: true },
+        { id: 13, title: TWO.title, branch: TWO.branch, newBranch: 'bug/TICKET-0002-3', result: 'conflict', detail: 'Conflicto al aplicar abcdef01: base.txt', link: null, annotated: null },
+        { id: 16, title: 'Otro inventado', branch: 'bug/TICKET-0006', newBranch: 'bug/TICKET-0006-2', result: 'created', detail: '1 commit. No se pudo anotar el PR anterior: El PR no se puede editar', link: 'https://bitbucket.example.test/pr/502', annotated: false },
       ],
     };
     await openList();
@@ -315,8 +316,12 @@ describe('RP-44 RP-45 trabajo', () => {
     const result = rows('Resultado del reenvío');
     expect(within(result[0]).getByText('Recreado')).toBeTruthy();
     expect(within(result[0]).getByRole('link', { name: 'Abrir PR nuevo' }).getAttribute('href')).toBe('https://bitbucket.example.test/pr/501');
+    expect(within(result[0]).getByText(/PR anterior anotado/)).toBeTruthy();
     expect(within(result[1]).getByText('Con conflictos')).toBeTruthy();
     expect(within(result[1]).getByText('Conflicto al aplicar abcdef01: base.txt')).toBeTruthy();
+    expect(within(result[1]).queryByText(/PR anterior/)).toBeNull();
+    expect(within(result[2]).getByText(/PR anterior sin anotar/).getAttribute('data-annotated')).toBe('false');
+    expect(within(result[2]).getByText(/No se pudo anotar el PR anterior: El PR no se puede editar/)).toBeTruthy();
     await waitFor(() => expect(listCalls()).toHaveLength(2));
     fireEvent.click(button('Ver consola'));
     expect(shownConsoles).toEqual([41]);
@@ -357,7 +362,7 @@ describe('RP-44 RP-45 trabajo', () => {
       'Error',
     ]);
     const job: Job = { id: 1, state: 'running', startedAt: '', finishedAt: null, message: null, consoleId: 1, prs: [] };
-    expect(jobSummary({ ...job, prs: [{ id: 1, title: null, branch: null, newBranch: null, result: 'created', detail: null, link: null }] })).toBe('Reenviar PR: 1 de 1');
+    expect(jobSummary({ ...job, prs: [{ id: 1, title: null, branch: null, newBranch: null, result: 'created', detail: null, link: null, annotated: true }] })).toBe('Reenviar PR: 1 de 1');
     expect(jobSummary({ ...job, state: 'succeeded', message: '3 recreados' })).toBe('Reenviar PR: 3 recreados');
   });
 });
