@@ -3,26 +3,50 @@ import { useMiniApp } from '../../platform';
 import { Confirm } from './Confirm';
 import styles from './jira.module.css';
 import {
+  categoryColor,
   categoryLabel,
+  COLOR_LABELS,
   emptyDraft,
   errorMessage,
   MAX_BOARDS,
   MAX_COLUMN_NAME,
   MAX_COLUMNS,
   MAX_NAME,
+  MAX_PRIORITIES,
   MAX_PROJECTS,
+  nextPriorityColor,
   pairOf,
+  PALETTE,
+  paletteColor,
   RECENT_DAYS,
   toBody,
   type Board,
   type Draft,
+  type JiraPriority,
   type JiraStatus,
+  type PaletteColor,
   type Project,
   type StatusRef,
 } from './types';
 
-/** Los estados de un proyecto: cargando, cargados o con error. */
-type Loaded = { state: 'loading' } | { state: 'ok'; list: JiraStatus[] } | { state: 'error'; message: string };
+/** Los estados de un proyecto, o las prioridades: cargando, cargados o con error. */
+type Loaded<T = JiraStatus> = { state: 'loading' } | { state: 'ok'; list: T[] } | { state: 'error'; message: string };
+
+/** JR-33, JR-37: el selector «Color» con la paleta y una muestra del elegido. */
+function ColorPick({ value, label, onChange }: { value: PaletteColor; label: string; onChange: (c: PaletteColor) => void }) {
+  return (
+    <span className={styles.colorPick}>
+      <span className={styles.swatch} data-paint={value} aria-hidden="true" />
+      <select aria-label={label} value={value} onChange={(e) => onChange(paletteColor(e.target.value))}>
+        {PALETTE.map((c) => (
+          <option key={c} value={c}>
+            {COLOR_LABELS[c]}
+          </option>
+        ))}
+      </select>
+    </span>
+  );
+}
 
 interface SectionProps {
   boards: Board[];
@@ -151,6 +175,8 @@ function Editor({ initial, leave, onDirtyChange, onSaved }: EditorProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requested = useRef(new Set<string>());
+  const [priorities, setPriorities] = useState<Loaded<JiraPriority>>({ state: 'loading' });
+  const [prioritiesEpoch, setPrioritiesEpoch] = useState(0);
 
   const dirty = JSON.stringify(toBody(draft)) !== snapshot.current;
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
@@ -170,6 +196,23 @@ function Editor({ initial, leave, onDirtyChange, onSaved }: EditorProps) {
         });
     }
   }, [api, draft.projects]);
+
+  // JR-19, JR-37: las prioridades de Jira, una vez (o al reintentar).
+  useEffect(() => {
+    let live = true;
+    setPriorities({ state: 'loading' });
+    api
+      .get<{ priorities: JiraPriority[] }>('/priorities')
+      .then((r) => {
+        if (live) setPriorities({ state: 'ok', list: r.priorities });
+      })
+      .catch((e: unknown) => {
+        if (live) setPriorities({ state: 'error', message: errorMessage(e) });
+      });
+    return () => {
+      live = false;
+    };
+  }, [api, prioritiesEpoch]);
 
   const assigned = useMemo(() => new Set(draft.columns.flatMap((c) => c.statuses.map(pairOf))), [draft.columns]);
 
@@ -237,8 +280,32 @@ function Editor({ initial, leave, onDirtyChange, onSaved }: EditorProps) {
     const loaded = statuses[project];
     const status = loaded?.state === 'ok' ? loaded.list.find((s) => s.id === id) : undefined;
     if (!status) return;
-    setColumn(index, (c) => ({ ...c, statuses: [...c.statuses, { project, id, name: status.name }] }));
+    // JR-33: toma el color de su categoría.
+    setColumn(index, (c) => ({
+      ...c,
+      statuses: [...c.statuses, { project, id, name: status.name, color: categoryColor(status.category) }],
+    }));
   };
+
+  const setStatusColor = (index: number, pair: string, color: PaletteColor) =>
+    setColumn(index, (c) => ({ ...c, statuses: c.statuses.map((x) => (pairOf(x) === pair ? { ...x, color } : x)) }));
+
+  /** JR-37 */
+  const addPriority = (id: string) => {
+    const found = priorities.state === 'ok' ? priorities.list.find((p) => p.id === id) : undefined;
+    if (!found) return;
+    update((d) =>
+      d.priorities.some((p) => p.id === id) || d.priorities.length >= MAX_PRIORITIES
+        ? d
+        : {
+            ...d,
+            priorities: [...d.priorities, { id, name: found.name, color: nextPriorityColor(d.priorities.map((p) => p.color)) }],
+          },
+    );
+  };
+  const priorityGone = (id: string) => priorities.state === 'ok' && !priorities.list.some((p) => p.id === id);
+  const freePriorities =
+    priorities.state === 'ok' ? priorities.list.filter((p) => !draft.priorities.some((mine) => mine.id === p.id)) : [];
 
   const save = async () => {
     setSaving(true);
@@ -374,9 +441,16 @@ function Editor({ initial, leave, onDirtyChange, onSaved }: EditorProps) {
                       <ul className={styles.chips}>
                         {mine.map((s) => (
                           <li key={pairOf(s)} className={styles.chip} data-gone={gone(s) || undefined}>
-                            {s.name}
+                            <span className={styles.label} data-paint={s.color}>
+                              {s.name}
+                            </span>
                             {category(s) && <span className={styles.muted}> · {category(s)}</span>}
                             {gone(s) && <span className={styles.warn}> · Ya no existe en Jira</span>}
+                            <ColorPick
+                              value={s.color}
+                              label={`Color de ${s.name} de ${project}`}
+                              onChange={(color) => setStatusColor(index, pairOf(s), color)}
+                            />
                             <button
                               type="button"
                               className={styles.link}
@@ -456,6 +530,64 @@ function Editor({ initial, leave, onDirtyChange, onSaved }: EditorProps) {
           draft.projects.every((p) => statuses[p]?.state === 'ok') && <p className={styles.ok}>Todos los estados tienen columna.</p>
         )}
       </section>
+
+      {/* JR-37 */}
+      <fieldset>
+        <legend>Prioridades</legend>
+        <p className={styles.muted}>Las prioridades de este tablero y su color. Un ticket con otra prioridad la muestra en gris.</p>
+        {draft.priorities.length > 0 && (
+          <ul className={styles.priorityList} aria-label="Prioridades del tablero">
+            {draft.priorities.map((p) => (
+              <li key={p.id}>
+                <span className={styles.label} data-paint={p.color}>
+                  {p.name}
+                </span>
+                {priorityGone(p.id) && <span className={styles.warn}>Ya no existe en Jira</span>}
+                <ColorPick
+                  value={p.color}
+                  label={`Color de ${p.name}`}
+                  onChange={(color) =>
+                    update((d) => ({ ...d, priorities: d.priorities.map((x) => (x.id === p.id ? { ...x, color } : x)) }))
+                  }
+                />
+                <button
+                  type="button"
+                  aria-label={`Quitar la prioridad ${p.name}`}
+                  onClick={() => update((d) => ({ ...d, priorities: d.priorities.filter((x) => x.id !== p.id) }))}
+                >
+                  Quitar
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {priorities.state === 'loading' && <p className={styles.muted}>Cargando las prioridades de Jira…</p>}
+        {priorities.state === 'error' && (
+          <div className={styles.actions}>
+            <span className={styles.error}>{priorities.message}</span>
+            <button type="button" onClick={() => setPrioritiesEpoch((e) => e + 1)}>
+              Reintentar
+            </button>
+          </div>
+        )}
+        {freePriorities.length > 0 && (
+          <select
+            aria-label="Añadir prioridad"
+            value=""
+            disabled={draft.priorities.length >= MAX_PRIORITIES}
+            onChange={(e) => {
+              if (e.target.value) addPriority(e.target.value);
+            }}
+          >
+            <option value="">Añadir prioridad…</option>
+            {freePriorities.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </fieldset>
 
       {error && (
         <p className={styles.error} role="alert">

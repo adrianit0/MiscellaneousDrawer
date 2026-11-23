@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppState, useMiniApp } from '../../platform';
 import styles from './jira.module.css';
 import {
+  assigneeColors,
   errorMessage,
+  initials,
+  paletteColor,
   formatTime,
   GROUPINGS,
   matches,
@@ -20,7 +23,24 @@ interface Props {
   siteUrl: string;
 }
 
-function Card({ issue, siteUrl }: { issue: Issue; siteUrl: string }) {
+/** JR-45: el círculo con las iniciales del asignado, o «?» en gris si no tiene. */
+function Avatar({ name, color }: { name: string | null; color: string | undefined }) {
+  const label = name ?? UNASSIGNED;
+  return (
+    <span
+      className={styles.avatar}
+      role="img"
+      aria-label={label}
+      title={label}
+      style={name && color ? { background: color } : undefined}
+    >
+      {name ? initials(name) : '?'}
+    </span>
+  );
+}
+
+/** JR-41: clave y estado; resumen; asignado y su círculo; prioridad. */
+function Card({ issue, siteUrl, avatar }: { issue: Issue; siteUrl: string; avatar: string | undefined }) {
   return (
     <li className={styles.card} aria-label={issue.key}>
       <div className={styles.cardTop}>
@@ -28,10 +48,20 @@ function Card({ issue, siteUrl }: { issue: Issue; siteUrl: string }) {
         <a className={styles.key} href={`${siteUrl}/browse/${encodeURIComponent(issue.key)}`} target="_blank" rel="noreferrer">
           {issue.key}
         </a>
-        <span className={styles.status}>{issue.status}</span>
+        <span className={styles.label} data-paint={paletteColor(issue.statusColor)}>
+          {issue.status}
+        </span>
       </div>
       <div className={styles.summary}>{issue.summary}</div>
-      <div className={issue.assignee ? styles.assignee : `${styles.assignee} ${styles.muted}`}>{issue.assignee ?? UNASSIGNED}</div>
+      <div className={styles.cardLine}>
+        <span className={issue.assignee ? styles.assignee : `${styles.assignee} ${styles.muted}`}>{issue.assignee ?? UNASSIGNED}</span>
+        <Avatar name={issue.assignee} color={avatar} />
+      </div>
+      {issue.priority && (
+        <div className={styles.priority} data-paint={paletteColor(issue.priority.color)} aria-label={`Prioridad ${issue.priority.name}`}>
+          <span aria-hidden="true">⌃</span> {issue.priority.name}
+        </div>
+      )}
     </li>
   );
 }
@@ -79,6 +109,11 @@ export function BoardView({ boards, siteUrl }: Props) {
     [shown, filter],
   );
   const grid = useMemo(() => rows(filtered, grouping, board?.projects ?? []), [filtered, grouping, board?.projects]);
+  // JR-45: sobre todos los tickets del tablero, no solo los filtrados, para que el color no cambie al filtrar.
+  const avatars = useMemo(
+    () => assigneeColors((shown?.columns ?? []).flatMap((c) => c.issues.flatMap((i) => (i.assignee ? [i.assignee] : [])))),
+    [shown],
+  );
 
   if (!board) {
     return (
@@ -188,7 +223,12 @@ export function BoardView({ boards, siteUrl }: Props) {
                   {row.columns.map((list, index) => (
                     <ul key={shown.columns[index].name} className={styles.column} aria-label={shown.columns[index].name}>
                       {list.map((issue) => (
-                        <Card key={issue.key} issue={issue} siteUrl={siteUrl} />
+                        <Card
+                          key={issue.key}
+                          issue={issue}
+                          siteUrl={siteUrl}
+                          avatar={issue.assignee ? avatars.get(issue.assignee) : undefined}
+                        />
                       ))}
                     </ul>
                   ))}

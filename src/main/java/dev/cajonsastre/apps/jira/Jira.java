@@ -17,8 +17,8 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * JR-05 a JR-11, JR-21, JR-24: la API REST 3 de Jira Cloud. Solo estas llamadas, todas de lectura: el usuario, los
- * proyectos, los estados de un proyecto y la búsqueda de tickets.
+ * JR-05 a JR-11, JR-19, JR-21, JR-24: la API REST 3 de Jira Cloud. Solo estas llamadas, todas de lectura: el usuario,
+ * los proyectos, los estados de un proyecto, las prioridades y la búsqueda de tickets.
  */
 final class Jira {
 
@@ -27,7 +27,10 @@ final class Jira {
     static final int MAX_PROJECTS = 200;
     /** JR-21, JR-23 */
     static final int ISSUE_PAGE = 100;
-    static final List<String> FIELDS = List.of("summary", "status", "assignee", "project", "updated");
+    static final List<String> FIELDS = List.of("summary", "status", "assignee", "project", "priority", "updated");
+    /** JR-19 */
+    static final int PRIORITY_PAGE = 50;
+    static final int MAX_PRIORITIES = 200;
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -38,9 +41,13 @@ final class Jira {
     record Status(String id, String name, String category) {
     }
 
-    /** JR-20 */
+    /** JR-19 */
+    record Priority(String id, String name) {
+    }
+
+    /** JR-20: priorityId y priorityName son null si el ticket no tiene prioridad. */
     record Issue(String key, String summary, String project, String statusId, String status, String assignee,
-                 String updated) {
+                 String priorityId, String priorityName, String updated) {
     }
 
     /** JR-23: truncated si Jira tiene más de los devueltos. */
@@ -71,6 +78,28 @@ final class Jira {
             for (JsonNode p : values) {
                 if (out.size() < MAX_PROJECTS && p.hasNonNull("key")) {
                     out.add(new Project(p.path("key").asText(), p.path("name").asText(p.path("key").asText())));
+                }
+            }
+            if (values.isEmpty() || page.path("isLast").asBoolean(true)) {
+                break;
+            }
+            start += values.size();
+        }
+        return out;
+    }
+
+    /** JR-19: las prioridades del sitio, en el orden de Jira, hasta 200. */
+    List<Priority> priorities(JiraConfig config) throws InterruptedException {
+        List<Priority> out = new ArrayList<>();
+        int start = 0;
+        while (out.size() < MAX_PRIORITIES) {
+            String q = "maxResults=" + PRIORITY_PAGE + "&startAt=" + start;
+            JsonNode page = ok(call(config, "GET", uri(config, "/priority/search?" + q), null));
+            JsonNode values = page.path("values");
+            for (JsonNode p : values) {
+                String id = p.path("id").asText("");
+                if (out.size() < MAX_PRIORITIES && Board.PRIORITY_ID.matcher(id).matches()) {
+                    out.add(new Priority(id, p.path("name").asText(id)));
                 }
             }
             if (values.isEmpty() || page.path("isLast").asBoolean(true)) {
@@ -144,9 +173,13 @@ final class Jira {
     private static Issue parse(JsonNode issue) {
         JsonNode f = issue.path("fields");
         JsonNode assignee = f.get("assignee");
+        JsonNode priority = f.get("priority");
+        boolean hasPriority = priority != null && priority.hasNonNull("id");
         return new Issue(issue.path("key").asText(), f.path("summary").asText(""), f.path("project").path("key").asText(""),
                 f.path("status").path("id").asText(""), f.path("status").path("name").asText(""),
                 assignee == null || assignee.isNull() ? null : assignee.path("displayName").asText(null),
+                hasPriority ? priority.path("id").asText() : null,
+                hasPriority ? priority.path("name").asText(priority.path("id").asText()) : null,
                 f.path("updated").asText(null));
     }
 

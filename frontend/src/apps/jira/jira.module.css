@@ -333,21 +333,117 @@
   font-weight: 600;
 }
 
-.status {
+/* JR-18, JR-41: etiqueta rellena del color de la paleta, con el texto oscuro del tema. */
+.label {
+  --paint: var(--text-muted);
   font-size: 11px;
-  padding: 0 6px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text-muted);
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--paint);
+  color: var(--accent-text);
   white-space: nowrap;
+}
+
+/* JR-18: el color de la paleta en --paint (data-paint, para no chocar con data-color del shell), para las etiquetas, las prioridades y las muestras. */
+.app [data-paint='gray'] {
+  --paint: var(--text-muted);
+}
+.app [data-paint='blue'] {
+  --paint: var(--blue);
+}
+.app [data-paint='green'] {
+  --paint: var(--green);
+}
+.app [data-paint='violet'] {
+  --paint: var(--violet);
+}
+.app [data-paint='orange'] {
+  --paint: var(--orange);
+}
+.app [data-paint='cyan'] {
+  --paint: var(--cyan);
+}
+.app [data-paint='gold'] {
+  --paint: var(--gold);
+}
+.app [data-paint='red'] {
+  --paint: var(--error);
 }
 
 .summary {
   word-break: break-word;
 }
 
+.cardLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .assignee {
   font-size: 12px;
+}
+
+/* JR-45 */
+.avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  color: var(--accent-text);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* JR-41 */
+.priority {
+  --paint: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--paint);
+}
+
+/* JR-33, JR-37: el selector de color, con una muestra del elegido. */
+.colorPick {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.colorPick select {
+  font-size: 12px;
+  padding: 0 2px;
+}
+
+.swatch {
+  --paint: var(--text-muted);
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--paint);
+}
+
+.priorityList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.priorityList li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 /* U-05 */

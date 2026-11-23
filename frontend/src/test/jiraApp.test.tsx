@@ -1,12 +1,32 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useMemo, useState } from 'react';
 import { JiraApp } from '../apps/jira/JiraApp';
-import { matches, normalize, rows, type Board, type BoardIssues, type ConfigView, type Issue, type JiraStatus } from '../apps/jira/types';
+import themeCss from '../theme.css?raw';
+import {
+  assigneeColors,
+  categoryColor,
+  COLOR_VARIABLES,
+  HUES,
+  hueColor,
+  initials,
+  matches,
+  nextPriorityColor,
+  normalize,
+  PALETTE,
+  rows,
+  type Board,
+  type BoardIssues,
+  type ConfigView,
+  type Issue,
+  type JiraPriority,
+  type JiraStatus,
+  type PaletteColor,
+} from '../apps/jira/types';
 import { createAppApi } from '../platform/appApi';
 import { installFakeServer, resetShell, type Call, type FakeServer } from './fakeServer';
 import { InApp, testContext } from './miniApp';
 
-/** JR-30 a JR-44: la interfaz de «Tableros Jira», con su API simulada. No contacta con Jira. Datos inventados (S-31). */
+/** JR-30 a JR-45: la interfaz de «Tableros Jira», con su API simulada. No contacta con Jira. Datos inventados (S-31). */
 
 const BASE = '/api/apps/jira';
 const SITE = 'https://empresa-inventada.atlassian.net';
@@ -30,7 +50,19 @@ const STATUSES: Record<string, JiraStatus[]> = {
   ],
 };
 
-const ref = (project: string, id: string) => ({ project, id, name: STATUSES[project].find((s) => s.id === id)!.name });
+/** JR-33: sin color dado, el de su categoría. */
+const ref = (project: string, id: string, color?: PaletteColor) => {
+  const status = STATUSES[project].find((s) => s.id === id)!;
+  return { project, id, name: status.name, color: color ?? categoryColor(status.category) };
+};
+
+/** JR-19: las prioridades del ejemplo del usuario (ADR-0028). */
+const PRIORITIES: JiraPriority[] = [
+  { id: '1', name: 'Supone un impedimento' },
+  { id: '2', name: 'Crítica' },
+  { id: '3', name: 'Importante' },
+  { id: '4', name: 'Trivial' },
+];
 
 /** El ejemplo del usuario (ADR-0027). */
 const EXAMPLE: Board = {
@@ -40,19 +72,33 @@ const EXAMPLE: Board = {
   columns: [
     { name: 'To do', statuses: [ref('PA', '10001'), ref('PB', '20001'), ref('PB', '20002')] },
     { name: 'In progress', statuses: [ref('PA', '10002'), ref('PB', '20003')] },
-    { name: 'Testing', statuses: [ref('PA', '10003'), ref('PB', '10003')] },
+    { name: 'Testing', statuses: [ref('PA', '10003', 'violet'), ref('PB', '10003', 'violet')] },
     { name: 'Closed', statuses: [ref('PA', '10004'), ref('PB', '20005')] },
   ],
+  priorities: [
+    { id: '1', name: 'Supone un impedimento', color: 'red' },
+    { id: '3', name: 'Importante', color: 'gold' },
+  ],
 };
-const SUPPORT: Board = { ...EXAMPLE, id: 2, name: 'Soporte', projects: ['PB'], columns: [{ name: 'Abiertos', statuses: [ref('PB', '20001')] }] };
+const SUPPORT: Board = {
+  ...EXAMPLE,
+  id: 2,
+  name: 'Soporte',
+  projects: ['PB'],
+  columns: [{ name: 'Abiertos', statuses: [ref('PB', '20001')] }],
+  priorities: [],
+};
 
-const issue = (key: string, status: string, summary: string, assignee: string | null): Issue => ({
+const issue = (key: string, status: string, summary: string, assignee: string | null, extra: Partial<Issue> = {}): Issue => ({
   key,
   summary,
   project: key.split('-')[0],
   status,
+  statusColor: 'blue',
   assignee,
+  priority: null,
   updated: '2026-11-23T09:00:00Z',
+  ...extra,
 });
 
 const ISSUES: BoardIssues = {
@@ -60,7 +106,16 @@ const ISSUES: BoardIssues = {
   columns: [
     { name: 'To do', issues: [issue('PB-3', 'analized', 'Informe mensual', null), issue('PA-5', 'start', 'Nuevo filtro', 'Luis')] },
     { name: 'In progress', issues: [issue('PA-7', 'doing', 'Pantalla de alta', 'Ana')] },
-    { name: 'Testing', issues: [issue('PA-6', 'testing', 'Validar importación', 'Luis'), issue('PB-2', 'testing', 'Exportar a CSV', 'Ana')] },
+    {
+      name: 'Testing',
+      issues: [
+        issue('PA-6', 'testing', 'Validar importación', 'Luis', {
+          statusColor: 'violet',
+          priority: { id: '3', name: 'Importante', color: 'gold' },
+        }),
+        issue('PB-2', 'testing', 'Exportar a CSV', 'Ana', { statusColor: 'violet', priority: { id: '4', name: 'Trivial', color: null } }),
+      ],
+    },
     { name: 'Closed', issues: [issue('PB-1', 'closed', 'Cerrado hace poco', 'Ana')] },
   ],
   fetchedAt: '2026-11-23T10:00:00Z',
@@ -103,6 +158,7 @@ function route(call: Call): { status?: number; body?: unknown } | undefined {
   }
   const st = /^\/projects\/([^/]+)\/statuses$/.exec(path);
   if (st) return { body: { statuses: STATUSES[st[1]] ?? [] } };
+  if (path === '/priorities') return { body: { priorities: PRIORITIES } };
   if (path === '/boards' && call.method === 'GET') return { body: { boards: backend.boards } };
   if (path === '/boards' && call.method === 'POST') {
     const created = { id: 9, ...(call.body as Omit<Board, 'id'>) };
@@ -272,6 +328,96 @@ describe('JR-40 JR-41 tablero', () => {
   });
 });
 
+function themeVariable(name: string): string {
+  const match = new RegExp(`--${name}:\\s*([^;]+);`).exec(themeCss);
+  if (!match) throw new Error(`Falta --${name}`);
+  return match[1].trim();
+}
+
+function contrast(a: string, b: string): number {
+  const lum = (hex: string) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+    const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(bl);
+  };
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+describe('JR-18 JR-41 JR-45 colores de la tarjeta', () => {
+  it('JR-41: la tarjeta del ejemplo de ADR-0028: estado en su color, asignado con su círculo y prioridad', async () => {
+    await openBoard();
+    const card = within(column('Testing')).getByRole('listitem', { name: 'PA-6' });
+    const label = within(card).getByText('testing');
+    expect(label.getAttribute('data-paint')).toBe('violet');
+    // El círculo va en la misma línea que el asignado.
+    const avatar = within(card).getByRole('img', { name: 'Luis' });
+    expect(avatar.textContent).toBe('LU');
+    expect(avatar.parentElement!.textContent).toContain('Luis');
+    const priority = within(card).getByLabelText('Prioridad Importante');
+    expect(priority.textContent).toBe('⌃ Importante');
+    expect(priority.getAttribute('data-paint')).toBe('gold');
+    // La prioridad es la última línea.
+    expect(card.lastElementChild).toBe(priority);
+  });
+
+  it('JR-41: una prioridad que el tablero no tiene se ve en gris, y sin prioridad no hay línea', async () => {
+    await openBoard();
+    const trivial = within(within(column('Testing')).getByRole('listitem', { name: 'PB-2' })).getByLabelText('Prioridad Trivial');
+    expect(trivial.getAttribute('data-paint')).toBe('gray');
+    const none = within(column('To do')).getByRole('listitem', { name: 'PB-3' });
+    expect(within(none).queryByLabelText(/^Prioridad/)).toBeNull();
+    expect(within(none).getByRole('img', { name: 'Sin asignar' }).textContent).toBe('?');
+  });
+
+  it('JR-45: cada persona tiene su color, el mismo en todas sus tarjetas', async () => {
+    await openBoard();
+    const colorOf = (key: string, name: string) =>
+      (within(screen.getByRole('listitem', { name: key })).getByRole('img', { name }) as HTMLElement).style.background;
+    expect(colorOf('PA-7', 'Ana')).not.toBe('');
+    expect(colorOf('PA-7', 'Ana')).toBe(colorOf('PB-2', 'Ana'));
+    expect(colorOf('PA-5', 'Luis')).toBe(colorOf('PA-6', 'Luis'));
+    expect(colorOf('PA-7', 'Ana')).not.toBe(colorOf('PA-5', 'Luis'));
+  });
+
+  it('JR-45: las iniciales', () => {
+    expect(initials('John Doe')).toBe('JD');
+    expect(initials('Ana')).toBe('AN');
+    expect(initials('  josé   álvarez pérez ')).toBe('JÁ');
+    expect(initials('(Ext) María López')).toBe('EM');
+    expect(initials('')).toBe('?');
+  });
+
+  it('JR-45: colores distintos hasta 18 personas, estables y que no dependen del orden', () => {
+    const people = Array.from({ length: HUES }, (_, i) => `Persona ${i}`);
+    const colors = assigneeColors(people);
+    expect(new Set(colors.values()).size).toBe(HUES);
+    const reversed = assigneeColors([...people].reverse());
+    for (const name of people) expect(reversed.get(name)).toBe(colors.get(name));
+    expect(assigneeColors(['Ana', 'Luis', 'Ana']).size).toBe(2);
+    expect(assigneeColors([...people, 'Una más']).size).toBe(HUES + 1);
+  });
+
+  it('JR-18 JR-45: el texto oscuro del tema se lee sobre cada color de la paleta y cada tono (AA)', () => {
+    const dark = themeVariable('accent-text');
+    for (const color of PALETTE) {
+      expect(contrast(dark, themeVariable(COLOR_VARIABLES[color])), color).toBeGreaterThanOrEqual(4.5);
+    }
+    for (let slot = 0; slot < HUES; slot++) {
+      expect(contrast(dark, hueColor(slot)), `tono ${slot}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('JR-33 JR-37: colores iniciales de los estados y de las prioridades', () => {
+    expect(categoryColor('new')).toBe('gray');
+    expect(categoryColor('indeterminate')).toBe('blue');
+    expect(categoryColor('done')).toBe('green');
+    expect(nextPriorityColor([])).toBe('red');
+    expect(nextPriorityColor(['red', 'orange'])).toBe('gold');
+    expect(nextPriorityColor([...PALETTE])).toBe('gray');
+  });
+});
+
 describe('JR-42 JR-43 filas y filtro', () => {
   it('JR-42: agrupar por proyecto y por asignado, con «Sin asignar» la última', async () => {
     await openBoard();
@@ -385,13 +531,14 @@ describe('JR-32 a JR-36 configurar tableros', () => {
         { name: 'En curso', statuses: [] },
         { name: 'Hecho', statuses: [ref('PB', '20005')] },
       ],
+      priorities: [],
     });
     expect(currentPath()).toBe('/boards');
     expect(notices).toContain('Tablero «Nuevo» guardado.');
   });
 
   it('JR-15 JR-34: quitar un proyecto quita sus estados, y un estado que Jira ya no tiene se marca', async () => {
-    backend.boards = [{ ...EXAMPLE, columns: [...EXAMPLE.columns.slice(0, 3), { name: 'Closed', statuses: [{ project: 'PB', id: '29999', name: 'borrado' }] }] }];
+    backend.boards = [{ ...EXAMPLE, columns: [...EXAMPLE.columns.slice(0, 3), { name: 'Closed', statuses: [{ project: 'PB', id: '29999', name: 'borrado', color: 'gray' }] }] }];
     render(<Harness start="/boards/1" />);
     await screen.findByRole('form', { name: 'Editar Equipo' });
     expect(await screen.findByText(/Ya no existe en Jira/)).toBeTruthy();
@@ -403,6 +550,64 @@ describe('JR-32 a JR-36 configurar tableros', () => {
     const body = put.body as Omit<Board, 'id'>;
     expect(body.projects).toEqual(['PA']);
     expect(body.columns.flatMap((c) => c.statuses).every((s) => s.project === 'PA')).toBe(true);
+  });
+
+  it('JR-33 JR-37: elige el color de cada estado y las prioridades del tablero con su color', async () => {
+    render(<Harness start="/boards/new" />);
+    await screen.findByRole('form', { name: 'Nuevo tablero' });
+    fireEvent.change(field('Nombre'), { target: { value: 'Colores' } });
+    fireEvent.change(field('Buscar proyectos'), { target: { value: 'PA' } });
+    await act(async () => {
+      fireEvent.click(button('Buscar'));
+    });
+    await act(async () => {
+      fireEvent.click(button('Añadir PA'));
+    });
+    await screen.findAllByRole('option', { name: 'start (PA)' });
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Añadir estado a Por hacer' }), { target: { value: 'PA/10001' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Añadir estado a En curso' }), { target: { value: 'PA/10002' } });
+    // JR-33: toman el color de su categoría.
+    const startColor = screen.getByRole('combobox', { name: 'Color de start de PA' }) as HTMLSelectElement;
+    expect(startColor.value).toBe('gray');
+    expect((screen.getByRole('combobox', { name: 'Color de doing de PA' }) as HTMLSelectElement).value).toBe('blue');
+    fireEvent.change(startColor, { target: { value: 'red' } });
+    expect(screen.getByText('start', { selector: 'span' }).getAttribute('data-paint')).toBe('red');
+
+    // JR-37: las prioridades nuevas toman rojo, naranja… y su color se cambia.
+    const add = await screen.findByRole('combobox', { name: 'Añadir prioridad' });
+    fireEvent.change(add, { target: { value: '1' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Añadir prioridad' }), { target: { value: '2' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Añadir prioridad' }), { target: { value: '4' } });
+    expect(within(screen.getByRole('combobox', { name: 'Añadir prioridad' })).queryByRole('option', { name: 'Crítica' })).toBeNull();
+    expect((screen.getByRole('combobox', { name: 'Color de Crítica' }) as HTMLSelectElement).value).toBe('orange');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Color de Crítica' }), { target: { value: 'violet' } });
+    fireEvent.click(button('Quitar la prioridad Supone un impedimento'));
+
+    await act(async () => {
+      fireEvent.click(button('Guardar'));
+    });
+    const [post] = server.callsTo('POST', `${BASE}/boards`);
+    expect(post.body).toEqual({
+      name: 'Colores',
+      projects: ['PA'],
+      columns: [
+        { name: 'Por hacer', statuses: [ref('PA', '10001', 'red')] },
+        { name: 'En curso', statuses: [ref('PA', '10002', 'blue')] },
+        { name: 'Hecho', statuses: [] },
+      ],
+      priorities: [
+        { id: '2', name: 'Crítica', color: 'violet' },
+        { id: '4', name: 'Trivial', color: 'gold' },
+      ],
+    });
+  });
+
+  it('JR-37: una prioridad guardada que Jira ya no tiene se marca', async () => {
+    backend.boards = [{ ...EXAMPLE, priorities: [{ id: '99', name: 'Borrada', color: 'red' }] }];
+    render(<Harness start="/boards/1" />);
+    const list = await screen.findByRole('list', { name: 'Prioridades del tablero' });
+    expect(await within(list).findByText('Ya no existe en Jira')).toBeTruthy();
   });
 
   it('JR-36: salir del editor con cambios sin guardar pide confirmación', async () => {

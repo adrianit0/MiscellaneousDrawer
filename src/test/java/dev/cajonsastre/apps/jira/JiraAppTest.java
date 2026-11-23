@@ -400,7 +400,137 @@ class JiraAppTest {
         create(emptyColumn);
     }
 
+    /** El tablero del ejemplo con colores en sus estados y las prioridades del usuario (ADR-0028). */
+    private static ObjectNode colorfulBoard(String name) {
+        ObjectNode b = exampleBoard(name);
+        b.get("columns").forEach(c -> c.get("statuses").forEach(st -> ((ObjectNode) st).put("color", "blue")));
+        ((ObjectNode) b.get("columns").get(2).get("statuses").get(1)).put("color", "violet");
+        b.putArray("priorities")
+                .add(priority("1", "Supone un impedimento", "red"))
+                .add(priority("2", "Crítica", "orange"))
+                .add(priority("3", "Importante", "gold"));
+        return b;
+    }
+
+    private static ObjectNode priority(String id, String name, String color) {
+        return JSON.createObjectNode().put("id", id).put("name", name).put("color", color);
+    }
+
+    @Test
+    void jr17_jr18_status_colors_and_priorities_are_saved_with_the_board() {
+        long id = create(colorfulBoard("Equipo"));
+        stop();
+        start();
+        JsonNode board = TestApi.json(api.get(BASE + "/boards")).get("boards").get(0);
+        assertThat(board.get("id").asLong()).isEqualTo(id);
+        assertThat(board.get("columns").get(2).get("statuses")).extracting(st -> st.get("color").asText())
+                .containsExactly("blue", "violet");
+        assertThat(board.get("priorities")).extracting(pr -> pr.get("id").asText() + " " + pr.get("name").asText()
+                + " " + pr.get("color").asText())
+                .containsExactly("1 Supone un impedimento red", "2 Crítica orange", "3 Importante gold");
+        assertThat(jira.requests).isEmpty();
+    }
+
+    @Test
+    void jr17_jr18_colors_outside_the_palette_and_bad_priorities_are_rejected() {
+        ObjectNode badStatusColor = colorfulBoard("A");
+        ((ObjectNode) badStatusColor.get("columns").get(0).get("statuses").get(0)).put("color", "#ff0000");
+        assertInvalidBoard(badStatusColor, "columns");
+        ObjectNode badPriorityColor = colorfulBoard("B");
+        ((ArrayNode) badPriorityColor.get("priorities")).add(priority("4", "Trivial", "pink"));
+        assertInvalidBoard(badPriorityColor, "priorities");
+        ObjectNode repeated = colorfulBoard("C");
+        ((ArrayNode) repeated.get("priorities")).add(priority("1", "Otra vez", "gray"));
+        assertInvalidBoard(repeated, "priorities");
+        ObjectNode badId = colorfulBoard("D");
+        ((ArrayNode) badId.get("priorities")).add(priority("1) OR (1", "Rara", "gray"));
+        assertInvalidBoard(badId, "priorities");
+        ObjectNode noName = colorfulBoard("E");
+        ((ArrayNode) noName.get("priorities")).add(priority("9", " ", "gray"));
+        assertInvalidBoard(noName, "priorities");
+        ObjectNode many = colorfulBoard("F");
+        ArrayNode list = many.putArray("priorities");
+        for (int i = 1; i <= 21; i++) {
+            list.add(priority(String.valueOf(i), "P" + i, "gray"));
+        }
+        assertInvalidBoard(many, "priorities");
+        ObjectNode notList = colorfulBoard("G");
+        notList.put("priorities", "Importante");
+        assertInvalidBoard(notList, "priorities");
+
+        // Veinte valen, y un color null es el gris.
+        list.remove(20);
+        ((ObjectNode) many.get("columns").get(0).get("statuses").get(0)).putNull("color");
+        create(many);
+        JsonNode saved = TestApi.json(api.get(BASE + "/boards")).get("boards").get(0);
+        assertThat(saved.get("priorities")).hasSize(20);
+        assertThat(saved.get("columns").get(0).get("statuses").get(0).get("color").asText()).isEqualTo("gray");
+    }
+
+    @Test
+    void jr18_a_board_saved_before_colors_and_priorities_reads_in_gray_and_without_priorities() throws Exception {
+        // La definición tal como la guardaba el sprint 13.
+        JsonNode stored = JSON.readTree("""
+                {"name": "Antiguo", "projects": ["PA"],
+                 "columns": [{"name": "To do", "statuses": [{"project": "PA", "id": "10001", "name": "start"}]},
+                             {"name": "Closed", "statuses": [{"project": "PA", "id": "10004", "name": "finished"}]}]}
+                """);
+        Board board = Board.from(7, stored);
+        assertThat(board.columns()).allSatisfy(c -> assertThat(c.statuses())
+                .allSatisfy(st -> assertThat(st.color()).isEqualTo("gray")));
+        assertThat(board.priorities()).isEmpty();
+        assertThat(board.view().get("priorities")).isEqualTo(List.of());
+    }
+
+    @Test
+    void jr19_priorities_are_listed_in_pages_in_jiras_order() {
+        assertError(api.get(BASE + "/priorities"), 409, "not_configured");
+        assertThat(jira.requests).isEmpty();
+        save(config());
+        for (int i = 1; i <= 60; i++) {
+            jira.priorities.put(String.valueOf(1000 - i), "Prioridad " + i);
+        }
+        jira.priorities.put("no-es-un-id", "Rara");
+        JsonNode list = TestApi.json(api.get(BASE + "/priorities")).get("priorities");
+        assertThat(list).hasSize(60);
+        assertThat(list.get(0).get("id").asText()).isEqualTo("999");
+        assertThat(list.get(0).get("name").asText()).isEqualTo("Prioridad 1");
+        assertThat(list.get(59).get("name").asText()).isEqualTo("Prioridad 60");
+        assertThat(jira.requests).extracting(r -> r.uri().getPath()).containsOnly("/rest/api/3/priority/search");
+        assertThat(jira.requests).extracting(r -> r.query().get("startAt")).containsExactly("0", "50");
+        assertThat(jira.requests).allSatisfy(r -> assertThat(r.query().get("maxResults")).isEqualTo("50"));
+    }
+
     // --- Tickets ---
+
+    @Test
+    void jr20_each_ticket_has_its_status_color_and_its_priority_with_the_boards_color() {
+        save(config());
+        example();
+        jira.priorities.put("1", "Supone un impedimento");
+        jira.priorities.put("3", "Importante");
+        jira.priorities.put("4", "Trivial");
+        jira.issue("PA-6", "PA", TESTING.id(), "Validar importación", "Luis", Duration.ofHours(1));
+        jira.issue("PB-2", "PB", TESTING.id(), "Exportar a CSV", "Ana", Duration.ofHours(2));
+        jira.issue("PB-3", "PB", TESTING.id(), "Sin prioridad", null, Duration.ofHours(3));
+        jira.issuePriority.put("PA-6", "3");
+        jira.issuePriority.put("PB-2", "4");
+        long id = create(colorfulBoard("Equipo"));
+
+        JsonNode testing = issues(id).get("columns").get(2).get("issues");
+        assertThat(FakeJira.keys(testing)).containsExactly("PA-6", "PB-2", "PB-3");
+        // El mismo estado tiene el color de su par: azul en PA y violeta en PB.
+        assertThat(testing).extracting(i -> i.get("statusColor").asText()).containsExactly("blue", "violet", "violet");
+        JsonNode configured = testing.get(0).get("priority");
+        assertThat(configured.get("id").asText()).isEqualTo("3");
+        assertThat(configured.get("name").asText()).isEqualTo("Importante");
+        assertThat(configured.get("color").asText()).isEqualTo("gold");
+        // Trivial no está en el tablero: llega con su nombre y sin color.
+        JsonNode unconfigured = testing.get(1).get("priority");
+        assertThat(unconfigured.get("name").asText()).isEqualTo("Trivial");
+        assertThat(unconfigured.get("color").isNull()).isTrue();
+        assertThat(testing.get(2).get("priority").isNull()).isTrue();
+    }
 
     @Test
     void jr20_jr21_jr22_the_example_board_puts_each_ticket_in_its_column() {
@@ -443,7 +573,7 @@ class JiraAppTest {
                         + " OR (project = \"PB\" AND (status in (20001, 20002, 20003, 10003) OR (status in (20005) AND updated >= -14d)))"
                         + " ORDER BY updated DESC");
         assertThat(search.json().get("fields")).extracting(JsonNode::asText)
-                .containsExactly("summary", "status", "assignee", "project", "updated");
+                .containsExactly("summary", "status", "assignee", "project", "priority", "updated");
         assertThat(search.json().get("maxResults").asInt()).isEqualTo(100);
     }
 
@@ -547,6 +677,7 @@ class JiraAppTest {
             api.post(BASE + "/connection/test", "");
             api.get(BASE + "/projects?query=P");
             api.get(BASE + "/projects/PA/statuses");
+            api.get(BASE + "/priorities");
             issues(id);
         } finally {
             logger.detachAppender(logged);

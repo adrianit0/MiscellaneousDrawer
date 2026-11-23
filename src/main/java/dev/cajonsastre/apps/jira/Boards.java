@@ -49,7 +49,7 @@ final class Boards {
             }
             requireUniqueName(m, board.name(), 0);
             m.insert(board.name(), definition, clock.instant().toString());
-            return new Board(m.lastId(), board.name(), board.projects(), board.columns());
+            return new Board(m.lastId(), board.name(), board.projects(), board.columns(), board.priorities());
         });
     }
 

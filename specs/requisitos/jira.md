@@ -1,6 +1,6 @@
 # Requisitos de «Tableros Jira»
 
-La mini app «Tableros Jira» (`jira`) muestra tableros propios sobre varios proyectos de Jira Cloud a la vez. Cada tablero tiene sus columnas, y en cada columna el usuario pone los estados de cada proyecto que le corresponden, aunque los proyectos tengan flujos distintos. Solo lee de Jira: no cambia nada. Las decisiones están en [ADR-0027](../decisiones/ADR-0027-mini-app-tableros-jira.md).
+La mini app «Tableros Jira» (`jira`) muestra tableros propios sobre varios proyectos de Jira Cloud a la vez. Cada tablero tiene sus columnas, y en cada columna el usuario pone los estados de cada proyecto que le corresponden, aunque los proyectos tengan flujos distintos. Solo lee de Jira: no cambia nada. Las decisiones están en [ADR-0027](../decisiones/ADR-0027-mini-app-tableros-jira.md) y, para los colores y las prioridades, en [ADR-0028](../decisiones/ADR-0028-colores-y-prioridades-en-tableros-jira.md).
 
 La conexión (sitio, email y token) se escribe en la mini app: no está en el código ni en el repositorio (S-30, S-32). Los ejemplos usan marcadores. Prefijo de requisitos: **JR**.
 
@@ -8,7 +8,9 @@ Términos:
 
 - **Sitio**: la URL de Jira Cloud de la empresa, `https://<sitio>.atlassian.net`.
 - **Estado**: un estado de Jira de un proyecto concreto, por su identificador. Dos proyectos pueden tener estados con el mismo nombre y distinto identificador.
-- **Tablero**: un nombre, sus proyectos, sus columnas en orden y, en cada columna, sus estados.
+- **Tablero**: un nombre, sus proyectos, sus columnas en orden y, en cada columna, sus estados con su color; y sus prioridades con su color.
+- **Prioridad**: una prioridad de Jira, por su identificador. Los nombres dependen de cada sitio de Jira.
+- **Paleta**: los colores que se pueden elegir (JR-18).
 - **Columna final**: la última columna del tablero, la de los tickets cerrados.
 
 ## Conexión
@@ -29,29 +31,32 @@ Términos:
 | Email | `email` | El email de la cuenta de Atlassian: hasta 254 caracteres, con una `@` y sin espacios |
 | Token | `token` | Un token de API clásico de Atlassian: 1 a 500 caracteres visibles, sin espacios |
 
-## Proyectos y estados
+## Proyectos, estados y prioridades
 
 | ID | Requisito |
 |---|---|
 | JR-10 | `GET /projects?query=<texto>` pide `GET <sitio>/rest/api/3/project/search?query=<texto>&orderBy=key&maxResults=50&startAt=<n>`, hasta 200 proyectos, y devuelve de cada uno su clave (`key`) y su nombre (`name`). |
 | JR-11 | `GET /projects/<clave>/statuses` pide `GET <sitio>/rest/api/3/project/<clave>/statuses` y devuelve los estados del proyecto, sin repetir los que comparten sus tipos de incidencia: identificador (`id`), nombre (`name`) y categoría de Jira (`category`: `new`, `indeterminate` o `done`). Una clave que no cumple JR-12 responde 400 sin contactar con Jira. |
 | JR-12 | Una clave de proyecto empieza por una letra mayúscula y sigue con mayúsculas, números o `_`, de 2 a 20 caracteres. Un identificador de estado son de 1 a 18 cifras. Así ningún valor guardado puede cambiar el JQL de JR-21. |
+| JR-19 | `GET /priorities` pide `GET <sitio>/rest/api/3/priority/search?maxResults=50&startAt=<n>`, hasta 200 prioridades, y las devuelve en el orden de Jira con su identificador (`id`, de 1 a 18 cifras) y su nombre (`name`). Las que no tienen un identificador así no se devuelven. |
 
 ## Tableros
 
 | ID | Requisito |
 |---|---|
 | JR-13 | Los tableros se guardan en la base de la mini app (P-08, «Datos»). Puede haber hasta 20; la mini app nace sin ninguno. Crear el 21.º responde 409 `too_many_boards`. |
-| JR-14 | Un tablero tiene un nombre de 1 a 60 caracteres sin repetir (sin distinguir mayúsculas), de 1 a 10 proyectos distintos y de 1 a 12 columnas. Cada columna tiene un nombre de 1 a 40 caracteres sin repetir en el tablero y de 0 a 100 estados. Cada estado es un par proyecto-identificador (JR-12) de un proyecto del tablero, y un mismo par está como mucho en una columna. Guardar algo que no cumple esto responde 400 `invalid_board` con `details.field`. |
+| JR-14 | Un tablero tiene un nombre de 1 a 60 caracteres sin repetir (sin distinguir mayúsculas), de 1 a 10 proyectos distintos y de 1 a 12 columnas. Cada columna tiene un nombre de 1 a 40 caracteres sin repetir en el tablero y de 0 a 100 estados. Cada estado es un par proyecto-identificador (JR-12) de un proyecto del tablero, con un color de la paleta (JR-18), y un mismo par está como mucho en una columna. Tiene además de 0 a 20 prioridades (JR-17). Guardar algo que no cumple esto responde 400 `invalid_board` con `details.field`. |
 | JR-15 | Guardar un tablero no contacta con Jira: se guarda lo que manda la interfaz, con el nombre de cada estado tal como lo vio para mostrarlo si Jira deja de tenerlo. Quitar un proyecto del tablero quita sus estados de las columnas. |
 | JR-16 | Borrar un tablero pide confirmación en la interfaz y no se puede deshacer. El orden de los tableros es el de creación. |
+| JR-17 | Cada tablero tiene sus propias prioridades, de 0 a 20: cada una con su identificador de Jira (1 a 18 cifras, sin repetir), su nombre tal como lo vio la interfaz (1 a 255 caracteres) y un color de la paleta. Se guardan con el tablero y en el orden en que se añadieron. |
+| JR-18 | La paleta tiene ocho colores, por su clave: `gray`, `blue`, `green`, `violet`, `orange`, `cyan`, `gold` y `red`. Cada uno es una variable del tema (`--text-muted`, los seis colores de mini app y `--error`), y el texto oscuro del tema (`--accent-text`) se lee sobre todos con contraste AA. Un color que no es de la paleta responde 400 `invalid_board`; uno que falta o es `null` es `gray`, así los tableros guardados antes de JR-18 siguen valiendo. |
 
 ## Tickets
 
 | ID | Requisito |
 |---|---|
-| JR-20 | `GET /boards/<id>/issues` pide primero los estados de cada proyecto del tablero (JR-11; un proyecto que responde 404 no tiene ninguno), consulta los tickets y devuelve el tablero con sus columnas en orden y, en cada una, sus tickets, del actualizado más recientemente al más antiguo. De cada ticket: clave (`key`), resumen (`summary`), proyecto (`project`), estado (`status`, el nombre actual en Jira), asignado (`assignee`, su nombre visible, o `null`) y fecha de actualización (`updated`). Responde también la fecha de la consulta (`fetchedAt`), si hay más tickets de los devueltos (`truncated`) y los estados guardados que Jira ya no tiene (`missingStatuses`, con su proyecto, su identificador, su nombre guardado y su columna), que no entran en la consulta. |
-| JR-21 | La consulta es `POST <sitio>/rest/api/3/search/jql` con `fields: ["summary", "status", "assignee", "project", "updated"]`, `maxResults: 100`, siguiendo `nextPageToken`, y un JQL armado por el servidor solo con los valores de JR-12: por cada proyecto con algún estado en columnas, `(project = "<clave>" AND (status in (<sus estados de las demás columnas>) OR (status in (<sus estados de la columna final>) AND updated >= -14d)))`, unidos con `OR` y seguidos de `ORDER BY updated DESC`. Va por proyecto porque un mismo identificador de estado puede estar en dos proyectos y en columnas distintas. Si una de las dos listas de un proyecto está vacía, su parte no se incluye; si ningún proyecto tiene estados, no se consulta y el tablero sale vacío. |
+| JR-20 | `GET /boards/<id>/issues` pide primero los estados de cada proyecto del tablero (JR-11; un proyecto que responde 404 no tiene ninguno), consulta los tickets y devuelve el tablero con sus columnas en orden y, en cada una, sus tickets, del actualizado más recientemente al más antiguo. De cada ticket: clave (`key`), resumen (`summary`), proyecto (`project`), estado (`status`, el nombre actual en Jira), color del estado (`statusColor`, el de su par en el tablero), asignado (`assignee`, su nombre visible, o `null`), prioridad (`priority`: su `id`, su nombre actual en Jira como `name` y su `color` en el tablero, que es `null` si el tablero no tiene esa prioridad; o `null` si el ticket no tiene prioridad) y fecha de actualización (`updated`). Responde también la fecha de la consulta (`fetchedAt`), si hay más tickets de los devueltos (`truncated`) y los estados guardados que Jira ya no tiene (`missingStatuses`, con su proyecto, su identificador, su nombre guardado y su columna), que no entran en la consulta. |
+| JR-21 | La consulta es `POST <sitio>/rest/api/3/search/jql` con `fields: ["summary", "status", "assignee", "project", "priority", "updated"]`, `maxResults: 100`, siguiendo `nextPageToken`, y un JQL armado por el servidor solo con los valores de JR-12: por cada proyecto con algún estado en columnas, `(project = "<clave>" AND (status in (<sus estados de las demás columnas>) OR (status in (<sus estados de la columna final>) AND updated >= -14d)))`, unidos con `OR` y seguidos de `ORDER BY updated DESC`. Va por proyecto porque un mismo identificador de estado puede estar en dos proyectos y en columnas distintas. Si una de las dos listas de un proyecto está vacía, su parte no se incluye; si ningún proyecto tiene estados, no se consulta y el tablero sale vacío. |
 | JR-22 | Un ticket se coloca en la columna que tiene el par de su proyecto y su estado. Un ticket cuyo par no está en ninguna columna no se muestra. |
 | JR-23 | Como mucho se leen 1000 tickets por tablero. Si Jira tiene más, se devuelven los 1000 más recientes con `truncated: true`. |
 | JR-24 | Las consultas son solo de lectura: la mini app solo usa `GET` y `POST /rest/api/3/search/jql`, que no cambia nada en Jira (constitución, principio 4; ADR-0027). |
@@ -64,19 +69,21 @@ Términos:
 | JR-30 | La mini app tiene tres secciones: «Tableros», «Configurar tableros» y «Conexión». Mientras falte algún campo de la conexión abre en «Conexión» y lo dice; con la conexión completa y sin tableros, abre en «Configurar tableros» con «Crea tu primer tablero». |
 | JR-31 | «Conexión» muestra los campos de JR-02, «Guardar» y «Probar conexión», y explica dónde se crea el token (`id.atlassian.com`, «Tokens de API»). El token no se muestra nunca: si hay uno guardado, el campo lo dice y dejarlo vacío lo conserva. Un error de formato se muestra junto a su campo. |
 | JR-32 | «Configurar tableros» lista los tableros con «Nuevo tablero», «Editar» y «Borrar». El editor tiene el nombre, los proyectos (con un buscador sobre JR-10) y las columnas, que se añaden, se renombran, se reordenan con «Subir» y «Bajar» y se quitan. |
-| JR-33 | En el editor, cada columna muestra sus estados agrupados por proyecto con su categoría de Jira; se añaden eligiendo de los estados de los proyectos del tablero (JR-11) que no están en otra columna, y se quitan. Un estado puede estar en varios proyectos con el mismo nombre: se elige por proyecto. |
+| JR-33 | En el editor, cada columna muestra sus estados agrupados por proyecto con su categoría de Jira; se añaden eligiendo de los estados de los proyectos del tablero (JR-11) que no están en otra columna, y se quitan. Un estado puede estar en varios proyectos con el mismo nombre: se elige por proyecto. Cada estado de una columna tiene un selector «Color» con la paleta (JR-18) y se ve con su color; al añadirlo toma el de su categoría: `gray` si es `new`, `blue` si es `indeterminate` y `green` si es `done`. |
 | JR-34 | El editor muestra aparte «Estados sin columna»: los de los proyectos del tablero que no están en ninguna. Sus tickets no se verán en el tablero. También marca los estados guardados que Jira ya no tiene. |
 | JR-35 | El editor dice que la última columna es la de cerrados y que solo muestra los tickets actualizados en los últimos 14 días. |
 | JR-36 | Salir del editor con cambios sin guardar pide confirmación, como en «Base de datos» (BD-67, ADR-0015). |
+| JR-37 | El editor tiene una sección «Prioridades» con las del tablero (JR-17), cada una con su selector «Color» y «Quitar». «Añadir prioridad» elige de las de Jira (JR-19) que el tablero no tiene. Una prioridad nueva toma el primer color de `red`, `orange`, `gold`, `blue`, `cyan`, `violet`, `green` y `gray` que no usa otra del tablero, o `gray` si se usan todos. Si Jira ya no tiene una prioridad guardada, se marca como en JR-34. |
 | JR-40 | «Tableros» muestra un selector con los tableros y el elegido, que se recuerda (`useAppState`). Lo consulta (JR-20) al abrirse, al cambiar de tablero y al pulsar «Actualizar», y muestra la hora de la última consulta. Oculta, no consulta (N-05). |
-| JR-41 | Cada columna muestra su nombre y su número de tickets. Cada ticket es una tarjeta con la clave, el resumen, el asignado («Sin asignar» si no tiene) y el estado de Jira. La clave enlaza a `<sitio>/browse/<clave>`, que se abre en el Chrome habitual (C-16). |
+| JR-41 | Cada columna muestra su nombre y su número de tickets. Cada ticket es una tarjeta de cuatro líneas: la clave y, a la derecha, el estado de Jira como etiqueta rellena de su color (`statusColor`) con el texto oscuro del tema; el resumen; el asignado («Sin asignar» si no tiene) y, a la derecha, su círculo (JR-45); y la prioridad con un icono `⌃` y su nombre, del color de la prioridad en el tablero o `gray` si el tablero no la tiene. Un ticket sin prioridad no tiene la cuarta línea. La clave enlaza a `<sitio>/browse/<clave>`, que se abre en el Chrome habitual (C-16). |
 | JR-42 | Un selector «Agrupar por» con «Nada», «Proyecto» y «Asignado» reparte los tickets en filas horizontales con las mismas columnas; cada fila dice su nombre y su número de tickets. «Sin asignar» va la última. La elección se recuerda por tablero (`useAppState`). |
 | JR-43 | Un filtro de texto oculta los tickets cuya clave, resumen o asignado no contienen el texto, sin distinguir mayúsculas ni acentos, sin volver a consultar Jira. |
 | JR-44 | Mientras consulta se ve que está cargando y se conserva lo anterior. Un error se muestra con su mensaje (JR-07) y «Reintentar». Con `truncated` dice «Se muestran los 1000 tickets más recientes». Con `missingStatuses` dice qué estados ya no existen en Jira y lleva al editor. |
+| JR-45 | El círculo del asignado lleva sus iniciales en mayúsculas: la primera letra de las dos primeras palabras de su nombre, o las dos primeras letras si tiene una sola. Su fondo es un color propio de la persona: uno de 18 tonos separados 20°, con la saturación y la luminosidad fijas para que el texto oscuro del tema se lea con contraste AA. El tono sale del nombre, así que la misma persona tiene el mismo color en cada consulta; si en el tablero dos personas sacan el mismo tono, la que va después por orden alfabético toma el siguiente libre. Con más de 18 personas en el tablero los tonos se repiten. «Sin asignar» lleva un círculo gris con «?». El círculo tiene el nombre completo como texto alternativo. |
 
 ## Datos
 
-La base de la mini app (`<datos>/apps/jira/data.db`, P-08) tiene una tabla, `board`: identificador, nombre, `definition` (los proyectos y las columnas con sus estados, en JSON) y las fechas de creación y de cambio. La migración es `db/apps/jira/V001__initial.sql`. La conexión no va en la base sino en su fichero privado (JR-01), y los tickets no se guardan: se piden a Jira cada vez.
+La base de la mini app (`<datos>/apps/jira/data.db`, P-08) tiene una tabla, `board`: identificador, nombre, `definition` (los proyectos, las columnas con sus estados y sus colores, y las prioridades con sus colores, en JSON; una definición sin colores ni prioridades se lee con `gray` y sin prioridades, JR-18) y las fechas de creación y de cambio. La migración es `db/apps/jira/V001__initial.sql`. La conexión no va en la base sino en su fichero privado (JR-01), y los tickets no se guardan: se piden a Jira cada vez.
 
 ## API
 
@@ -89,6 +96,7 @@ Todas las rutas cuelgan de `/api/apps/jira` (P-06) y siguen A-01 a A-03.
 | POST | /connection/test | Prueba la conexión (JR-06). 409 `not_configured`, 502 `jira_error` o `jira_unreachable` |
 | GET | /projects?query= | Proyectos de Jira (JR-10). 409, 502 |
 | GET | /projects/{key}/statuses | Estados de un proyecto (JR-11). 400 `invalid_project`, 409, 502 |
+| GET | /priorities | Prioridades de Jira (JR-19). 409, 502 |
 | GET | /boards | `{"boards": […]}`: los tableros con su configuración (JR-13) |
 | POST | /boards | Crea un tablero. 201; 400 `invalid_board`, 409 `too_many_boards` (JR-13) |
 | PUT | /boards/{id} | Sustituye un tablero. 400 `invalid_board`, 404 `not_found` |
@@ -101,4 +109,5 @@ Todas las rutas cuelgan de `/api/apps/jira` (P-06) y siguen A-01 a A-03.
 - Jira Server o Data Center, y los tokens de API con ámbitos (que usan `api.atlassian.com`).
 - JQL escrito por el usuario, filtros guardados de Jira y sprints.
 - Sondeo periódico, notificaciones y consolas: la mini app no tiene trabajos largos.
-- Otros campos del ticket (prioridad, tipo, épica, puntos) y su detalle dentro de la mini app.
+- Otros campos del ticket (tipo, épica, puntos) y su detalle dentro de la mini app.
+- Ordenar o filtrar por prioridad, colorear las columnas y los iconos de prioridad de Jira (ADR-0028).

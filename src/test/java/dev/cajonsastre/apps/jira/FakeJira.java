@@ -72,6 +72,10 @@ final class FakeJira implements Transport {
     final Map<String, List<List<Status>>> statuses = new LinkedHashMap<>();
     /** Del actualizado más recientemente al más antiguo. */
     final List<Issue> issues = new CopyOnWriteArrayList<>();
+    /** JR-19: las prioridades del sitio, por identificador, en orden. */
+    final Map<String, String> priorities = new LinkedHashMap<>();
+    /** JR-20: la prioridad de cada ticket, por su clave; el que no está no tiene prioridad. */
+    final Map<String, String> issuePriority = new HashMap<>();
     volatile boolean offline;
     /** Si no es null, la respuesta a todas las llamadas. */
     volatile Reply forced;
@@ -131,6 +135,9 @@ final class FakeJira implements Transport {
             }
             return ok(out);
         }
+        if (method.equals("GET") && tail.equals("/priority/search")) {
+            return prioritySearch(request.query());
+        }
         if (method.equals("POST") && tail.equals("/search/jql")) {
             return search(request.json());
         }
@@ -147,6 +154,17 @@ final class FakeJira implements Transport {
         ArrayNode values = page.putArray("values");
         matching.stream().skip(start).limit(max).forEach(e -> values.addObject().put("key", e.getKey()).put("name", e.getValue()));
         page.put("isLast", start + max >= matching.size());
+        return ok(page);
+    }
+
+    private Reply prioritySearch(Map<String, String> query) {
+        int start = Integer.parseInt(query.getOrDefault("startAt", "0"));
+        int max = Integer.parseInt(query.getOrDefault("maxResults", "50"));
+        ObjectNode page = JSON.createObjectNode();
+        ArrayNode values = page.putArray("values");
+        priorities.entrySet().stream().skip(start).limit(max).forEach(e -> values.addObject().put("id", e.getKey())
+                .put("name", e.getValue()).put("statusColor", "#ff0000").put("iconUrl", SITE + "/icon.svg"));
+        page.put("isLast", start + max >= priorities.size());
         return ok(page);
     }
 
@@ -193,6 +211,12 @@ final class FakeJira implements Transport {
                 f.putNull("assignee");
             } else {
                 f.putObject("assignee").put("displayName", i.assignee());
+            }
+            String priority = issuePriority.get(i.key());
+            if (priority == null) {
+                f.putNull("priority");
+            } else {
+                f.putObject("priority").put("id", priority).put("name", priorities.getOrDefault(priority, "?"));
             }
             f.put("updated", i.updated().toString());
         }

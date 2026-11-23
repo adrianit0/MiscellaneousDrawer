@@ -99,6 +99,12 @@ public final class JiraApp implements MiniApp {
             ctx.json(Map.of("statuses", jira.statuses(config, key)));
         });
 
+        // JR-19
+        routes.get("/priorities", ctx -> {
+            JiraConfig config = complete(configs);
+            ctx.json(Map.of("priorities", jira.priorities(config)));
+        });
+
         // JR-13 a JR-16
         routes.get("/boards", ctx -> ctx.json(Map.of("boards", boards.list().stream().map(Board::view).toList())));
         routes.post("/boards", ctx -> ctx.status(201).json(boards.create(body(ctx)).view()));
@@ -148,7 +154,7 @@ public final class JiraApp implements MiniApp {
         for (Map.Entry<Board.Column, List<Jira.Issue>> e : placed.entrySet()) {
             Map<String, Object> col = new LinkedHashMap<>();
             col.put("name", e.getKey().name());
-            col.put("issues", e.getValue().stream().map(JiraApp::view).toList());
+            col.put("issues", e.getValue().stream().map(i -> view(board, i)).toList());
             columns.add(col);
             shown += e.getValue().size();
         }
@@ -164,13 +170,26 @@ public final class JiraApp implements MiniApp {
         return out;
     }
 
-    private static Map<String, Object> view(Jira.Issue issue) {
+    /** JR-20: el ticket con el color de su par en el tablero y su prioridad con el color del tablero, si la tiene. */
+    private static Map<String, Object> view(Board board, Jira.Issue issue) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("key", issue.key());
         out.put("summary", issue.summary());
         out.put("project", issue.project());
         out.put("status", issue.status());
+        out.put("statusColor", board.columns().stream().flatMap(c -> c.statuses().stream())
+                .filter(s -> s.project().equals(issue.project()) && s.id().equals(issue.statusId()))
+                .map(Board.StatusRef::color).findFirst().orElse(Board.DEFAULT_COLOR));
         out.put("assignee", issue.assignee());
+        if (issue.priorityId() == null) {
+            out.put("priority", null);
+        } else {
+            Map<String, Object> priority = new LinkedHashMap<>();
+            priority.put("id", issue.priorityId());
+            priority.put("name", issue.priorityName());
+            priority.put("color", board.priority(issue.priorityId()).map(Board.Priority::color).orElse(null));
+            out.put("priority", priority);
+        }
         out.put("updated", issue.updated());
         return out;
     }

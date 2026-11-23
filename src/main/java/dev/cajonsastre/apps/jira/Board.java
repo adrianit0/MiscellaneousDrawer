@@ -10,17 +10,19 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
  * JR-14: un tablero, con sus proyectos y sus columnas en orden. Cada columna tiene pares proyecto-estado por
- * identificador, con el nombre que vio la interfaz para mostrarlo si Jira deja de tenerlo (JR-15).
+ * identificador, con el nombre que vio la interfaz para mostrarlo si Jira deja de tenerlo (JR-15) y su color (JR-18).
+ * El tablero tiene además sus prioridades con su color (JR-17).
  */
-record Board(long id, String name, List<String> projects, List<Column> columns) {
+record Board(long id, String name, List<String> projects, List<Column> columns, List<Priority> priorities) {
 
-    /** Un estado de un proyecto, por su identificador. */
-    record StatusRef(String project, String id, String name) {
+    /** Un estado de un proyecto, por su identificador, con su color de la paleta. */
+    record StatusRef(String project, String id, String name, String color) {
         String pair() {
             return project + "/" + id;
         }
@@ -28,6 +30,15 @@ record Board(long id, String name, List<String> projects, List<Column> columns) 
 
     record Column(String name, List<StatusRef> statuses) {
     }
+
+    /** JR-17: una prioridad de Jira, por su identificador, con su color de la paleta. */
+    record Priority(String id, String name, String color) {
+    }
+
+    /** JR-18: los colores que se pueden elegir. */
+    static final List<String> PALETTE = List.of("gray", "blue", "green", "violet", "orange", "cyan", "gold", "red");
+    /** JR-18: el color de lo que no tiene ninguno guardado. */
+    static final String DEFAULT_COLOR = "gray";
 
     /** JR-13 */
     static final int MAX_BOARDS = 20;
@@ -38,9 +49,13 @@ record Board(long id, String name, List<String> projects, List<Column> columns) 
     static final int MAX_COLUMN_NAME = 40;
     static final int MAX_STATUSES = 100;
     static final int MAX_STATUS_NAME = 255;
+    /** JR-17 */
+    static final int MAX_PRIORITIES = 20;
     /** JR-12: así ningún valor guardado puede cambiar el JQL. */
     static final Pattern PROJECT_KEY = Pattern.compile("[A-Z][A-Z0-9_]{1,19}");
     static final Pattern STATUS_ID = Pattern.compile("[0-9]{1,18}");
+    /** JR-17, JR-19 */
+    static final Pattern PRIORITY_ID = STATUS_ID;
 
     /** La columna final: la de los cerrados (JR-21). */
     Column last() {
@@ -112,7 +127,8 @@ record Board(long id, String name, List<String> projects, List<Column> columns) 
                 if (statusName == null || statusName.length() > MAX_STATUS_NAME) {
                     throw invalid("columns", "Un estado de «" + colName + "» no tiene nombre");
                 }
-                StatusRef ref = new StatusRef(project, statusId, statusName);
+                String color = color(st.get("color"), "columns", "Un estado de «" + colName + "» tiene un color que no es de la paleta");
+                StatusRef ref = new StatusRef(project, statusId, statusName, color);
                 if (!pairs.add(ref.pair())) {
                     throw invalid("columns", "El estado «" + statusName + "» de " + project + " está en más de una columna");
                 }
@@ -120,7 +136,51 @@ record Board(long id, String name, List<String> projects, List<Column> columns) 
             }
             columns.add(new Column(colName, List.copyOf(statuses)));
         }
-        return new Board(id, name, List.copyOf(projects), List.copyOf(columns));
+        return new Board(id, name, List.copyOf(projects), List.copyOf(columns), priorities(body.get("priorities")));
+    }
+
+    /** JR-17: las prioridades del tablero; si no vienen, ninguna (tableros guardados antes de JR-17). */
+    private static List<Priority> priorities(JsonNode p) {
+        if (p == null || p.isNull()) {
+            return List.of();
+        }
+        if (!p.isArray() || p.size() > MAX_PRIORITIES) {
+            throw invalid("priorities", "El tablero puede tener " + MAX_PRIORITIES + " prioridades como mucho");
+        }
+        List<Priority> out = new ArrayList<>();
+        Set<String> ids = new HashSet<>();
+        for (JsonNode n : p) {
+            String pid = n.isObject() ? text(n.get("id")) : null;
+            String pname = n.isObject() ? text(n.get("name")) : null;
+            if (pid == null || !PRIORITY_ID.matcher(pid).matches()) {
+                throw invalid("priorities", "Una prioridad no tiene un identificador válido");
+            }
+            if (pname == null || pname.length() > MAX_STATUS_NAME) {
+                throw invalid("priorities", "Una prioridad no tiene nombre");
+            }
+            if (!ids.add(pid)) {
+                throw invalid("priorities", "La prioridad «" + pname + "» está repetida");
+            }
+            out.add(new Priority(pid, pname, color(n.get("color"), "priorities",
+                    "La prioridad «" + pname + "» tiene un color que no es de la paleta")));
+        }
+        return List.copyOf(out);
+    }
+
+    /** JR-18: un color de la paleta; si falta o es null, el gris. */
+    private static String color(JsonNode node, String field, String message) {
+        if (node == null || node.isNull()) {
+            return DEFAULT_COLOR;
+        }
+        if (!node.isTextual() || !PALETTE.contains(node.asText())) {
+            throw invalid(field, message);
+        }
+        return node.asText();
+    }
+
+    /** JR-17: la prioridad del tablero con ese identificador, si la tiene. */
+    Optional<Priority> priority(String priorityId) {
+        return priorities.stream().filter(p -> p.id().equals(priorityId)).findFirst();
     }
 
     private static String text(JsonNode node) {
@@ -135,16 +195,19 @@ record Board(long id, String name, List<String> projects, List<Column> columns) 
         return new ApiError(400, "invalid_board", message, Map.of("field", field));
     }
 
-    /** Lo que se guarda en definition: proyectos y columnas. */
+    /** Lo que se guarda en definition: proyectos, columnas y prioridades. */
     Map<String, Object> definition() {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("projects", projects);
         out.put("columns", columns.stream().map(c -> {
             Map<String, Object> col = new LinkedHashMap<>();
             col.put("name", c.name());
-            col.put("statuses", c.statuses().stream().map(s -> Map.of("project", s.project(), "id", s.id(), "name", s.name())).toList());
+            col.put("statuses", c.statuses().stream()
+                    .map(s -> Map.of("project", s.project(), "id", s.id(), "name", s.name(), "color", s.color())).toList());
             return col;
         }).toList());
+        out.put("priorities", priorities.stream()
+                .map(p -> Map.of("id", p.id(), "name", p.name(), "color", p.color())).toList());
         return out;
     }
 
