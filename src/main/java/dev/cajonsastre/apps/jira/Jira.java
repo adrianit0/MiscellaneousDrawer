@@ -17,8 +17,9 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * JR-05 a JR-11, JR-19, JR-21, JR-24: la API REST 3 de Jira Cloud. Solo estas llamadas, todas de lectura: el usuario,
- * los proyectos, los estados de un proyecto, las prioridades y la búsqueda de tickets.
+ * JR-05 a JR-11, JR-19, JR-21, JR-24, JR-60, JR-62: la API REST 3 de Jira Cloud. Solo estas llamadas, todas de
+ * lectura: el usuario, los proyectos, los estados de un proyecto, las prioridades, la búsqueda de tickets y el detalle de
+ * un ticket con sus comentarios.
  */
 final class Jira {
 
@@ -31,6 +32,12 @@ final class Jira {
     /** JR-19 */
     static final int PRIORITY_PAGE = 50;
     static final int MAX_PRIORITIES = 200;
+    /** JR-60: los campos del detalle de un ticket. */
+    static final String DETAIL_FIELDS = "summary,status,issuetype,priority,assignee,reporter,created,updated,description,"
+            + "parent,subtasks,issuelinks,attachment,labels,components";
+    /** JR-62 */
+    static final int COMMENT_PAGE = 100;
+    static final int MAX_COMMENTS = 200;
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -52,6 +59,10 @@ final class Jira {
 
     /** JR-23: truncated si Jira tiene más de los devueltos. */
     record Search(List<Issue> issues, boolean truncated) {
+    }
+
+    /** JR-62: los comentarios tal como los da Jira, del más reciente al más antiguo; truncated si hay más. */
+    record Comments(List<JsonNode> comments, boolean truncated) {
     }
 
     private final Transport transport;
@@ -166,6 +177,36 @@ final class Jira {
             }
             if (out.size() == max) {
                 return new Search(out, true);
+            }
+        }
+    }
+
+    /** JR-60: el ticket con los campos del detalle, tal como lo da Jira. La clave ya cumple JR-63. */
+    JsonNode issue(JiraConfig config, String key) throws InterruptedException {
+        return ok(call(config, "GET", uri(config, "/issue/" + enc(key) + "?fields=" + DETAIL_FIELDS), null));
+    }
+
+    /** JR-62: los comentarios más recientes, hasta 200. */
+    Comments comments(JiraConfig config, String key) throws InterruptedException {
+        List<JsonNode> out = new ArrayList<>();
+        int start = 0;
+        while (true) {
+            String q = "orderBy=-created&maxResults=" + COMMENT_PAGE + "&startAt=" + start;
+            JsonNode page = ok(call(config, "GET", uri(config, "/issue/" + enc(key) + "/comment?" + q), null));
+            JsonNode values = page.path("comments");
+            for (JsonNode c : values) {
+                if (out.size() == MAX_COMMENTS) {
+                    return new Comments(out, true);
+                }
+                out.add(c);
+            }
+            start += values.size();
+            int total = page.path("total").asInt(start);
+            if (values.isEmpty() || start >= total) {
+                return new Comments(out, false);
+            }
+            if (out.size() == MAX_COMMENTS) {
+                return new Comments(out, true);
             }
         }
     }

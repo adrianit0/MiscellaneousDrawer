@@ -283,6 +283,7 @@
 
 /* JR-40 a JR-44 */
 .boardView {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -291,7 +292,7 @@
 }
 
 /* JR-53: todo lo de encima del tablero se queda fijo. */
-.boardView > :not(.boardScroll) {
+.boardView > :not(.boardScroll, .detail) {
   flex: none;
 }
 
@@ -499,8 +500,254 @@
   --paint: var(--error);
 }
 
+/* JR-70: el resumen es el botón que abre el detalle con el teclado; se ve como texto. */
 .summary {
   word-break: break-word;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+}
+
+.card {
+  cursor: pointer;
+}
+
+.card:hover {
+  border-color: var(--cyan);
+}
+
+.card[aria-current='true'] {
+  border-color: var(--cyan);
+  box-shadow: inset 3px 0 0 var(--cyan);
+}
+
+/* JR-70, JR-71: el panel del detalle, a la derecha y sobre el tablero, con su propio desplazamiento. */
+.detail {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  width: min(560px, 55%);
+  box-sizing: border-box;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: -8px 0 24px rgb(0 0 0 / 0.35);
+  outline: none;
+}
+
+.detailHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.app .detailTitle {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.detailSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.app .detailSection h3 {
+  margin: 0;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 14px;
+  font-size: 13px;
+}
+
+.facts > div {
+  display: contents;
+}
+
+.facts dt {
+  color: var(--text-muted);
+}
+
+.facts dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.plainList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* JR-72: un ticket breve que abre su detalle. */
+.brief {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  font-size: 13px;
+}
+
+.briefSummary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app .linkGroup h4 {
+  margin: 4px 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.attachment {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+}
+
+.attachment .muted {
+  font-size: 12px;
+}
+
+.comment {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+/* JR-74: el texto de la descripción y de los comentarios. */
+.adf {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.app .adf h4,
+.app .adf h5,
+.app .adf h6 {
+  margin: 4px 0 0;
+}
+
+.adf ul,
+.adf ol {
+  margin: 0;
+  padding-left: 22px;
+}
+
+.adf .adfTasks {
+  list-style: none;
+  padding-left: 4px;
+}
+
+.adf code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg);
+  padding: 0 3px;
+  border-radius: 3px;
+}
+
+.adfCode {
+  margin: 0;
+  padding: 8px 10px;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.adfCode code {
+  background: transparent;
+  padding: 0;
+}
+
+.adfQuote {
+  margin: 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--border);
+  color: var(--text-muted);
+}
+
+.adfPanel {
+  --paint: var(--text-muted);
+  padding: 8px 10px;
+  border: 1px solid var(--paint);
+  border-left-width: 4px;
+  border-radius: 4px;
+}
+
+.adfExpand summary {
+  cursor: pointer;
+}
+
+.adfTableWrap {
+  overflow-x: auto;
+}
+
+.adfTable {
+  border-collapse: collapse;
+}
+
+.adfTable th,
+.adfTable td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  vertical-align: top;
+  text-align: left;
+}
+
+.adfTable th {
+  background: var(--surface-raised);
+}
+
+.mention {
+  color: var(--cyan);
+  font-weight: 600;
+}
+
+.adfStatus {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
 }
 
 .cardLine {

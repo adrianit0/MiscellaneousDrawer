@@ -338,3 +338,111 @@ export function gestaskPath(issue: Issue, exists: boolean): string {
     .join('&');
   return `/new?${query}`;
 }
+
+/** JR-61, JR-74: un nodo de un documento ADF, tal como lo da Jira. */
+export interface AdfNode {
+  type: string;
+  text?: string;
+  attrs?: Record<string, unknown>;
+  content?: AdfNode[];
+  marks?: { type: string; attrs?: Record<string, unknown> }[];
+}
+
+/** JR-61: estado con su categoría de Jira (JR-11). */
+export interface DetailStatus {
+  name: string;
+  category: string;
+}
+
+/** JR-61: un ticket breve, en el padre, las subtareas y los enlaces. */
+export interface BriefIssue {
+  key: string;
+  summary: string;
+  status: DetailStatus;
+  type: string | null;
+}
+
+/** JR-61 */
+export interface Attachment {
+  id: string;
+  filename: string;
+  mimeType: string | null;
+  size: number;
+  author: string | null;
+  created: string | null;
+}
+
+/** JR-62 */
+export interface Comment {
+  id: string;
+  author: string | null;
+  created: string | null;
+  updated: string | null;
+  body: AdfNode | null;
+}
+
+/** JR-61: el detalle de un ticket. */
+export interface IssueDetail {
+  key: string;
+  summary: string;
+  project: string;
+  status: DetailStatus;
+  type: string | null;
+  priority: JiraPriority | null;
+  assignee: string | null;
+  reporter: string | null;
+  created: string | null;
+  updated: string | null;
+  description: AdfNode | null;
+  parent: BriefIssue | null;
+  subtasks: BriefIssue[];
+  links: { relation: string; issue: BriefIssue }[];
+  attachments: Attachment[];
+  labels: string[];
+  components: string[];
+  comments: Comment[];
+  commentsTruncated: boolean;
+  fetchedAt: string;
+}
+
+/** JR-62 */
+export const MAX_COMMENTS = 200;
+
+/** JR-63: una clave de proyecto (JR-12), un guion y un número que no empieza por cero. */
+export const ISSUE_KEY = /^[A-Z][A-Z0-9_]{1,19}-[1-9][0-9]{0,9}$/;
+
+/** JR-70: la subruta del detalle de un ticket. */
+export const ticketPath = (key: string) => `/ticket/${encodeURIComponent(key)}`;
+
+/** JR-70: la clave del ticket abierto en una subruta, o null si no es `/ticket/<clave>` con una clave válida. */
+export function ticketOfPath(path: string): string | null {
+  const m = /^\/ticket\/([^/?#]+)$/.exec(path);
+  if (!m) return null;
+  let key: string;
+  try {
+    key = decodeURIComponent(m[1]);
+  } catch {
+    return null;
+  }
+  return ISSUE_KEY.test(key) ? key : null;
+}
+
+/** JR-73: el tamaño de un adjunto en B, KB o MB, con un decimal y en base 1024. */
+export function formatSize(bytes: number): string {
+  const decimal = (n: number) => n.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${decimal(bytes / 1024)} KB`;
+  return `${decimal(bytes / (1024 * 1024))} MB`;
+}
+
+/** JR-71: el día y la hora locales de una fecha de Jira. */
+export function formatDateTime(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+/** JR-73: la descarga de un adjunto en Jira, armada con el sitio y su identificador numérico. */
+export function attachmentUrl(siteUrl: string, id: string): string {
+  return `${siteUrl}/rest/api/3/attachment/content/${encodeURIComponent(id)}`;
+}

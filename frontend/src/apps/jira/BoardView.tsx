@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAppState, useMiniApp } from '../../platform';
 import { passes, type SavedFilter } from './filters';
+import type { DetailCache } from './detailCache';
 import type { IssueCache } from './issueCache';
+import { IssuePanel } from './IssuePanel';
 import styles from './jira.module.css';
 import {
   assigneeColors,
@@ -15,6 +17,7 @@ import {
   MAX_ISSUES,
   rows,
   ticketKey,
+  ticketPath,
   UNASSIGNED,
   type Board,
   type Grouping,
@@ -30,6 +33,10 @@ interface Props {
   filters: SavedFilter[];
   /** JR-51: los tickets que ya son tareas de Gestask, normalizados con ticketKey. */
   gestask: ReadonlySet<string>;
+  /** JR-75 */
+  detail: DetailCache;
+  /** JR-70: el ticket abierto en el panel, o null. */
+  openKey: string | null;
 }
 
 /** JR-51: «+» crea la tarea en Gestask y «>» abre la que ya existe (P-33). */
@@ -67,9 +74,32 @@ function Avatar({ name, color }: { name: string | null; color: string | undefine
 }
 
 /** JR-41: clave, estado y el botón de Gestask; resumen; asignado y su círculo; prioridad. */
-function Card({ issue, siteUrl, avatar, inGestask }: { issue: Issue; siteUrl: string; avatar: string | undefined; inGestask: boolean }) {
+function Card({
+  issue,
+  siteUrl,
+  avatar,
+  inGestask,
+  open,
+  onOpen,
+}: {
+  issue: Issue;
+  siteUrl: string;
+  avatar: string | undefined;
+  inGestask: boolean;
+  open: boolean;
+  onOpen: () => void;
+}) {
   return (
-    <li className={styles.card} aria-label={issue.key}>
+    <li
+      className={styles.card}
+      aria-label={issue.key}
+      aria-current={open ? 'true' : undefined}
+      onClick={(e) => {
+        // JR-70: la clave y el botón de Gestask hacen lo suyo; el resto de la tarjeta abre el detalle.
+        if ((e.target as HTMLElement).closest('a, button:not([data-open])')) return;
+        onOpen();
+      }}
+    >
       <div className={styles.cardTop}>
         {/* JR-41: se abre en el Chrome habitual (C-16). */}
         <a className={styles.key} href={`${siteUrl}/browse/${encodeURIComponent(issue.key)}`} target="_blank" rel="noreferrer">
@@ -82,7 +112,10 @@ function Card({ issue, siteUrl, avatar, inGestask }: { issue: Issue; siteUrl: st
           <GestaskButton issue={issue} exists={inGestask} />
         </span>
       </div>
-      <div className={styles.summary}>{issue.summary}</div>
+      {/* JR-70: con el teclado se abre desde el resumen. */}
+      <button type="button" data-open className={styles.summary} aria-label={`Ver detalle: ${issue.key} ${issue.summary}`}>
+        {issue.summary}
+      </button>
       <div className={styles.cardLine}>
         <span className={issue.assignee ? styles.assignee : `${styles.assignee} ${styles.muted}`}>{issue.assignee ?? UNASSIGNED}</span>
         <Avatar name={issue.assignee} color={avatar} />
@@ -97,7 +130,7 @@ function Card({ issue, siteUrl, avatar, inGestask }: { issue: Issue; siteUrl: st
 }
 
 /** JR-40 a JR-48: las pestañas de tableros, la línea de filtros y el tablero elegido con sus columnas y sus filas. */
-export function BoardView({ boards, siteUrl, cache, filters, gestask }: Props) {
+export function BoardView({ boards, siteUrl, cache, filters, gestask, detail, openKey }: Props) {
   const { active, navigate } = useMiniApp();
   const [chosen, setChosen] = useAppState<number | null>('board', null);
   const [groupings, setGroupings] = useAppState<Record<string, Grouping>>('grouping', {});
@@ -131,8 +164,23 @@ export function BoardView({ boards, siteUrl, cache, filters, gestask }: Props) {
     [shown],
   );
 
+  // JR-70, JR-72: abrir otro ticket deja entrada en el historial; cerrar vuelve a «Tableros».
+  const panel = openKey && (
+    <IssuePanel
+      key="detail"
+      issueKey={openKey}
+      siteUrl={siteUrl}
+      cache={detail}
+      boardUpdated={shown?.columns.flatMap((c) => c.issues).find((i) => i.key === openKey)?.updated ?? null}
+      onOpen={(key) => navigate(ticketPath(key))}
+      onClose={() => navigate('')}
+    />
+  );
+
   if (!board) {
     return (
+      <div className={styles.boardView}>
+      {panel}
       <div className={styles.panel}>
         <p>Todavía no hay ningún tablero.</p>
         <div className={styles.actions}>
@@ -140,6 +188,7 @@ export function BoardView({ boards, siteUrl, cache, filters, gestask }: Props) {
             Crear un tablero
           </button>
         </div>
+      </div>
       </div>
     );
   }
@@ -268,6 +317,8 @@ export function BoardView({ boards, siteUrl, cache, filters, gestask }: Props) {
                           siteUrl={siteUrl}
                           avatar={issue.assignee ? avatars.get(issue.assignee) : undefined}
                           inGestask={gestask.has(ticketKey(issue.key))}
+                          open={issue.key === openKey}
+                          onOpen={() => navigate(ticketPath(issue.key))}
                         />
                       ))}
                     </ul>
@@ -279,6 +330,7 @@ export function BoardView({ boards, siteUrl, cache, filters, gestask }: Props) {
           {grid.length === 0 && <p className={styles.muted}>Ningún ticket coincide.</p>}
         </div>
       )}
+      {panel}
     </section>
   );
 }

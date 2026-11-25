@@ -25,9 +25,9 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * «Tableros Jira» (JR-01 a JR-53, ADR-0027 a ADR-0030): tableros propios sobre varios proyectos de Jira Cloud, con las
- * columnas y los estados que elige el usuario. Solo lee de Jira (JR-24). Sabe qué tickets son ya tareas de «Gestask»
- * por los mensajes que esta le envía (JR-50).
+ * «Tableros Jira» (JR-01 a JR-75, ADR-0027 a ADR-0031): tableros propios sobre varios proyectos de Jira Cloud, con las
+ * columnas y los estados que elige el usuario, y el detalle de cada ticket. Solo lee de Jira (JR-24). Sabe qué tickets
+ * son ya tareas de «Gestask» por los mensajes que esta le envía (JR-50).
  */
 public final class JiraApp implements MiniApp {
 
@@ -135,6 +135,20 @@ public final class JiraApp implements MiniApp {
             Board board = boards.find(id(ctx));
             JiraConfig config = complete(configs);
             ctx.json(issues(jira, config, board, clock));
+        });
+
+        // JR-60 a JR-64
+        routes.get("/issues/{key}", ctx -> {
+            String key = ctx.pathParam("key");
+            if (!IssueDetail.ISSUE_KEY.matcher(key).matches()) {
+                throw ApiError.badRequest("invalid_issue", "La clave del ticket no es válida");
+            }
+            JiraConfig config = complete(configs);
+            JsonNode issue = jira.issue(config, key);
+            Jira.Comments comments = jira.comments(config, key);
+            // JR-64: ni la clave ni nada del ticket.
+            log.info("Detalle de ticket consultado: {} comentarios", comments.comments().size());
+            ctx.json(IssueDetail.view(issue, comments, clock.instant()));
         });
     }
 

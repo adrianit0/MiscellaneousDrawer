@@ -3,12 +3,13 @@ import { useMiniApp } from '../../platform';
 import { BoardView } from './BoardView';
 import { Confirm } from './Confirm';
 import { Connection } from './Connection';
+import { useDetailCache } from './detailCache';
 import { BoardsSection } from './Editor';
 import type { SavedFilter } from './filters';
 import { FiltersSection } from './FiltersSection';
 import { useIssueCache } from './issueCache';
 import styles from './jira.module.css';
-import { errorMessage, ticketKey, type Board, type ConfigView } from './types';
+import { errorMessage, ticketKey, ticketOfPath, type Board, type ConfigView } from './types';
 
 /** JR-30 */
 const SECTIONS = [
@@ -18,14 +19,14 @@ const SECTIONS = [
   { path: '/connection', label: 'Conexión' },
 ];
 
-/** La sección de una subruta: «/boards/3» es «Configurar tableros» y «/filters/2», «Filtros». */
+/** La sección de una subruta: «/boards/3» es «Configurar tableros» y «/filters/2», «Filtros»; «/ticket/PA-7», «Tableros». */
 function sectionOf(path: string) {
   if (path === '/boards' || path.startsWith('/boards/')) return SECTIONS[1];
   if (path === '/filters' || path.startsWith('/filters/')) return SECTIONS[2];
   return SECTIONS.find((s) => s.path === path) ?? SECTIONS[0];
 }
 
-/** «Tableros Jira» (JR-30 a JR-53): tableros propios sobre varios proyectos de Jira Cloud. Solo lee de Jira. */
+/** «Tableros Jira» (JR-30 a JR-75): tableros propios sobre varios proyectos de Jira Cloud. Solo lee de Jira. */
 export function JiraApp() {
   const { api, path, navigate, setSubtitle, active } = useMiniApp();
   const section = sectionOf(path);
@@ -34,6 +35,8 @@ export function JiraApp() {
   const [filters, setFilters] = useState<SavedFilter[] | null>(null);
   /** JR-46: lo consultado de cada tablero, mientras la mini app está montada. */
   const cache = useIssueCache(api);
+  /** JR-75: el detalle de cada ticket, mientras la mini app está montada. */
+  const detail = useDetailCache(api);
   /** JR-50, JR-52: los tickets que ya son tareas de Gestask, normalizados con ticketKey. */
   const [gestask, setGestask] = useState<ReadonlySet<string>>(() => new Set());
 
@@ -158,7 +161,15 @@ export function JiraApp() {
           </div>
         )}
         {ready && section.path === '' && configured && (
-          <BoardView boards={boards} siteUrl={config.siteUrl ?? ''} cache={cache} filters={filters} gestask={gestask} />
+          <BoardView
+            boards={boards}
+            siteUrl={config.siteUrl ?? ''}
+            cache={cache}
+            filters={filters}
+            gestask={gestask}
+            detail={detail}
+            openKey={ticketOfPath(path)}
+          />
         )}
 
         {ready && section.path === '/filters' && (

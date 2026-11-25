@@ -76,6 +76,10 @@ final class FakeJira implements Transport {
     final Map<String, String> priorities = new LinkedHashMap<>();
     /** JR-20: la prioridad de cada ticket, por su clave; el que no está no tiene prioridad. */
     final Map<String, String> issuePriority = new HashMap<>();
+    /** JR-60: el ticket que devuelve GET /issue/{clave}, por su clave, con su key y sus fields. */
+    final Map<String, ObjectNode> details = new HashMap<>();
+    /** JR-62: los comentarios de cada ticket, del más antiguo al más reciente. */
+    final Map<String, List<ObjectNode>> comments = new HashMap<>();
     volatile boolean offline;
     /** Si no es null, la respuesta a todas las llamadas. */
     volatile Reply forced;
@@ -141,6 +145,15 @@ final class FakeJira implements Transport {
         if (method.equals("POST") && tail.equals("/search/jql")) {
             return search(request.json());
         }
+        Matcher detail = Pattern.compile("/issue/([^/]+)").matcher(tail);
+        if (method.equals("GET") && detail.matches()) {
+            ObjectNode issue = details.get(detail.group(1));
+            return issue == null ? new Reply(404, "{\"errorMessages\":[\"Issue does not exist\"]}") : ok(issue);
+        }
+        Matcher comment = Pattern.compile("/issue/([^/]+)/comment").matcher(tail);
+        if (method.equals("GET") && comment.matches()) {
+            return commentPage(comment.group(1), request.query());
+        }
         return new Reply(405, "{}");
     }
 
@@ -165,6 +178,23 @@ final class FakeJira implements Transport {
         priorities.entrySet().stream().skip(start).limit(max).forEach(e -> values.addObject().put("id", e.getKey())
                 .put("name", e.getValue()).put("statusColor", "#ff0000").put("iconUrl", SITE + "/icon.svg"));
         page.put("isLast", start + max >= priorities.size());
+        return ok(page);
+    }
+
+    /** JR-62: los comentarios por páginas, del más reciente al más antiguo con orderBy=-created. */
+    private Reply commentPage(String key, Map<String, String> query) {
+        if (!details.containsKey(key)) {
+            return new Reply(404, "{\"errorMessages\":[\"Issue does not exist\"]}");
+        }
+        List<ObjectNode> all = new ArrayList<>(comments.getOrDefault(key, List.of()));
+        if ("-created".equals(query.get("orderBy"))) {
+            java.util.Collections.reverse(all);
+        }
+        int start = Integer.parseInt(query.getOrDefault("startAt", "0"));
+        int max = Integer.parseInt(query.getOrDefault("maxResults", "50"));
+        ObjectNode page = JSON.createObjectNode().put("startAt", start).put("maxResults", max).put("total", all.size());
+        ArrayNode values = page.putArray("comments");
+        all.stream().skip(start).limit(max).forEach(values::add);
         return ok(page);
     }
 

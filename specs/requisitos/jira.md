@@ -1,6 +1,6 @@
 # Requisitos de «Tableros Jira»
 
-La mini app «Tableros Jira» (`jira`) muestra tableros propios sobre varios proyectos de Jira Cloud a la vez. Cada tablero tiene sus columnas, y en cada columna el usuario pone los estados de cada proyecto que le corresponden, aunque los proyectos tengan flujos distintos. Solo lee de Jira: no cambia nada. Las decisiones están en [ADR-0027](../decisiones/ADR-0027-mini-app-tableros-jira.md) y, para los colores y las prioridades, en [ADR-0028](../decisiones/ADR-0028-colores-y-prioridades-en-tableros-jira.md). La caché, las pestañas y los filtros guardados están en [ADR-0029](../decisiones/ADR-0029-cache-pestanas-y-filtros-en-tableros-jira.md), y el botón para crear o abrir la tarea de «Gestask» y la cabecera fija, en [ADR-0030](../decisiones/ADR-0030-tableros-jira-y-gestask.md).
+La mini app «Tableros Jira» (`jira`) muestra tableros propios sobre varios proyectos de Jira Cloud a la vez. Cada tablero tiene sus columnas, y en cada columna el usuario pone los estados de cada proyecto que le corresponden, aunque los proyectos tengan flujos distintos. Solo lee de Jira: no cambia nada. Las decisiones están en [ADR-0027](../decisiones/ADR-0027-mini-app-tableros-jira.md) y, para los colores y las prioridades, en [ADR-0028](../decisiones/ADR-0028-colores-y-prioridades-en-tableros-jira.md). La caché, las pestañas y los filtros guardados están en [ADR-0029](../decisiones/ADR-0029-cache-pestanas-y-filtros-en-tableros-jira.md), el botón para crear o abrir la tarea de «Gestask» y la cabecera fija, en [ADR-0030](../decisiones/ADR-0030-tableros-jira-y-gestask.md), y el detalle del ticket, en [ADR-0031](../decisiones/ADR-0031-detalle-del-ticket-en-tableros-jira.md).
 
 La conexión (sitio, email y token) se escribe en la mini app: no está en el código ni en el repositorio (S-30, S-32). Los ejemplos usan marcadores. Prefijo de requisitos: **JR**.
 
@@ -13,6 +13,7 @@ Términos:
 - **Paleta**: los colores que se pueden elegir (JR-18).
 - **Filtro**: unos criterios con nombre, comunes a todos los tableros, que ocultan los tickets que no los cumplen (JR-26, JR-27).
 - **Columna final**: la última columna del tablero, la de los tickets cerrados.
+- **ADF**: Atlassian Document Format, el JSON con el que Jira Cloud da la descripción y los comentarios de un ticket.
 
 ## Conexión
 
@@ -83,7 +84,7 @@ Términos:
 | JR-36 | Salir del editor con cambios sin guardar pide confirmación, como en «Base de datos» (BD-67, ADR-0015). |
 | JR-37 | El editor tiene una sección «Prioridades» con las del tablero (JR-17), cada una con su selector «Color» y «Quitar». «Añadir prioridad» elige de las de Jira (JR-19) que el tablero no tiene. Una prioridad nueva toma el primer color de `red`, `orange`, `gold`, `blue`, `cyan`, `violet`, `green` y `gray` que no usa otra del tablero, o `gray` si se usan todos. Si Jira ya no tiene una prioridad guardada, se marca como en JR-34. |
 | JR-40 | «Tableros» muestra arriba los tableros como pestañas, en una sola línea horizontal y en el orden de creación, con desplazamiento horizontal si no caben. La pestaña del tablero elegido se marca (`aria-current`) y la elección se recuerda (`useAppState`). |
-| JR-41 | Cada columna muestra su nombre y su número de tickets. Cada ticket es una tarjeta de cuatro líneas: la clave y, a la derecha, el estado de Jira como etiqueta rellena de su color (`statusColor`) con el texto oscuro del tema, y el botón de Gestask (JR-51); el resumen; el asignado («Sin asignar» si no tiene) y, a la derecha, su círculo (JR-45); y el nombre de la prioridad, sin icono, del color de la prioridad en el tablero o `gray` si el tablero no la tiene. Un ticket sin prioridad no tiene la cuarta línea. La clave enlaza a `<sitio>/browse/<clave>`, que se abre en el Chrome habitual (C-16). |
+| JR-41 | Cada columna muestra su nombre y su número de tickets. Cada ticket es una tarjeta de cuatro líneas: la clave y, a la derecha, el estado de Jira como etiqueta rellena de su color (`statusColor`) con el texto oscuro del tema, y el botón de Gestask (JR-51); el resumen; el asignado («Sin asignar» si no tiene) y, a la derecha, su círculo (JR-45); y el nombre de la prioridad, sin icono, del color de la prioridad en el tablero o `gray` si el tablero no la tiene. Un ticket sin prioridad no tiene la cuarta línea. La clave enlaza a `<sitio>/browse/<clave>`, que se abre en el Chrome habitual (C-16). Pulsar el resto de la tarjeta abre su detalle (JR-70). |
 | JR-42 | Un selector «Agrupar por» con «Nada», «Proyecto» y «Asignado» reparte los tickets en filas horizontales con las mismas columnas; cada fila dice su nombre y su número de tickets. «Sin asignar» va la última. La elección se recuerda por tablero (`useAppState`). |
 | JR-43 | Un filtro de texto oculta los tickets cuya clave, resumen o asignado no contienen el texto, sin distinguir mayúsculas ni acentos, sin volver a consultar Jira. Se aplica a la vez que el filtro guardado activo (JR-48), y los números de columnas y filas cuentan solo los tickets visibles. |
 | JR-44 | Mientras consulta se ve que está cargando y se conserva lo anterior. Un error se muestra con su mensaje (JR-07) y «Reintentar». Con `truncated` dice «Se muestran los 1000 tickets más recientes». Con `missingStatuses` dice qué estados ya no existen en Jira y lleva al editor. |
@@ -102,6 +103,44 @@ Términos:
 | JR-52 | La interfaz pide la lista de JR-50 al abrirse y cada vez que vuelve a mostrarse (N-05), sin consultar Jira y sin tocar lo guardado de los tableros (JR-46). Mientras no llega, o si falla, se usa la última recibida (al principio, vacía); un fallo no se avisa, porque Gestask se protege de crear otra tarea con el mismo ticket (GT-122). |
 | JR-53 | La mini app ocupa el alto de su área (P-17). En «Tableros», las secciones, las pestañas de tableros, la línea de filtros, la barra de herramientas y los avisos se quedan fijos arriba, y debajo solo se desplaza el tablero, en vertical y en horizontal, con los nombres de las columnas fijos en su parte de arriba. En las demás secciones las pestañas de secciones se quedan fijas y se desplaza lo de debajo. |
 
+## Detalle del ticket
+
+| ID | Requisito |
+|---|---|
+| JR-60 | `GET /issues/<clave>` pide `GET <sitio>/rest/api/3/issue/<clave>?fields=summary,status,issuetype,priority,assignee,reporter,created,updated,description,parent,subtasks,issuelinks,attachment,labels,components` y sus comentarios (JR-62), y responde el detalle de JR-61. Una clave que no cumple JR-63 responde 400 `invalid_issue` sin contactar con Jira. Los errores son los de JR-04 y JR-07: un ticket que no existe o que la cuenta no puede ver es «No existe en Jira». |
+| JR-61 | El detalle tiene: clave (`key`), resumen (`summary`), proyecto (`project`), estado (`status`: `name` y `category`, como en JR-11), tipo (`type`, su nombre, o `null`), prioridad (`priority`: `id` y `name`, o `null`), asignado (`assignee`) e informador (`reporter`), con su nombre visible o `null`, fecha de creación (`created`) y de actualización (`updated`) tal como las da Jira, descripción (`description`: el documento ADF tal como lo da Jira, o `null`), padre (`parent`: un ticket breve o `null`), subtareas (`subtasks`: tickets breves), enlaces (`links`), adjuntos (`attachments`), etiquetas (`labels`: textos), componentes (`components`: sus nombres), comentarios (`comments`, JR-62), `commentsTruncated` y la fecha de la consulta (`fetchedAt`). Un ticket breve tiene clave (`key`), resumen (`summary`), estado (`status`, con su categoría) y tipo (`type`). Cada enlace tiene la relación tal como la nombra Jira vista desde este ticket (`relation`: `type.outward` si el otro es `outwardIssue`, `type.inward` si es `inwardIssue`) y el otro ticket, breve (`issue`). Cada adjunto tiene su identificador (`id`), nombre (`filename`), tipo MIME (`mimeType`), tamaño en bytes (`size`), autor (`author`, nombre visible o `null`) y fecha (`created`). Las listas van en el orden de Jira. |
+| JR-62 | Los comentarios se piden a `GET <sitio>/rest/api/3/issue/<clave>/comment?orderBy=-created&maxResults=100&startAt=<n>`, hasta 200, del más reciente al más antiguo. Cada uno tiene su identificador (`id`), autor (`author`, nombre visible o `null`), fecha de creación (`created`) y de cambio (`updated`), y cuerpo (`body`, ADF). Si Jira tiene más, se devuelven los 200 más recientes con `commentsTruncated: true`. |
+| JR-63 | Una clave de ticket es una clave de proyecto (JR-12), un guion y un número de 1 a 10 cifras que no empieza por cero. Un identificador de adjunto son de 1 a 18 cifras; un adjunto sin un identificador así no se devuelve. |
+| JR-64 | El detalle solo usa `GET` (JR-24). En el registro del shell solo queda que se consultó un detalle, con su número de comentarios, y los errores con su código; ni la clave, ni el resumen, ni el contenido del ticket (JR-25). |
+
+| ID | Requisito |
+|---|---|
+| JR-70 | En «Tableros», pulsar una tarjeta fuera de su clave y del botón de Gestask, o su resumen con el teclado, abre el detalle del ticket en un panel a la derecha, sobre el tablero, que sigue visible y desplazable a su izquierda. La mini app pasa a la subruta `/ticket/<clave>` con entrada en el historial (N-02), y la tarjeta abierta se marca (`aria-current`). «Cerrar» (✕) y Esc cierran el panel y vuelven a «Tableros» (subruta vacía). Abrir la mini app en `/ticket/<clave>` (P-33, una notificación) muestra «Tableros» con el panel de ese ticket, esté o no en el tablero; con una clave que no cumple JR-63, sin panel. |
+| JR-71 | El panel es una zona etiquetada «Detalle de <clave>» que se desplaza por su cuenta, y al abrirse recibe el foco. Muestra, en este orden: la cabecera, con el tipo, la clave enlazada a `<sitio>/browse/<clave>` (C-16), «Actualizar», «Cerrar» y el resumen como título; la ficha, con Estado (etiqueta del color de su categoría, como en JR-33), Prioridad, Asignado («Sin asignar» si no tiene), Informador, Creado y Actualizado (día y hora locales), Padre, Etiquetas y Componentes, sin las líneas que no tienen valor salvo Estado y Asignado; «Descripción» («Sin descripción» si no tiene); «Subtareas»; «Enlaces», agrupados por relación en el orden de Jira; «Adjuntos»; y «Comentarios» con su número («Sin comentarios» si no hay), cada uno con su autor, su fecha y «(editado)» si `updated` es distinto de `created`. «Subtareas», «Enlaces» y «Adjuntos» no se muestran si están vacías. Con `commentsTruncated` dice «Se muestran los 200 comentarios más recientes». |
+| JR-72 | El padre, las subtareas y los tickets enlazados se muestran con su tipo, su clave, su resumen y su estado del color de su categoría. Pulsar uno abre su detalle en el panel, en `/ticket/<clave>` con entrada en el historial, así que «Atrás» vuelve al anterior. |
+| JR-73 | Cada adjunto muestra su nombre, su tipo, su tamaño (en B, KB o MB con un decimal, en base 1024), su autor y su fecha. El nombre enlaza a `<sitio>/rest/api/3/attachment/content/<id>`, que se abre en el Chrome habitual (C-16) con la sesión del usuario en Jira. El servidor no descarga ningún adjunto. |
+| JR-74 | La descripción y los comentarios se pintan a partir de su ADF con los nodos de la tabla siguiente, sin interpretar nunca HTML. Un nodo que no está en la tabla muestra el texto que contiene. Una marca `link` solo es un enlace si su URL es `http` o `https` (C-16); si no, se ve solo el texto. Los nodos anidados a más de 50 niveles no se pintan. |
+| JR-75 | Lo consultado de cada ticket se guarda en la memoria de la mini app mientras está montada, nunca en disco, y se vacía al cerrarla (como JR-46). Al abrir un ticket ya consultado se muestra sin consultar, con la hora de su consulta; se vuelve a consultar si el tablero elegido lo muestra con otra fecha de actualización, al pulsar «Actualizar» y al pulsar «Reintentar». Mientras consulta se ve que está cargando y se conserva lo anterior. Un error se muestra en el panel con su mensaje (JR-07) y «Reintentar». |
+
+| Nodo ADF | Se pinta como |
+|---|---|
+| `doc`, `paragraph`, `text`, `hardBreak` | Párrafos y texto, con saltos de línea |
+| Marcas `strong`, `em`, `underline`, `strike`, `code`, `subsup`, `link` | Negrita, cursiva, subrayado, tachado, código, subíndice o superíndice y enlace. `textColor` y las demás marcas se ignoran |
+| `heading` | Un título por debajo del resumen: los niveles 1 y 2 son de nivel 4, el 3 de nivel 5 y los demás de nivel 6 |
+| `bulletList`, `orderedList`, `listItem` | Listas; la numerada empieza en su `attrs.order` |
+| `taskList`, `taskItem`, `decisionList`, `decisionItem` | Listas con ☐ o ☑ según el estado de la tarea (`attrs.state`), y con «Decisión:» |
+| `codeBlock` | Bloque de código, sin colorear |
+| `blockquote`, `rule` | Cita y línea horizontal |
+| `panel` | Recuadro con el color de su tipo (`attrs.panelType`): `info` y `note` azul, `success` verde, `warning` dorado y `error` rojo; los demás, gris |
+| `expand`, `nestedExpand` | Un bloque desplegable con su título (`attrs.title`), cerrado al principio |
+| `table`, `tableRow`, `tableHeader`, `tableCell` | Una tabla, con las celdas de cabecera como tales; `colspan` y `rowspan` se respetan |
+| `mention` | El nombre de la persona (`attrs.text`), resaltado; se añade la `@` si no la lleva |
+| `emoji` | Su `attrs.text` o, si no tiene, su `attrs.shortName` |
+| `status` | Una etiqueta con su `attrs.text` |
+| `date` | El día local de `attrs.timestamp` (milisegundos) |
+| `inlineCard`, `blockCard`, `embedCard` | Un enlace a su `attrs.url`, con la URL como texto |
+| `mediaSingle`, `mediaGroup`, `mediaInline`, `media` | «[Adjunto: <attrs.alt>]», o «[Adjunto]» si no tiene `alt` |
+
 ## Datos
 
 La base de la mini app (`<datos>/apps/jira/data.db`, P-08) tiene tres tablas:
@@ -110,7 +149,7 @@ La base de la mini app (`<datos>/apps/jira/data.db`, P-08) tiene tres tablas:
 - `saved_filter`: identificador, nombre, `definition` (sus criterios de JR-27, en JSON) y las fechas de creación y de cambio. Migración `db/apps/jira/V002__filters.sql`.
 - `gestask_ticket`: los tickets de las tareas de Gestask de la última lista recibida (JR-50), uno por fila. Migración `db/apps/jira/V003__gestask_tickets.sql`.
 
-La conexión no va en la base sino en su fichero privado (JR-01), y los tickets no se guardan en disco: se piden a Jira y se conservan solo en la memoria de la interfaz (JR-46).
+La conexión no va en la base sino en su fichero privado (JR-01), y los tickets no se guardan en disco: se piden a Jira y se conservan solo en la memoria de la interfaz (JR-46), también su detalle (JR-75).
 
 ## API
 
@@ -134,6 +173,7 @@ Todas las rutas cuelgan de `/api/apps/jira` (P-06) y siguen A-01 a A-03.
 | PUT | /filters/{id} | Sustituye un filtro. 400 `invalid_filter`, 404 `not_found` |
 | DELETE | /filters/{id} | Borra un filtro. 204; 404 `not_found` |
 | GET | /gestask/tickets | `{"tickets": […]}`: los tickets de las tareas de Gestask (JR-50). No contacta con Jira |
+| GET | /issues/{key} | El detalle de un ticket con sus comentarios (JR-60 a JR-63). 400 `invalid_issue`, 409, 502 |
 
 ## Fuera de alcance
 
@@ -141,7 +181,8 @@ Todas las rutas cuelgan de `/api/apps/jira` (P-06) y siguen A-01 a A-03.
 - Jira Server o Data Center, y los tokens de API con ámbitos (que usan `api.atlassian.com`).
 - JQL escrito por el usuario, filtros guardados de Jira y sprints.
 - Sondeo periódico, notificaciones y consolas: la mini app no tiene trabajos largos.
-- Otros campos del ticket (tipo, épica, puntos) y su detalle dentro de la mini app.
+- En las tarjetas, otros campos del ticket (tipo, épica, puntos). En el detalle, los puntos, los campos personalizados, el historial de cambios, el registro de trabajo y los enlaces web (ADR-0031).
+- Previsualizar o descargar adjuntos, y editar nada desde el detalle (ADR-0031).
 - Ordenar por prioridad, colorear las columnas y los iconos de prioridad de Jira (ADR-0028).
 - Filtros por tablero, varios filtros activos a la vez, reordenar los filtros y filtrar en Jira con ellos (ADR-0029).
 - Guardar los tickets en disco o conservarlos al cerrar la mini app (ADR-0029).
