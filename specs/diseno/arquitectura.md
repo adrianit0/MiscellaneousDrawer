@@ -8,7 +8,7 @@ Contexto de uso: un único usuario, una única máquina con Ubuntu 22.04 y sesio
 
 ### Incluido en la base (Sprint 0)
 
-- Shell: barra superior, barra lateral, lanzador con buscador, fijadas y recientes, paleta «Ir a…», «Ajustes» y avisos.
+- Shell: barra superior, barra lateral, lanzador con buscador y pestañas de fijadas, recientes y todas, paleta «Ir a…», «Ajustes» y avisos.
 - Navegación por rutas, con historial, mini apps abiertas que conservan su estado y restauración de la última ruta.
 - Plataforma de mini apps: catálogo, contrato de servidor y de interfaz, base de datos por mini app, estado de interfaz por mini app, aislamiento de rutas, de errores, de estilos y de importaciones.
 - Catálogo inicial con dos mini apps en preparación: «Base de datos» y «Tareas» (ADR-0008).

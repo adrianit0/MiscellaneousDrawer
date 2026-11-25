@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { App } from './App';
 import { useMiniApp } from './platform';
 import { app, installFakeServer, resetShell, type FakeServer } from './test/fakeServer';
-import { flushShellState, LAST_ROUTE_KEY, MAX_OPEN, PINNED_KEY, RECENT_KEY, useNav } from './shell/navStore';
+import { flushShellState, LAST_ROUTE_KEY, MAX_OPEN, PINNED_KEY, RECENT_AT_KEY, RECENT_KEY, useNav } from './shell/navStore';
+import { formatDateTime } from './shell/NotificationBell';
 import { ModuleRegistryContext, type ModuleRegistry } from './shell/registry';
 
 function Notes() {
@@ -48,39 +49,71 @@ function renderApp() {
 
 const rail = () => screen.getByRole('navigation', { name: 'Mini apps' });
 const launcher = async () => screen.findByRole('searchbox', { name: 'Buscar mini apps' });
+const tab = (name: string) => screen.getByRole('tab', { name: new RegExp(`^${name}`) });
+const panel = () => screen.getByRole('tabpanel');
+const cardNames = (container: HTMLElement) =>
+  within(container)
+    .queryAllByRole('listitem')
+    .map((li) => li.querySelector('.app-card-name')?.textContent);
+
+/** L-11: un DataTransfer suficiente para arrastrar en jsdom. */
+function dataTransfer() {
+  const data: Record<string, string> = {};
+  return {
+    get types() {
+      return Object.keys(data);
+    },
+    setData: (type: string, value: string) => {
+      data[type] = value;
+    },
+    getData: (type: string) => data[type] ?? '',
+    effectAllowed: '',
+    dropEffect: '',
+  };
+}
 
 beforeEach(() => {
   resetShell();
   server = installFakeServer({ catalog: CATALOG });
 });
 
-describe('L-01 a L-03 lanzador', () => {
+describe('L-01 a L-11 lanzador', () => {
   it('L-01 el grupo «Ocio» va el último', async () => {
     server.catalog = [...CATALOG, app({ id: 'lootboxes', name: 'Lootboxes', category: 'leisure' })];
     renderApp();
     await launcher();
-    const all = screen.getByRole('region', { name: 'Todas' });
-    const groups = within(all).getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+    const groups = within(panel()).getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
     expect(groups).toEqual(['Datos', 'Productividad', 'Utilidades', 'Ocio']);
   });
 
-  it('muestra el buscador con el foco y las mini apps agrupadas por categoría en orden alfabético', async () => {
+  it('L-01: buscador con el foco, tres pestañas con su contador y, sin fijadas, «Todas las aplicaciones» por categoría', async () => {
+    server.settings = { [RECENT_KEY]: ['notes'] };
     renderApp();
     const search = await launcher();
     expect(document.activeElement).toBe(search);
-    const all = screen.getByRole('region', { name: 'Todas' });
-    const groups = within(all).getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
-    expect(groups).toEqual(['Datos', 'Productividad', 'Utilidades']);
-    const productivity = within(all).getByRole('region', { name: 'Productividad' });
-    expect(within(productivity).getAllByRole('listitem').map((li) => li.querySelector('.app-card-name')?.textContent)).toEqual([
-      'Notas',
-      'Tareas',
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
+      'Fijadas0',
+      'Usado recientemente1',
+      'Todas las aplicaciones4',
     ]);
-    expect(screen.queryByRole('region', { name: 'Fijadas' })).toBeNull();
-    expect(screen.queryByRole('region', { name: 'Recientes' })).toBeNull();
+    expect(tab('Todas las aplicaciones').getAttribute('aria-selected')).toBe('true');
+    const groups = within(panel()).getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+    expect(groups).toEqual(['Datos', 'Productividad', 'Utilidades']);
+    const productivity = within(panel()).getByRole('region', { name: 'Productividad' });
+    expect(cardNames(productivity)).toEqual(['Notas', 'Tareas']);
+    // Cada mini app, una sola vez en pantalla.
+    expect(screen.getAllByText('Notas')).toHaveLength(1);
   });
 
-  it('L-02: las tarjetas llevan su insignia y el botón de fijar', async () => {
+  it('L-01: con alguna fijada, Inicio se abre en «Fijadas»', async () => {
+    server.settings = { [PINNED_KEY]: ['tasks', 'database'] };
+    renderApp();
+    await launcher();
+    expect(tab('Fijadas').getAttribute('aria-selected')).toBe('true');
+    expect(cardNames(panel())).toEqual(['Tareas', 'Base de datos']);
+  });
+
+  it('L-02: las tarjetas llevan su insignia, «Abierta» y el botón de fijar', async () => {
     renderApp();
     await launcher();
     const tasks = screen.getByRole('button', { name: /Tareas.*Gestor de tareas/ }).closest('li')!;
@@ -90,24 +123,52 @@ describe('L-01 a L-03 lanzador', () => {
     const pin = within(tasks).getByRole('button', { name: 'Fijar Tareas' });
     expect(pin.getAttribute('aria-pressed')).toBe('false');
     fireEvent.click(pin);
-    expect(screen.getAllByRole('button', { name: 'Desfijar Tareas' })[0].getAttribute('aria-pressed')).toBe('true');
-    expect(within(screen.getByRole('region', { name: 'Fijadas' })).getByText('Tareas')).toBeTruthy();
+    expect(within(tasks).getByRole('button', { name: 'Desfijar Tareas' }).getAttribute('aria-pressed')).toBe('true');
+    expect(tab('Fijadas').textContent).toBe('Fijadas1');
+
+    expect(within(tasks).queryByText('Abierta')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Tareas.*Gestor de tareas/ }));
+    await screen.findByText(/Llegará en una versión próxima/);
+    fireEvent.click(within(rail()).getByRole('button', { name: 'Inicio' }));
+    await launcher();
+    const again = screen.getByRole('button', { name: /Tareas.*Gestor de tareas/ }).closest('li')!;
+    expect(within(again).getByText('Abierta')).toBeTruthy();
   });
 
-  it('L-03: filtra sin acentos, Intro abre el primero y avisa si no hay resultados', async () => {
+  it('L-02, L-04: «Usado recientemente» dice cuándo se abrió cada una', async () => {
+    const now = Date.now();
+    const old = now - 3 * 24 * 3_600_000;
+    server.settings = {
+      [RECENT_KEY]: ['notes', 'tasks', 'database', 'broken'],
+      [RECENT_AT_KEY]: { notes: now - 5 * 60_000, tasks: now - 3 * 3_600_000, database: old },
+    };
+    renderApp();
+    await launcher();
+    fireEvent.click(tab('Usado recientemente'));
+    expect(cardNames(panel())).toEqual(['Notas', 'Tareas', 'Base de datos', 'Rota']);
+    const meta = within(panel())
+      .getAllByRole('listitem')
+      .map((li) => li.querySelector('.app-card-meta')?.textContent ?? null);
+    expect(meta).toEqual(['Hace 5 min', 'Hace 3 h', formatDateTime(new Date(old).toISOString()), null]);
+  });
+
+  it('L-03: busca en todas, marca el primero con «Intro», avisa si no hay resultados y al vaciar vuelve la pestaña', async () => {
+    server.settings = { [PINNED_KEY]: ['notes'] };
     renderApp();
     const search = await launcher();
     fireEvent.change(search, { target: { value: 'GESTOR' } });
     const results = screen.getByRole('region', { name: 'Resultados' });
-    expect(within(results).getAllByRole('listitem').map((li) => li.querySelector('.app-card-name')?.textContent)).toEqual([
-      'Base de datos',
-      'Tareas',
-    ]);
-    expect(screen.queryByRole('region', { name: 'Todas' })).toBeNull();
+    expect(cardNames(results)).toEqual(['Base de datos', 'Tareas']);
+    expect(within(results).getAllByText('Intro')).toHaveLength(1);
+    expect(within(results).getAllByRole('listitem')[0].textContent).toContain('Intro');
+    expect(screen.queryByRole('tabpanel')).toBeNull();
     fireEvent.change(search, { target: { value: 'pruébá' } });
     expect(within(screen.getByRole('region', { name: 'Resultados' })).getByText('Notas')).toBeTruthy();
     fireEvent.change(search, { target: { value: 'xyz' } });
     expect(screen.getByText('Ninguna mini app coincide con «xyz»')).toBeTruthy();
+    fireEvent.change(search, { target: { value: '' } });
+    expect(tab('Fijadas').getAttribute('aria-selected')).toBe('true');
+    expect(cardNames(panel())).toEqual(['Notas']);
     fireEvent.change(search, { target: { value: 'sql' } });
     fireEvent.keyDown(search, { key: 'Enter' });
     expect(window.location.hash).toBe('#/apps/database');
@@ -119,7 +180,116 @@ describe('L-01 a L-03 lanzador', () => {
     expect(await screen.findByText('No se pudo cargar el catálogo: Error interno del servidor')).toBeTruthy();
     server.catalog = CATALOG;
     fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
-    expect(await screen.findByRole('region', { name: 'Todas' })).toBeTruthy();
+    expect(await screen.findByRole('tablist', { name: 'Listas de mini apps' })).toBeTruthy();
+  });
+
+  it('L-08: desfijar en «Fijadas» no mueve nada; se puede volver a fijar en su sitio y se va al cambiar de pestaña', async () => {
+    server.settings = { [PINNED_KEY]: ['tasks', 'notes', 'database'] };
+    renderApp();
+    await launcher();
+    fireEvent.click(within(panel()).getByRole('button', { name: 'Desfijar Notas' }));
+    expect(cardNames(panel())).toEqual(['Tareas', 'Notas', 'Base de datos']);
+    expect(within(panel()).getByRole('button', { name: 'Fijar Notas' }).textContent).toBe('☆');
+    expect(tab('Fijadas').textContent).toBe('Fijadas2');
+    expect(useNav.getState().pinned).toEqual(['tasks', 'database']);
+
+    fireEvent.click(within(panel()).getByRole('button', { name: 'Fijar Notas' }));
+    expect(useNav.getState().pinned).toEqual(['tasks', 'notes', 'database']);
+    expect(cardNames(panel())).toEqual(['Tareas', 'Notas', 'Base de datos']);
+
+    fireEvent.click(within(panel()).getByRole('button', { name: 'Desfijar Tareas' }));
+    fireEvent.click(tab('Todas las aplicaciones'));
+    fireEvent.click(tab('Fijadas'));
+    expect(cardNames(panel())).toEqual(['Notas', 'Base de datos']);
+  });
+
+  it('L-09: las pestañas vacías lo explican y «Ver todas las aplicaciones» lleva a la tercera', async () => {
+    renderApp();
+    await launcher();
+    fireEvent.click(tab('Fijadas'));
+    expect(
+      within(panel()).getByText(
+        'No hay mini apps fijadas. Pulsa ☆ en una tarjeta para tenerla aquí, en la barra lateral y en Alt+1 a Alt+9.',
+      ),
+    ).toBeTruthy();
+    fireEvent.click(tab('Usado recientemente'));
+    expect(within(panel()).getByText('Todavía no se ha abierto ninguna mini app.')).toBeTruthy();
+    fireEvent.click(tab('Fijadas'));
+    fireEvent.click(within(panel()).getByRole('button', { name: 'Ver todas las aplicaciones' }));
+    expect(tab('Todas las aplicaciones').getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(tab('Todas las aplicaciones'));
+  });
+
+  it('L-10: Ctrl+1 a Ctrl+3, las flechas en las pestañas y en las tarjetas, y una letra vuelve al buscador', async () => {
+    server.settings = { [PINNED_KEY]: ['tasks', 'notes'] };
+    renderApp();
+    const search = await launcher();
+    fireEvent.keyDown(search, { key: '3', code: 'Digit3', ctrlKey: true });
+    expect(tab('Todas las aplicaciones').getAttribute('aria-selected')).toBe('true');
+    fireEvent.keyDown(search, { key: '2', code: 'Digit2', ctrlKey: true });
+    expect(tab('Usado recientemente').getAttribute('aria-selected')).toBe('true');
+    fireEvent.keyDown(search, { key: '1', code: 'Digit1', ctrlKey: true });
+    expect(tab('Fijadas').getAttribute('aria-selected')).toBe('true');
+
+    tab('Fijadas').focus();
+    fireEvent.keyDown(tab('Fijadas'), { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(tab('Usado recientemente'));
+    expect(tab('Usado recientemente').getAttribute('aria-selected')).toBe('true');
+    fireEvent.keyDown(document.activeElement!, { key: 'End' });
+    expect(tab('Todas las aplicaciones').getAttribute('aria-selected')).toBe('true');
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowRight' });
+    expect(tab('Fijadas').getAttribute('aria-selected')).toBe('true');
+
+    search.focus();
+    fireEvent.keyDown(search, { key: 'ArrowDown' });
+    const [first, second] = within(panel()).getAllByRole('button', { name: /Gestor de tareas|Notas de prueba/ });
+    expect(document.activeElement).toBe(first);
+    fireEvent.keyDown(first, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(second);
+    fireEvent.keyDown(second, { key: 'ArrowLeft' });
+    expect(document.activeElement).toBe(first);
+    // En jsdom todas las tarjetas están en la misma fila: ↑ vuelve al buscador.
+    fireEvent.keyDown(first, { key: 'ArrowUp' });
+    expect(document.activeElement).toBe(search);
+
+    fireEvent.keyDown(search, { key: 'ArrowDown' });
+    fireEvent.keyDown(document.activeElement!, { key: 'b' });
+    expect(document.activeElement).toBe(search);
+    expect((search as HTMLInputElement).value).toBe('b');
+    expect(screen.getByRole('region', { name: 'Resultados' })).toBeTruthy();
+  });
+
+  it('L-11: Ctrl+← y Ctrl+→ y arrastrar cambian el orden de las fijadas, que se guarda', async () => {
+    server.settings = { [PINNED_KEY]: ['tasks', 'notes', 'database'] };
+    renderApp();
+    await launcher();
+    const tasks = within(panel()).getByRole('button', { name: /Gestor de tareas/ });
+    tasks.focus();
+    fireEvent.keyDown(tasks, { key: 'ArrowRight', ctrlKey: true });
+    expect(useNav.getState().pinned).toEqual(['notes', 'tasks', 'database']);
+    expect(cardNames(panel())).toEqual(['Notas', 'Tareas', 'Base de datos']);
+    expect(document.activeElement).toBe(tasks);
+    fireEvent.keyDown(tasks, { key: 'ArrowLeft', ctrlKey: true });
+    expect(useNav.getState().pinned).toEqual(['tasks', 'notes', 'database']);
+    // N-04: la barra lateral sigue el mismo orden.
+    const railPinned = within(rail()).getByRole('list', { name: 'Fijadas' });
+    expect(within(railPinned).getAllByRole('button').map((b) => b.querySelector('.sr-only')?.textContent)).toEqual([
+      'Tareas',
+      'Notas',
+      'Base de datos',
+    ]);
+
+    const items = within(panel()).getAllByRole('listitem');
+    const transfer = dataTransfer();
+    fireEvent.dragStart(items[2], { dataTransfer: transfer });
+    fireEvent.dragOver(items[0], { dataTransfer: transfer });
+    fireEvent.drop(items[0], { dataTransfer: transfer });
+    expect(useNav.getState().pinned).toEqual(['database', 'tasks', 'notes']);
+    expect(cardNames(panel())).toEqual(['Base de datos', 'Tareas', 'Notas']);
+    await act(async () => {
+      await flushShellState();
+    });
+    expect(server.settings[PINNED_KEY]).toEqual(['database', 'tasks', 'notes']);
   });
 });
 
@@ -138,7 +308,9 @@ describe('N-01 a N-08 navegación', () => {
     fireEvent.click(within(rail()).getByRole('button', { name: 'Inicio' }));
     expect(await launcher()).toBeTruthy();
     expect(document.title).toBe('Cajón de sastre');
-    expect(within(screen.getByRole('region', { name: 'Recientes' })).getByText('Tareas')).toBeTruthy();
+    fireEvent.click(tab('Usado recientemente'));
+    expect(cardNames(panel())).toEqual(['Tareas']);
+    expect(within(panel()).getByText('Ahora')).toBeTruthy();
   });
 
   it('N-05, N-07: al volver, una mini app abierta conserva su estado y su subruta', async () => {
@@ -225,7 +397,7 @@ describe('N-01 a N-08 navegación', () => {
     renderApp();
     await launcher();
     expect(within(rail()).getByRole('button', { name: 'Tareas' })).toBeTruthy();
-    expect(screen.queryByRole('region', { name: 'Recientes' })).toBeNull();
+    expect(tab('Usado recientemente').textContent).toBe('Usado recientemente0');
     fireEvent.click(within(rail()).getByRole('button', { name: 'Tareas' }));
     await screen.findByText(/Llegará en una versión próxima/);
     await act(async () => {

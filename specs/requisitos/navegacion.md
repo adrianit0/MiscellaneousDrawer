@@ -67,12 +67,31 @@ La ventana tiene cuatro zonas fijas: barra superior, barra lateral de iconos, es
 
 ## Lanzador
 
+Inicio reparte las mini apps en tres pestañas para que cada una aparezca una sola vez en pantalla y que fijar o abrir no mueva el resto de sitio (ADR-0032).
+
+```text
+┌───────────────────────────────────────────────────────────────┐
+│ 🔍 Buscar mini apps…                                           │
+│                                                               │
+│  Fijadas 3 │ Usado recientemente 5 │ Todas las aplicaciones 9  │
+│ ───────────┴───────────────────────┴───────────────────────── │
+│ ┌────────────────────────┐ ┌────────────────────────┐         │
+│ │ ▣ Gestask  Abierta   ★ │ │ ▣ Tableros Jira      ★ │  …      │
+│ │   Tareas, parte di…    │ │   Tus columnas sob…    │         │
+│ └────────────────────────┘ └────────────────────────┘         │
+└───────────────────────────────────────────────────────────────┘
+```
+
 | ID | Requisito |
 |---|---|
-| L-01 | Inicio muestra un buscador, que recibe el foco al entrar, y debajo las secciones «Fijadas» (si hay), «Recientes» (si hay) y «Todas», esta agrupada por categoría (P-02) en el orden Datos, Productividad, Utilidades, Ocio. Dentro de cada grupo, las mini apps van por orden alfabético. |
-| L-02 | Cada mini app es una tarjeta con su icono en su color, su nombre y su descripción. Lleva la insignia «En preparación» si es `planned` o «Error» si es `failed`, y un botón ☆/★ para fijarla o desfijarla (`aria-pressed`). |
-| L-03 | El buscador filtra por nombre, descripción y palabras clave sin distinguir mayúsculas ni acentos. Con texto, se ocultan las secciones y se muestra «Resultados»; Intro abre el primero. Sin resultados: «Ninguna mini app coincide con «<texto>»». |
-| L-04 | Las fijadas van en el orden en que se fijaron. Las recientes son las 6 últimas mini apps distintas que se abrieron, la más reciente primero. Las dos listas se guardan (D-04) y los identificadores que ya no están en el catálogo se ignoran. |
+| L-01 | Inicio muestra un buscador, que recibe el foco al entrar, y debajo tres pestañas: «Fijadas», «Usado recientemente» y «Todas las aplicaciones», cada una con cuántas mini apps tiene. Al entrar en Inicio está elegida «Fijadas» o, si no hay ninguna, «Todas las aplicaciones». «Todas las aplicaciones» agrupa las mini apps por categoría (P-02) en el orden Datos, Productividad, Utilidades, Ocio, y dentro de cada grupo van por orden alfabético. |
+| L-02 | Cada mini app es una tarjeta con su icono en su color, su nombre y su descripción. Lleva la insignia «En preparación» si es `planned`, «Error» si es `failed` y «Abierta» si está abierta (N-05), y un botón ☆/★ para fijarla o desfijarla (`aria-pressed`). En «Usado recientemente» dice además cuándo se abrió: «Ahora» en el primer minuto, «Hace N min» en la primera hora, «Hace N h» en el primer día y después la fecha (U-02). |
+| L-03 | El buscador filtra todas las mini apps, sea cual sea la pestaña, por nombre, descripción y palabras clave sin distinguir mayúsculas ni acentos. Con texto, en lugar de la pestaña se muestra «Resultados» por orden alfabético; el primero lleva la marca «Intro», e Intro lo abre. Sin resultados: «Ninguna mini app coincide con «<texto>»». Al vaciarlo vuelve la pestaña que estaba elegida. |
+| L-04 | Las fijadas van en el orden en que se fijaron o en el que se dejaron al ordenarlas (L-11), que es también el de la barra lateral y el de Alt+1 a Alt+9 (N-04, N-10). Las recientes son las 6 últimas mini apps distintas que se abrieron, la más reciente primero, con la hora a la que se abrió cada una. Las dos listas y esas horas se guardan (D-04) y los identificadores que ya no están en el catálogo se ignoran. |
 | L-05 | Una mini app en preparación se abre como las demás: su página muestra icono, nombre, descripción y «Esta mini app aún no está disponible. Llegará en una versión próxima.». Se puede fijar y aparece en recientes. |
 | L-06 | Una mini app que falló al arrancar muestra «No se pudo arrancar «<nombre>»», el mensaje del error y dónde está el registro (C-09). |
 | L-07 | Si no se puede cargar el catálogo, Inicio muestra el error y «Reintentar». |
+| L-08 | Fijar o desfijar no mueve ninguna tarjeta de sitio. Al desfijar una mini app en «Fijadas», su tarjeta sigue allí, con ☆, hasta que se cambia de pestaña o se sale de Inicio, y desde ella se puede volver a fijar. El contador de la pestaña cambia en el acto. |
+| L-09 | Una pestaña vacía lo explica. «Fijadas»: «No hay mini apps fijadas. Pulsa ☆ en una tarjeta para tenerla aquí, en la barra lateral y en Alt+1 a Alt+9.» y el botón «Ver todas las aplicaciones». «Usado recientemente»: «Todavía no se ha abierto ninguna mini app.». |
+| L-10 | Inicio se maneja con teclado (U-04). Ctrl+1, Ctrl+2 y Ctrl+3 eligen la pestaña, también desde el buscador; con el foco en las pestañas, ← y → pasan a la anterior y a la siguiente, e Inicio y Fin a la primera y a la última. ↓ en el buscador lleva a la primera tarjeta. En las tarjetas, ← y → llevan a la anterior y a la siguiente, ↑ y ↓ a la de la fila de arriba y a la de abajo, ↑ en la primera fila vuelve al buscador e Intro abre la mini app. Escribir una letra con el foco en una tarjeta la lleva al buscador. Estos atajos solo valen en Inicio. |
+| L-11 | En «Fijadas» el orden se cambia arrastrando una tarjeta hasta el sitio de otra, o con Ctrl+← y Ctrl+→ con el foco en ella. El orden nuevo se guarda (D-04) y es el de la barra lateral y el de Alt+1 a Alt+9. |

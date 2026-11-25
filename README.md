@@ -15,7 +15,7 @@ Mini apps:
 
 ## Uso
 
-- **Inicio** muestra el buscador y las mini apps fijadas, las recientes y todas, por categoría.
+- **Inicio** muestra el buscador y tres pestañas: «Fijadas» (se ordenan arrastrando o con Ctrl+← y Ctrl+→), «Usado recientemente» (con cuándo se abrió cada una) y «Todas las aplicaciones», por categoría. Ctrl+1 a Ctrl+3 cambian de pestaña y las flechas recorren las tarjetas.
 - Las mini apps abiertas siguen en la barra lateral y conservan su estado al cambiar de una a otra.
 - **Ir a…** (Ctrl+K) abre cualquier mini app escribiendo parte de su nombre.
 - Los enlaces a páginas externas, como el ticket o el PR de una tarea, se abren en el Chrome habitual y no en la ventana de Cajón de sastre.

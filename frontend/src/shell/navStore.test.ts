@@ -1,5 +1,5 @@
 import { installFakeServer, resetShell } from '../test/fakeServer';
-import { flushShellState, LAST_ROUTE_KEY, MAX_OPEN, MAX_RECENT, PINNED_KEY, railItems, RECENT_KEY, useNav } from './navStore';
+import { flushShellState, LAST_ROUTE_KEY, MAX_OPEN, MAX_RECENT, PINNED_KEY, railItems, RECENT_AT_KEY, RECENT_KEY, useNav } from './navStore';
 
 const nav = () => useNav.getState();
 
@@ -60,11 +60,17 @@ describe('L-04 fijadas y recientes', () => {
     nav().activate('tasks', '');
     nav().setLastRoute('#/apps/tasks');
     await flushShellState();
-    expect(server.settings).toEqual({ [PINNED_KEY]: ['tasks'], [RECENT_KEY]: ['tasks'], [LAST_ROUTE_KEY]: '#/apps/tasks' });
+    expect(server.settings).toEqual({
+      [PINNED_KEY]: ['tasks'],
+      [RECENT_KEY]: ['tasks'],
+      [RECENT_AT_KEY]: { tasks: expect.any(Number) },
+      [LAST_ROUTE_KEY]: '#/apps/tasks',
+    });
     resetShell();
     nav().hydrate(server.settings);
     expect(nav().pinned).toEqual(['tasks']);
     expect(nav().recent).toEqual(['tasks']);
+    expect(nav().recentAt.tasks).toEqual(expect.any(Number));
     expect(nav().lastRoute).toBe('#/apps/tasks');
   });
 
@@ -74,6 +80,49 @@ describe('L-04 fijadas y recientes', () => {
     expect(nav().recent).toEqual([]);
     nav().prune(new Set(['b']));
     expect(nav().pinned).toEqual(['b']);
+  });
+
+  it('la hora de cada reciente cambia al pasar a ella, no en cada subruta, y solo se guardan las que siguen', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(1_000);
+      nav().activate('a', '');
+      vi.setSystemTime(2_000);
+      nav().activate('a', '/x');
+      expect(nav().recentAt).toEqual({ a: 1_000 });
+      nav().activate('b', '');
+      vi.setSystemTime(3_000);
+      nav().activate('a', '');
+      expect(nav().recentAt).toEqual({ a: 3_000, b: 2_000 });
+      for (const id of ['c', 'd', 'e', 'f', 'g']) nav().activate(id, '');
+      expect(Object.keys(nav().recentAt).sort()).toEqual(['a', 'c', 'd', 'e', 'f', 'g']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('ignora horas guardadas que no son números', () => {
+    nav().hydrate({ [RECENT_KEY]: ['a', 'b'], [RECENT_AT_KEY]: { a: 5, b: 'x' } });
+    expect(nav().recentAt).toEqual({ a: 5 });
+    nav().hydrate({ [RECENT_AT_KEY]: [1, 2] });
+    expect(nav().recentAt).toEqual({});
+  });
+});
+
+describe('L-11 ordenar las fijadas', () => {
+  it('mueve una fijada a la posición pedida, dentro de los límites, y lo guarda', async () => {
+    const server = installFakeServer();
+    for (const id of ['a', 'b', 'c']) nav().togglePin(id);
+    nav().movePinned('a', 2);
+    expect(nav().pinned).toEqual(['b', 'c', 'a']);
+    nav().movePinned('a', 10);
+    expect(nav().pinned).toEqual(['b', 'c', 'a']);
+    nav().movePinned('a', -1);
+    expect(nav().pinned).toEqual(['a', 'b', 'c']);
+    nav().movePinned('z', 0);
+    expect(nav().pinned).toEqual(['a', 'b', 'c']);
+    await flushShellState();
+    expect(server.settings[PINNED_KEY]).toEqual(['a', 'b', 'c']);
   });
 });
 

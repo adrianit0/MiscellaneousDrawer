@@ -10,6 +10,8 @@ const PERSIST_DELAY = 400;
 /** D-04: claves de la tabla setting. */
 export const PINNED_KEY = 'shell.pinned';
 export const RECENT_KEY = 'shell.recent';
+/** L-04, ADR-0032: hora (ms) a la que se abrió cada reciente. */
+export const RECENT_AT_KEY = 'shell.recentAt';
 export const LAST_ROUTE_KEY = 'shell.lastRoute';
 
 interface NavState {
@@ -25,6 +27,8 @@ interface NavState {
   pinned: string[];
   /** L-04: la más reciente primero. */
   recent: string[];
+  /** L-04: hora (ms) a la que se abrió cada reciente. */
+  recentAt: Record<string, number>;
   /** N-03 */
   lastRoute: string | null;
   hydrate: (settings: Settings) => void;
@@ -35,6 +39,8 @@ interface NavState {
   /** N-06: devuelve la abierta usada más recientemente, o null. */
   close: (id: string) => string | null;
   togglePin: (id: string) => void;
+  /** L-11: pone la fijada en la posición indicada. */
+  movePinned: (id: string, index: number) => void;
   setSubtitle: (id: string, text: string | null) => void;
   setLastRoute: (hash: string) => void;
 }
@@ -63,6 +69,19 @@ export async function flushShellState(keepalive = false): Promise<void> {
   }
 }
 
+/** L-04: solo números finitos con clave de texto. */
+function timeMap(value: unknown): Record<string, number> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).filter((e): e is [string, number] => typeof e[1] === 'number' && Number.isFinite(e[1])),
+  );
+}
+
+/** Solo las horas de las que siguen en recientes. */
+function keepTimes(times: Record<string, number>, ids: readonly string[]): Record<string, number> {
+  return Object.fromEntries(ids.filter((id) => times[id] !== undefined).map((id) => [id, times[id]]));
+}
+
 function idList(value: unknown): string[] {
   return Array.isArray(value) ? [...new Set(value.filter((v): v is string => typeof v === 'string'))] : [];
 }
@@ -74,12 +93,14 @@ export const useNav = create<NavState>((set, get) => ({
   subtitles: {},
   pinned: [],
   recent: [],
+  recentAt: {},
   lastRoute: null,
 
   hydrate: (settings) =>
     set({
       pinned: idList(settings[PINNED_KEY]),
       recent: idList(settings[RECENT_KEY]).slice(0, MAX_RECENT),
+      recentAt: timeMap(settings[RECENT_AT_KEY]),
       lastRoute: typeof settings[LAST_ROUTE_KEY] === 'string' ? (settings[LAST_ROUTE_KEY] as string) : null,
     }),
 
@@ -101,9 +122,11 @@ export const useNav = create<NavState>((set, get) => ({
       delete subtitles[oldest];
     }
     const recent = [id, ...s.recent.filter((r) => r !== id)].slice(0, MAX_RECENT);
-    const recentChanged = recent.join() !== s.recent.join();
-    set({ open, lastUsed, paths, subtitles, recent });
-    if (recentChanged) persist({ [RECENT_KEY]: recent });
+    // L-04: la hora cambia al pasar a esta mini app, no en cada subruta.
+    const switched = s.recent[0] !== id || s.recentAt[id] === undefined;
+    const recentAt = switched ? keepTimes({ ...s.recentAt, [id]: Date.now() }, recent) : s.recentAt;
+    set({ open, lastUsed, paths, subtitles, recent, recentAt });
+    if (switched) persist({ [RECENT_KEY]: recent, [RECENT_AT_KEY]: recentAt });
   },
 
   setPath: (id, path) => set((s) => (s.open.includes(id) ? { paths: { ...s.paths, [id]: path } } : s)),
@@ -125,6 +148,17 @@ export const useNav = create<NavState>((set, get) => ({
 
   togglePin: (id) => {
     const pinned = get().pinned.includes(id) ? get().pinned.filter((p) => p !== id) : [...get().pinned, id];
+    set({ pinned });
+    persist({ [PINNED_KEY]: pinned });
+  },
+
+  movePinned: (id, index) => {
+    const current = get().pinned;
+    const from = current.indexOf(id);
+    const to = Math.max(0, Math.min(index, current.length - 1));
+    if (from < 0 || from === to) return;
+    const pinned = current.filter((p) => p !== id);
+    pinned.splice(to, 0, id);
     set({ pinned });
     persist({ [PINNED_KEY]: pinned });
   },
@@ -152,5 +186,5 @@ export function resetNav() {
   timer = undefined;
   pending = {};
   seq = 0;
-  useNav.setState({ open: [], lastUsed: {}, paths: {}, subtitles: {}, pinned: [], recent: [], lastRoute: null });
+  useNav.setState({ open: [], lastUsed: {}, paths: {}, subtitles: {}, pinned: [], recent: [], recentAt: {}, lastRoute: null });
 }
