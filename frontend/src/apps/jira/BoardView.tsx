@@ -3,6 +3,7 @@ import { useAppState, useMiniApp } from '../../platform';
 import { passes, type SavedFilter } from './filters';
 import type { DetailCache } from './detailCache';
 import type { IssueCache } from './issueCache';
+import { TypeIcon, type TypeIcons } from './typeIcons';
 import { IssuePanel } from './IssuePanel';
 import styles from './jira.module.css';
 import {
@@ -38,6 +39,8 @@ interface Props {
   detail: DetailCache;
   /** JR-70: el ticket abierto en el panel, o null. */
   openKey: string | null;
+  /** JR-38 */
+  icons: TypeIcons;
 }
 
 /** JR-51: «+» crea la tarea en Gestask y «>» abre la que ya existe (P-33). */
@@ -74,11 +77,12 @@ function Avatar({ name, color }: { name: string | null; color: string | undefine
   );
 }
 
-/** JR-41: clave, estado y el botón de Gestask; resumen; cliente; creado y actualizado; prioridad; asignado y su círculo. */
+/** JR-38, JR-41: icono del tipo, clave, estado y el botón de Gestask; resumen; cliente; creado y actualizado; prioridad; asignado y su círculo. */
 function Card({
   issue,
   siteUrl,
   avatar,
+  typeIcon,
   inGestask,
   open,
   onOpen,
@@ -86,6 +90,8 @@ function Card({
   issue: Issue;
   siteUrl: string;
   avatar: string | undefined;
+  /** JR-38: el icono de Jira del tipo, si ha llegado. */
+  typeIcon: string | null | undefined;
   inGestask: boolean;
   open: boolean;
   onOpen: () => void;
@@ -104,10 +110,13 @@ function Card({
       }}
     >
       <div className={styles.cardTop}>
-        {/* JR-41: se abre en el Chrome habitual (C-16). */}
-        <a className={styles.key} href={`${siteUrl}/browse/${encodeURIComponent(issue.key)}`} target="_blank" rel="noreferrer">
-          {issue.key}
-        </a>
+        <span className={styles.cardKey}>
+          {issue.type && <TypeIcon type={issue.type} src={typeIcon} />}
+          {/* JR-41: se abre en el Chrome habitual (C-16). */}
+          <a className={styles.key} href={`${siteUrl}/browse/${encodeURIComponent(issue.key)}`} target="_blank" rel="noreferrer">
+            {issue.key}
+          </a>
+        </span>
         <span className={styles.cardTopEnd}>
           <span className={styles.label} data-paint={paletteColor(issue.statusColor)}>
             {issue.status}
@@ -140,7 +149,7 @@ function Card({
 }
 
 /** JR-40 a JR-48: las pestañas de tableros, la línea de filtros y el tablero elegido con sus columnas y sus filas. */
-export function BoardView({ boards, siteUrl, cache, filters, gestask, detail, openKey }: Props) {
+export function BoardView({ boards, siteUrl, cache, filters, gestask, detail, openKey, icons }: Props) {
   const { active, navigate } = useMiniApp();
   const [chosen, setChosen] = useAppState<number | null>('board', null);
   const [groupings, setGroupings] = useAppState<Record<string, Grouping>>('grouping', {});
@@ -161,6 +170,12 @@ export function BoardView({ boards, siteUrl, cache, filters, gestask, detail, op
   const shown = board ? cache.data(board) : null;
   const loading = board ? cache.loading(board) : false;
   const error = board ? cache.error(board) : null;
+
+  // JR-38: el icono de cada tipo del tablero se pide una vez mientras la mini app está montada.
+  const { request } = icons;
+  useEffect(() => {
+    request((shown?.columns ?? []).flatMap((c) => c.issues.flatMap((i) => (i.type ? [i.type.id] : []))));
+  }, [shown, request]);
 
   // JR-43, JR-49: el texto y el filtro activo, sin consultar Jira.
   const filtered = useMemo(() => {
@@ -326,6 +341,7 @@ export function BoardView({ boards, siteUrl, cache, filters, gestask, detail, op
                           issue={issue}
                           siteUrl={siteUrl}
                           avatar={issue.assignee ? avatars.get(issue.assignee) : undefined}
+                          typeIcon={issue.type ? icons.icon(issue.type.id) : undefined}
                           inGestask={gestask.has(ticketKey(issue.key))}
                           open={issue.key === openKey}
                           onOpen={() => navigate(ticketPath(issue.key))}

@@ -21,6 +21,7 @@ import {
   type ConfigView,
   type Issue,
   type JiraField,
+  typeKind,
   type JiraPriority,
   type JiraStatus,
   type PaletteColor,
@@ -114,6 +115,7 @@ const issue = (key: string, status: string, summary: string, assignee: string | 
   priority: null,
   created: '2026-11-01T09:00:00Z',
   updated: '2026-11-23T09:00:00Z',
+  type: null,
   ...extra,
 });
 
@@ -148,6 +150,8 @@ interface Backend {
   gestaskTickets: string[];
   /** JR-08: lo que responde /fields, o un error si es null. */
   fields: JiraField[] | null;
+  /** JR-29: el icono de cada tipo; el que no está responde con un error. */
+  typeIcons: Record<string, string | null>;
   fail: { status: number; code: string; message: string; details?: unknown } | null;
 }
 
@@ -177,6 +181,12 @@ function route(call: Call): { status?: number; body?: unknown } | undefined {
     return { body: next };
   }
   if (path === '/connection/test') return { body: { ok: true, user: 'Persona Inventada' } };
+  const typeIcon = /^\/issue-types\/([^/]+)\/icon$/.exec(path);
+  if (typeIcon) {
+    return typeIcon[1] in backend.typeIcons
+      ? { body: { icon: backend.typeIcons[typeIcon[1]] } }
+      : { status: 502, body: { code: 'jira_error', message: 'No existe en Jira', details: null } };
+  }
   if (path === '/fields') {
     return backend.fields
       ? { body: { fields: backend.fields } }
@@ -271,7 +281,7 @@ beforeEach(() => {
   resetShell();
   notices = [];
   opened = [];
-  backend = { config: CONFIG, boards: [EXAMPLE, SUPPORT], issues: { 1: ISSUES }, filters: [], gestaskTickets: [], fields: FIELDS, fail: null };
+  backend = { config: CONFIG, boards: [EXAMPLE, SUPPORT], issues: { 1: ISSUES }, filters: [], gestaskTickets: [], fields: FIELDS, typeIcons: {}, fail: null };
   server = installFakeServer({ appRoutes: route });
 });
 
@@ -447,6 +457,74 @@ describe('JR-41 cliente y fechas en la tarjeta', () => {
     expect(within(card).queryByLabelText(/^Cliente/)).toBeNull();
     expect(card.textContent).not.toMatch(/Creado|Actualizado/);
     expect([...card.children].map((el) => el.textContent).slice(1)).toEqual(['Informe mensual', 'Sin asignar?']);
+  });
+});
+
+describe('JR-38 icono del tipo', () => {
+  const TASK = { id: '10100', name: 'Tarea', hierarchyLevel: 0 };
+  const BUG = { id: '10200', name: 'Error en producción', hierarchyLevel: 0 };
+  const PNG = 'data:image/png;base64,AQID';
+  const iconCalls = (id: string) => server.callsTo('GET', `${BASE}/issue-types/${id}/icon`);
+  const typed = (types: Record<string, Issue['type']>): BoardIssues => ({
+    ...ISSUES,
+    columns: ISSUES.columns.map((c) => ({ ...c, issues: c.issues.map((i) => ({ ...i, type: types[i.key] ?? null })) })),
+  });
+
+  it('JR-38: el icono de Jira va a la izquierda de la clave, con el nombre del tipo, y se pide una vez por tipo', async () => {
+    backend.issues = { 1: typed({ 'PA-6': TASK, 'PA-7': TASK, 'PB-2': BUG }) };
+    backend.typeIcons = { [TASK.id]: PNG, [BUG.id]: null };
+    await openBoard();
+    const card = within(column('Testing')).getByRole('listitem', { name: 'PA-6' });
+    const icon = (await within(card).findByRole('img', { name: 'Tarea' })) as HTMLImageElement;
+    expect(icon.tagName).toBe('IMG');
+    expect(icon.getAttribute('src')).toBe(PNG);
+    expect(icon.getAttribute('title')).toBe('Tarea');
+    expect(icon.nextElementSibling).toBe(within(card).getByRole('link', { name: 'PA-6' }));
+    expect(within(within(column('In progress')).getByRole('listitem', { name: 'PA-7' })).getByRole('img', { name: 'Tarea' }).tagName).toBe(
+      'IMG',
+    );
+    // Sin icono en Jira, el propio: «Error» en el nombre es un bug.
+    const bug = within(within(column('Testing')).getByRole('listitem', { name: 'PB-2' })).getByRole('img', { name: BUG.name });
+    await waitFor(() => expect(iconCalls(BUG.id)).toHaveLength(1));
+    expect(bug.getAttribute('data-kind')).toBe('bug');
+    expect(iconCalls(TASK.id)).toHaveLength(1);
+
+    // «Actualizar» no los vuelve a pedir.
+    await act(async () => {
+      fireEvent.click(button('Actualizar'));
+    });
+    expect(iconCalls(TASK.id)).toHaveLength(1);
+    expect(iconCalls(BUG.id)).toHaveLength(1);
+  });
+
+  it('JR-38: si la petición falla, el icono propio con su título; sin tipo, sin icono', async () => {
+    const story = { id: '10300', name: 'Historia de usuario', hierarchyLevel: 0 };
+    backend.issues = { 1: typed({ 'PA-6': story }) };
+    await openBoard();
+    const card = within(column('Testing')).getByRole('listitem', { name: 'PA-6' });
+    await waitFor(() => expect(iconCalls(story.id)).toHaveLength(1));
+    const icon = within(card).getByRole('img', { name: story.name });
+    expect(icon.getAttribute('data-kind')).toBe('story');
+    expect(icon.querySelector('title')!.textContent).toBe(story.name);
+    const none = within(column('To do')).getByRole('listitem', { name: 'PB-3' });
+    expect(none.querySelector('img, svg')).toBeNull();
+  });
+
+  it('JR-38: el icono propio sale del nivel y después del nombre, sin mayúsculas ni acentos', () => {
+    const kind = (name: string, hierarchyLevel = 0) => typeKind({ id: '1', name, hierarchyLevel });
+    expect(kind('Épica', 1)).toBe('epic');
+    expect(kind('Iniciativa', 2)).toBe('epic');
+    expect(kind('Bug', 1)).toBe('epic');
+    expect(kind('Subtarea', -1)).toBe('subtask');
+    expect(kind('Sub-bug', -1)).toBe('subtask');
+    expect(kind('Bug')).toBe('bug');
+    expect(kind('ERROR de cliente')).toBe('bug');
+    expect(kind('Incidencia')).toBe('bug');
+    expect(kind('Defecto')).toBe('bug');
+    expect(kind('Historia')).toBe('story');
+    expect(kind('User Story')).toBe('story');
+    expect(kind('Tarea')).toBe('task');
+    expect(kind('Petición de soporte')).toBe('task');
   });
 });
 

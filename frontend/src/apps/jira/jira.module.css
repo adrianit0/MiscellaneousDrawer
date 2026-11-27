@@ -870,3 +870,18 @@
   justify-content: flex-end;
   padding: 0 16px 16px;
 }
+
+/* JR-38: el icono del tipo, a la izquierda de la clave. */
+.cardKey {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.typeIcon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+}

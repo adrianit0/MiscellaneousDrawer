@@ -32,7 +32,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * «Tableros Jira» por su API, con el servidor real y Jira simulado (JR-01 a JR-28): no contacta con ningún servidor.
+ * «Tableros Jira» por su API, con el servidor real y Jira simulado (JR-01 a JR-29): no contacta con ningún servidor.
  * Datos inventados (S-31).
  */
 class JiraAppTest {
@@ -348,7 +348,7 @@ class JiraAppTest {
             assertThat(customer.isNull() ? null : customer.asText()).as((String) cases[i][0]).isEqualTo(cases[i][2]);
         }
         assertThat(jira.searches().get(0).json().get("fields")).extracting(JsonNode::asText).containsExactly(
-                "summary", "status", "assignee", "project", "priority", "created", "updated", "customfield_10050");
+                "summary", "status", "assignee", "project", "priority", "created", "updated", "issuetype", "customfield_10050");
 
         // Sin campo del cliente configurado, no se pide y no hay cliente.
         save(config());
@@ -356,6 +356,126 @@ class JiraAppTest {
         assertThat(without).allSatisfy(i -> assertThat(i.get("customer").isNull()).isTrue());
         assertThat(jira.searches().get(1).json().get("fields")).extracting(JsonNode::asText)
                 .doesNotContain("customfield_10050");
+    }
+
+    // --- Tipo y su icono (ADR-0034) ---
+
+    @Test
+    void jr20_jr21_each_ticket_has_its_type_with_its_level() {
+        save(config());
+        example();
+        jira.type("10100", "Tarea", 0, null);
+        jira.type("10000", "Épica", 1, null);
+        jira.issueTypes.put("raro", JSON.createObjectNode().put("id", "no-es-un-id").put("name", "Raro"));
+        jira.issueTypes.put("sin-nivel", JSON.createObjectNode().put("id", "10200").put("name", "Petición de soporte"));
+        jira.issue("PA-1", "PA", START.id(), "Una tarea", null, Duration.ofHours(1));
+        jira.issue("PA-2", "PA", START.id(), "Una épica", null, Duration.ofHours(2));
+        jira.issue("PA-3", "PA", START.id(), "Sin tipo", null, Duration.ofHours(3));
+        jira.issue("PA-4", "PA", START.id(), "Tipo con id raro", null, Duration.ofHours(4));
+        jira.issue("PA-5", "PA", START.id(), "Tipo sin nivel", null, Duration.ofHours(5));
+        jira.issueType.put("PA-1", "10100");
+        jira.issueType.put("PA-2", "10000");
+        jira.issueType.put("PA-4", "raro");
+        jira.issueType.put("PA-5", "sin-nivel");
+        long id = create(exampleBoard("Equipo"));
+
+        JsonNode todo = issues(id).get("columns").get(0).get("issues");
+        assertThat(FakeJira.keys(todo)).containsExactly("PA-1", "PA-2", "PA-3", "PA-4", "PA-5");
+        assertThat(todo.get(0).get("type").get("id").asText()).isEqualTo("10100");
+        assertThat(todo.get(0).get("type").get("name").asText()).isEqualTo("Tarea");
+        assertThat(todo.get(0).get("type").get("hierarchyLevel").asInt()).isEqualTo(0);
+        assertThat(todo.get(1).get("type").get("name").asText()).isEqualTo("Épica");
+        assertThat(todo.get(1).get("type").get("hierarchyLevel").asInt()).isEqualTo(1);
+        assertThat(todo.get(2).get("type").isNull()).isTrue();
+        assertThat(todo.get(3).get("type").isNull()).isTrue();
+        assertThat(todo.get(4).get("type").get("hierarchyLevel").asInt()).isEqualTo(0);
+        assertThat(jira.searches().get(0).json().get("fields")).extracting(JsonNode::asText).contains("issuetype");
+    }
+
+    private JsonNode icon(String typeId) {
+        HttpResponse<String> r = api.get(BASE + "/issue-types/" + typeId + "/icon");
+        assertThat(r.statusCode()).as(r.body()).isEqualTo(200);
+        return TestApi.json(r).get("icon");
+    }
+
+    private void iconAt(String typeId, String path, Transport.Binary reply) {
+        jira.type(typeId, "Tipo " + typeId, 0, FakeJira.SITE + path);
+        jira.icons.put(FakeJira.SITE + path, reply);
+    }
+
+    @Test
+    void jr29_the_icon_of_a_type_comes_from_the_site_as_a_data_url() {
+        assertError(api.get(BASE + "/issue-types/1/icon"), 409, "not_configured");
+        save(config());
+        assertError(api.get(BASE + "/issue-types/abc/icon"), 400, "invalid_issue_type");
+        assertError(api.get(BASE + "/issue-types/1234567890123456789/icon"), 400, "invalid_issue_type");
+        assertThat(jira.requests).isEmpty();
+
+        String avatar = "/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium";
+        iconAt("1", avatar, new Transport.Binary(200, "image/png", new byte[]{1, 2, 3}));
+        assertThat(icon("1").asText()).isEqualTo("data:image/png;base64,AQID");
+        FakeJira.Request download = jira.requests.get(1);
+        assertThat(jira.requests.get(0).uri().toString()).isEqualTo(FakeJira.SITE + "/rest/api/3/issuetype/1");
+        assertThat(download.uri().toString()).isEqualTo(FakeJira.SITE + avatar);
+        String basic = Base64.getEncoder().encodeToString((FakeJira.EMAIL + ":" + FakeJira.TOKEN).getBytes(StandardCharsets.UTF_8));
+        assertThat(download.headers()).containsEntry("Authorization", "Basic " + basic).containsEntry("Accept", "image/*");
+
+        // Se guarda en memoria: la segunda vez no se pregunta a Jira.
+        assertThat(icon("1").asText()).isEqualTo("data:image/png;base64,AQID");
+        assertThat(jira.requests).hasSize(2);
+
+        byte[] svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"/>".getBytes(StandardCharsets.UTF_8);
+        iconAt("2", "/images/icons/issuetypes/bug.svg", new Transport.Binary(200, "Image/SVG+XML; charset=UTF-8", svg));
+        assertThat(icon("2").asText()).isEqualTo("data:image/svg+xml;base64," + Base64.getEncoder().encodeToString(svg));
+
+        // Justo 64 KB vale; uno más, no.
+        iconAt("3", "/icon/3", new Transport.Binary(200, "image/gif", new byte[TypeIcons.MAX_BYTES]));
+        assertThat(icon("3").asText()).startsWith("data:image/gif;base64,");
+        iconAt("4", "/icon/4", new Transport.Binary(200, "image/png", new byte[TypeIcons.MAX_BYTES + 1]));
+        assertThat(icon("4").isNull()).isTrue();
+        assertThat(jira.requests).allSatisfy(r -> assertThat(r.method()).isEqualTo("GET"));
+    }
+
+    @Test
+    void jr29_an_icon_that_does_not_follow_the_rules_is_null() {
+        save(config());
+        // De otro servidor: no se descarga.
+        jira.type("1", "Fuera", 0, "https://otro.example.test/icon.png");
+        jira.icons.put("https://otro.example.test/icon.png", new Transport.Binary(200, "image/png", new byte[]{1}));
+        assertThat(icon("1").isNull()).isTrue();
+        // Mismo host con otro esquema u otro puerto, o con usuario.
+        jira.type("2", "Esquema", 0, FakeJira.SITE.replace("https:", "http:") + "/icon.png");
+        jira.type("3", "Puerto", 0, FakeJira.SITE + ":8443/icon.png");
+        jira.type("4", "Usuario", 0, FakeJira.SITE.replace("https://", "https://alguien@") + "/icon.png");
+        jira.type("5", "Sin icono", 0, null);
+        for (String id : List.of("2", "3", "4", "5")) {
+            assertThat(icon(id).isNull()).as(id).isTrue();
+        }
+        // Solo se preguntó por los tipos: ninguna descarga.
+        assertThat(jira.requests).allSatisfy(r -> assertThat(r.uri().getPath()).startsWith("/rest/api/3/issuetype/"));
+
+        // Del sitio, pero con otro tipo MIME, otro estado, una redirección, vacío o sin contacto.
+        iconAt("6", "/icon/6", new Transport.Binary(200, "text/html", "<html>".getBytes(StandardCharsets.UTF_8)));
+        iconAt("7", "/icon/7", new Transport.Binary(200, null, new byte[]{1}));
+        iconAt("8", "/icon/8", new Transport.Binary(302, "image/png", new byte[]{1}));
+        iconAt("9", "/icon/9", new Transport.Binary(200, "image/png", new byte[0]));
+        jira.type("10", "Sin respuesta", 0, FakeJira.SITE + "/icon/10");
+        for (String id : List.of("6", "7", "8", "9", "10")) {
+            assertThat(icon(id).isNull()).as(id).isTrue();
+        }
+        jira.type("11", "Sin contacto", 0, FakeJira.SITE + "/icon/11");
+        jira.iconsOffline = true;
+        assertThat(icon("11").isNull()).isTrue();
+    }
+
+    @Test
+    void jr29_errors_asking_for_the_type_are_not_kept() {
+        save(config());
+        HttpResponse<String> r = api.get(BASE + "/issue-types/77/icon");
+        assertError(r, 502, "jira_error");
+        assertThat(TestApi.json(r).get("message").asText()).isEqualTo("No existe en Jira");
+        iconAt("77", "/icon/77", new Transport.Binary(200, "image/webp", new byte[]{9}));
+        assertThat(icon("77").asText()).isEqualTo("data:image/webp;base64,CQ==");
     }
 
     // --- Proyectos y estados ---
@@ -670,7 +790,7 @@ class JiraAppTest {
                         + " OR (project = \"PB\" AND (status in (20001, 20002, 20003, 10003) OR (status in (20005) AND updated >= -14d)))"
                         + " ORDER BY updated DESC");
         assertThat(search.json().get("fields")).extracting(JsonNode::asText)
-                .containsExactly("summary", "status", "assignee", "project", "priority", "created", "updated");
+                .containsExactly("summary", "status", "assignee", "project", "priority", "created", "updated", "issuetype");
         assertThat(search.json().get("maxResults").asInt()).isEqualTo(100);
     }
 

@@ -80,6 +80,14 @@ final class FakeJira implements Transport {
     final ArrayNode fields = JSON.createArrayNode();
     /** JR-28: el valor del campo del cliente de cada ticket, por su clave; el que no está no tiene valor. */
     final Map<String, JsonNode> issueCustomer = new HashMap<>();
+    /** JR-20, JR-29: los tipos del sitio, por identificador, como los da GET /issuetype/{id}. */
+    final Map<String, ObjectNode> issueTypes = new LinkedHashMap<>();
+    /** JR-20: el tipo de cada ticket, por su clave; el que no está no tiene tipo. */
+    final Map<String, String> issueType = new HashMap<>();
+    /** JR-29: lo que responde cada URL de icono; la que no está responde 404. */
+    final Map<String, Binary> icons = new HashMap<>();
+    /** JR-29: si es true, las descargas binarias no tienen contacto. */
+    volatile boolean iconsOffline;
     /** JR-60: el ticket que devuelve GET /issue/{clave}, por su clave, con su key y sus fields. */
     final Map<String, ObjectNode> details = new HashMap<>();
     /** JR-62: los comentarios de cada ticket, del más antiguo al más reciente. */
@@ -96,6 +104,16 @@ final class FakeJira implements Transport {
 
     void issue(String key, String project, String statusId, String summary, String assignee, Duration age) {
         issues.add(new Issue(key, project, statusId, summary, assignee, NOW.minus(age)));
+    }
+
+    /** JR-20, JR-29: un tipo con su icono en el sitio simulado. */
+    ObjectNode type(String id, String name, int level, String iconUrl) {
+        ObjectNode t = JSON.createObjectNode().put("id", id).put("name", name).put("hierarchyLevel", level);
+        if (iconUrl != null) {
+            t.put("iconUrl", iconUrl);
+        }
+        issueTypes.put(id, t);
+        return t;
     }
 
     List<Request> searches() {
@@ -146,6 +164,11 @@ final class FakeJira implements Transport {
             }
             return ok(out);
         }
+        Matcher type = Pattern.compile("/issuetype/([^/]+)").matcher(tail);
+        if (method.equals("GET") && type.matches()) {
+            ObjectNode t = issueTypes.get(type.group(1));
+            return t == null ? new Reply(404, "{\"errorMessages\":[\"No existe\"]}") : ok(t);
+        }
         if (method.equals("GET") && tail.equals("/priority/search")) {
             return prioritySearch(request.query());
         }
@@ -162,6 +185,20 @@ final class FakeJira implements Transport {
             return commentPage(comment.group(1), request.query());
         }
         return new Reply(405, "{}");
+    }
+
+    @Override
+    public Binary fetch(URI uri, Map<String, String> headers, int max) throws IOException {
+        requests.add(new Request("GET", uri, headers, null));
+        if (offline || iconsOffline) {
+            throw new IOException("sin contacto");
+        }
+        Binary icon = icons.get(uri.toString());
+        if (icon == null) {
+            return new Binary(404, "application/json", "{}".getBytes(StandardCharsets.UTF_8));
+        }
+        byte[] body = icon.body().length > max + 1 ? Arrays.copyOf(icon.body(), max + 1) : icon.body();
+        return new Binary(icon.status(), icon.contentType(), body);
     }
 
     private Reply projectSearch(Map<String, String> query) {
@@ -261,6 +298,10 @@ final class FakeJira implements Transport {
                     JsonNode value = issueCustomer.get(i.key());
                     f.set(requested.asText(), value == null ? JSON.nullNode() : value);
                 }
+            }
+            String typeId = issueType.get(i.key());
+            if (typeId != null) {
+                f.set("issuetype", issueTypes.get(typeId));
             }
             // JR-20: creado diez días antes de su última actualización.
             f.put("created", i.updated().minus(Duration.ofDays(10)).toString());

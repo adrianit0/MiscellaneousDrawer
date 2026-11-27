@@ -51,6 +51,7 @@ function boardIssues(updated = UPDATED): BoardIssues {
             statusColor: 'blue',
             assignee: 'Ana Inventada',
             customer: null,
+            type: null,
             priority: null,
             created: '2026-11-01T09:00:00.000+0100',
             updated,

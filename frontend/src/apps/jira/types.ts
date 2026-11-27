@@ -141,6 +141,28 @@ export interface Issue {
   /** JR-20: las fechas tal como las da Jira. */
   created: string | null;
   updated: string | null;
+  /** JR-20: el tipo, o null si no tiene. */
+  type: IssueType | null;
+}
+
+/** JR-20: el tipo de un ticket; hierarchyLevel 1 o más es épica, -1 es subtarea. */
+export interface IssueType {
+  id: string;
+  name: string;
+  hierarchyLevel: number;
+}
+
+/** JR-38: el icono propio de un tipo. */
+export type TypeKind = 'epic' | 'subtask' | 'bug' | 'story' | 'task';
+
+/** JR-38: el icono propio, por el nivel y después por el nombre, sin distinguir mayúsculas ni acentos. */
+export function typeKind(type: IssueType): TypeKind {
+  if (type.hierarchyLevel >= 1) return 'epic';
+  if (type.hierarchyLevel === -1) return 'subtask';
+  const name = normalize(type.name);
+  if (/bug|error|incidencia|defecto/.test(name)) return 'bug';
+  if (/historia|story/.test(name)) return 'story';
+  return 'task';
 }
 
 export interface MissingStatus extends Omit<StatusRef, 'color'> {

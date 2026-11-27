@@ -1,6 +1,7 @@
 package dev.cajonsastre.apps.jira;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -34,5 +35,16 @@ final class HttpTransport implements Transport {
         HttpResponse<String> response = client.send(request.build(),
                 HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         return new Reply(response.statusCode(), response.body());
+    }
+
+    @Override
+    public Binary fetch(URI uri, Map<String, String> headers, int max) throws IOException, InterruptedException {
+        HttpRequest.Builder request = HttpRequest.newBuilder(uri).timeout(REQUEST_TIMEOUT).GET();
+        headers.forEach(request::header);
+        HttpResponse<InputStream> response = client.send(request.build(), HttpResponse.BodyHandlers.ofInputStream());
+        try (InputStream body = response.body()) {
+            return new Binary(response.statusCode(), response.headers().firstValue("Content-Type").orElse(null),
+                    body.readNBytes(max + 1));
+        }
     }
 }

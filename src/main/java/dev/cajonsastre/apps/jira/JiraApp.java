@@ -25,7 +25,7 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * «Tableros Jira» (JR-01 a JR-75, ADR-0027 a ADR-0031 y ADR-0033): tableros propios sobre varios proyectos de Jira Cloud, con las
+ * «Tableros Jira» (JR-01 a JR-75, ADR-0027 a ADR-0031, ADR-0033 y ADR-0034): tableros propios sobre varios proyectos de Jira Cloud, con las
  * columnas y los estados que elige el usuario, y el detalle de cada ticket. Solo lee de Jira (JR-24). Sabe qué tickets
  * son ya tareas de «Gestask» por los mensajes que esta le envía (JR-50).
  */
@@ -143,6 +143,19 @@ public final class JiraApp implements MiniApp {
             ctx.json(issues(jira, config, board, clock));
         });
 
+        // JR-29: nada del tipo ni de la URL en el registro.
+        TypeIcons icons = new TypeIcons(jira);
+        routes.get("/issue-types/{id}/icon", ctx -> {
+            String typeId = ctx.pathParam("id");
+            if (!Board.STATUS_ID.matcher(typeId).matches()) {
+                throw ApiError.badRequest("invalid_issue_type", "El identificador del tipo no es válido");
+            }
+            JiraConfig config = complete(configs);
+            Map<String, Object> out = new HashMap<>();
+            out.put("icon", icons.icon(config, typeId));
+            ctx.json(out);
+        });
+
         // JR-60 a JR-64
         routes.get("/issues/{key}", ctx -> {
             String key = ctx.pathParam("key");
@@ -232,6 +245,9 @@ public final class JiraApp implements MiniApp {
         }
         out.put("created", issue.created());
         out.put("updated", issue.updated());
+        Jira.IssueType type = issue.type();
+        out.put("type", type == null ? null
+                : Map.of("id", type.id(), "name", type.name(), "hierarchyLevel", type.hierarchyLevel()));
         return out;
     }
 

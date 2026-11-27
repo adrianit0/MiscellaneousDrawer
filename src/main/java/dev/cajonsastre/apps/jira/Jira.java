@@ -20,9 +20,9 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * JR-05 a JR-11, JR-19, JR-21, JR-24, JR-28, JR-60, JR-62: la API REST 3 de Jira Cloud. Solo estas llamadas, todas de
- * lectura: el usuario, los campos, los proyectos, los estados de un proyecto, las prioridades, la búsqueda de tickets y
- * el detalle de un ticket con sus comentarios.
+ * JR-05 a JR-11, JR-19, JR-21, JR-24, JR-28, JR-29, JR-60, JR-62: la API REST 3 de Jira Cloud. Solo estas llamadas,
+ * todas de lectura: el usuario, los campos, los proyectos, los estados de un proyecto, las prioridades, la búsqueda de
+ * tickets, el icono de un tipo y el detalle de un ticket con sus comentarios.
  */
 final class Jira {
 
@@ -31,7 +31,8 @@ final class Jira {
     static final int MAX_PROJECTS = 200;
     /** JR-21, JR-23 */
     static final int ISSUE_PAGE = 100;
-    static final List<String> FIELDS = List.of("summary", "status", "assignee", "project", "priority", "created", "updated");
+    static final List<String> FIELDS = List.of("summary", "status", "assignee", "project", "priority", "created", "updated",
+            "issuetype");
     /** JR-19 */
     static final int PRIORITY_PAGE = 50;
     static final int MAX_PRIORITIES = 200;
@@ -59,12 +60,17 @@ final class Jira {
     record Field(String id, String name) {
     }
 
+    /** JR-20: el tipo de un ticket; hierarchyLevel es 0 si Jira no lo da. */
+    record IssueType(String id, String name, int hierarchyLevel) {
+    }
+
     /**
      * JR-20: customer es el texto del campo del cliente (JR-28) o null; priorityId y priorityName son null si el ticket
-     * no tiene prioridad; created y updated, como los da Jira.
+     * no tiene prioridad; created y updated, como los da Jira; type es null si no tiene un tipo válido.
      */
     record Issue(String key, String summary, String project, String statusId, String status, String assignee,
-                 String customer, String priorityId, String priorityName, String created, String updated) {
+                 String customer, String priorityId, String priorityName, String created, String updated,
+                 IssueType type) {
     }
 
     /** JR-23: truncated si Jira tiene más de los devueltos. */
@@ -216,6 +222,20 @@ final class Jira {
         return ok(call(config, "GET", uri(config, "/issue/" + enc(key) + "?fields=" + DETAIL_FIELDS), null));
     }
 
+    /** JR-29: la URL del icono del tipo, tal como la da Jira, o null. El identificador ya es válido. */
+    String issueTypeIconUrl(JiraConfig config, String id) throws InterruptedException {
+        return ok(call(config, "GET", uri(config, "/issuetype/" + enc(id)), null)).path("iconUrl").asText(null);
+    }
+
+    /** JR-05, JR-29: un GET binario a una URL del sitio, o null si no hay contacto. */
+    Transport.Binary download(JiraConfig config, URI uri, int max) throws InterruptedException {
+        try {
+            return transport.fetch(uri, Map.of("Authorization", config.authorization(), "Accept", "image/*"), max);
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
     /** JR-62: los comentarios más recientes, hasta 200. */
     Comments comments(JiraConfig config, String key) throws InterruptedException {
         List<JsonNode> out = new ArrayList<>();
@@ -246,13 +266,18 @@ final class Jira {
         JsonNode assignee = f.get("assignee");
         JsonNode priority = f.get("priority");
         boolean hasPriority = priority != null && priority.hasNonNull("id");
+        JsonNode type = f.path("issuetype");
+        String typeId = type.path("id").asText("");
+        IssueType issueType = Board.STATUS_ID.matcher(typeId).matches()
+                ? new IssueType(typeId, type.path("name").asText(typeId), type.path("hierarchyLevel").asInt(0))
+                : null;
         return new Issue(issue.path("key").asText(), f.path("summary").asText(""), f.path("project").path("key").asText(""),
                 f.path("status").path("id").asText(""), f.path("status").path("name").asText(""),
                 assignee == null || assignee.isNull() ? null : assignee.path("displayName").asText(null),
                 customerField == null ? null : customer(f.get(customerField)),
                 hasPriority ? priority.path("id").asText() : null,
                 hasPriority ? priority.path("name").asText(priority.path("id").asText()) : null,
-                f.path("created").asText(null), f.path("updated").asText(null));
+                f.path("created").asText(null), f.path("updated").asText(null), issueType);
     }
 
     /** JR-28: el texto del valor del campo del cliente, según su tipo en Jira, o null. */

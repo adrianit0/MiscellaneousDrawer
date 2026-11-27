@@ -8,6 +8,7 @@ import { BoardsSection } from './Editor';
 import type { SavedFilter } from './filters';
 import { FiltersSection } from './FiltersSection';
 import { useIssueCache } from './issueCache';
+import { useTypeIcons } from './typeIcons';
 import styles from './jira.module.css';
 import { errorMessage, ticketKey, ticketOfPath, type Board, type ConfigView } from './types';
 
@@ -37,6 +38,8 @@ export function JiraApp() {
   const cache = useIssueCache(api);
   /** JR-75: el detalle de cada ticket, mientras la mini app está montada. */
   const detail = useDetailCache(api);
+  /** JR-38: los iconos de los tipos, mientras la mini app está montada. */
+  const icons = useTypeIcons(api);
   /** JR-50, JR-52: los tickets que ya son tareas de Gestask, normalizados con ticketKey. */
   const [gestask, setGestask] = useState<ReadonlySet<string>>(() => new Set());
 
@@ -169,6 +172,7 @@ export function JiraApp() {
             gestask={gestask}
             detail={detail}
             openKey={ticketOfPath(path)}
+            icons={icons}
           />
         )}
 
