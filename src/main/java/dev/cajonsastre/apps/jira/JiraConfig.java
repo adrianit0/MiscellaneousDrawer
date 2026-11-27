@@ -16,23 +16,26 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * JR-01, JR-02: la conexión que el usuario escribe en «Conexión». Un valor null es un campo vacío. Nada de esto tiene
- * valor en el código ni en el repositorio (S-32).
+ * JR-01, JR-02: la conexión que el usuario escribe en «Conexión», con el campo del cliente opcional (ADR-0033). Un
+ * valor null es un campo vacío. Nada de esto tiene valor en el código ni en el repositorio (S-32).
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-record JiraConfig(String siteUrl, String email, String token) {
+record JiraConfig(String siteUrl, String email, String token, String customerField) {
 
-    static final JiraConfig EMPTY = new JiraConfig(null, null, null);
+    static final JiraConfig EMPTY = new JiraConfig(null, null, null, null);
 
-    /** JR-04: los campos, en el orden del formulario. Todos son obligatorios. */
+    /** JR-04: los campos obligatorios, en el orden del formulario. El del cliente es opcional. */
     static final List<String> REQUIRED = List.of("siteUrl", "email", "token");
 
-    private static final Map<String, String> LABELS = Map.of("siteUrl", "Sitio", "email", "Email", "token", "Token");
+    private static final Map<String, String> LABELS = Map.of("siteUrl", "Sitio", "email", "Email", "token", "Token",
+            "customerField", "Campo del cliente");
     private static final Set<String> LOCAL_HOSTS = Set.of("localhost", "127.0.0.1");
     private static final Pattern SITE = Pattern.compile("[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.atlassian\\.net");
     private static final Pattern EMAIL = Pattern.compile("[^\\s@\\p{Cntrl}]+@[^\\s@\\p{Cntrl}]+");
     private static final Pattern TOKEN = Pattern.compile("[\\x21-\\x7e]{1,500}");
     private static final int MAX_EMAIL = 254;
+    /** JR-02: el identificador de un campo personalizado de Jira. */
+    static final Pattern CUSTOM_FIELD = Pattern.compile("customfield_[0-9]{1,18}");
 
     static String label(String key) {
         return LABELS.getOrDefault(key, key);
@@ -58,7 +61,7 @@ record JiraConfig(String siteUrl, String email, String token) {
         if (site != null) {
             site = site.replaceAll("/+$", "");
         }
-        JiraConfig config = new JiraConfig(site, text(body, "email"), token);
+        JiraConfig config = new JiraConfig(site, text(body, "email"), token, text(body, "customerField"));
         config.validate();
         return config;
     }
@@ -85,6 +88,9 @@ record JiraConfig(String siteUrl, String email, String token) {
         }
         if (token != null && !TOKEN.matcher(token).matches()) {
             throw invalid("token", "debe tener de 1 a 500 caracteres, sin espacios");
+        }
+        if (customerField != null && !CUSTOM_FIELD.matcher(customerField).matches()) {
+            throw invalid("customerField", "debe ser customfield_ seguido de cifras");
         }
     }
 
@@ -148,6 +154,7 @@ record JiraConfig(String siteUrl, String email, String token) {
         out.put("siteUrl", siteUrl);
         out.put("email", email);
         out.put("tokenSet", token != null);
+        out.put("customerField", customerField);
         out.put("missing", missing());
         return out;
     }

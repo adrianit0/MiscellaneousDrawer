@@ -9,6 +9,7 @@ import {
   assigneeColors,
   initials,
   paletteColor,
+  formatCardDate,
   formatTime,
   GESTASK_APP,
   gestaskPath,
@@ -73,7 +74,7 @@ function Avatar({ name, color }: { name: string | null; color: string | undefine
   );
 }
 
-/** JR-41: clave, estado y el botón de Gestask; resumen; asignado y su círculo; prioridad. */
+/** JR-41: clave, estado y el botón de Gestask; resumen; cliente; creado y actualizado; prioridad; asignado y su círculo. */
 function Card({
   issue,
   siteUrl,
@@ -89,6 +90,8 @@ function Card({
   open: boolean;
   onOpen: () => void;
 }) {
+  const created = formatCardDate(issue.created);
+  const updated = formatCardDate(issue.updated);
   return (
     <li
       className={styles.card}
@@ -116,15 +119,22 @@ function Card({
       <button type="button" data-open className={styles.summary} aria-label={`Ver detalle: ${issue.key} ${issue.summary}`}>
         {issue.summary}
       </button>
-      <div className={styles.cardLine}>
-        <span className={issue.assignee ? styles.assignee : `${styles.assignee} ${styles.muted}`}>{issue.assignee ?? UNASSIGNED}</span>
-        <Avatar name={issue.assignee} color={avatar} />
-      </div>
+      {issue.customer && (
+        <div className={styles.customer} aria-label={`Cliente ${issue.customer}`}>
+          {issue.customer}
+        </div>
+      )}
+      {created && <div className={styles.cardDate}>Creado {created}</div>}
+      {updated && <div className={styles.cardDate}>Actualizado {updated}</div>}
       {issue.priority && (
         <div className={styles.priority} data-paint={paletteColor(issue.priority.color)} aria-label={`Prioridad ${issue.priority.name}`}>
           {issue.priority.name}
         </div>
       )}
+      <div className={styles.cardLine}>
+        <span className={issue.assignee ? styles.assignee : `${styles.assignee} ${styles.muted}`}>{issue.assignee ?? UNASSIGNED}</span>
+        <Avatar name={issue.assignee} color={avatar} />
+      </div>
     </li>
   );
 }

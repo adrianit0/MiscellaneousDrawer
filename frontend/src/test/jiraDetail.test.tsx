@@ -21,7 +21,7 @@ import { InApp, testContext } from './miniApp';
 
 const BASE = '/api/apps/jira';
 const SITE = 'https://empresa-inventada.atlassian.net';
-const CONFIG: ConfigView = { siteUrl: SITE, email: 'persona@example.test', tokenSet: true, missing: [] };
+const CONFIG: ConfigView = { siteUrl: SITE, email: 'persona@example.test', tokenSet: true, customerField: null, missing: [] };
 
 const BOARD: Board = {
   id: 1,
@@ -50,6 +50,7 @@ function boardIssues(updated = UPDATED): BoardIssues {
             status: 'doing',
             statusColor: 'blue',
             assignee: 'Ana Inventada',
+            customer: null,
             priority: null,
             created: '2026-11-01T09:00:00.000+0100',
             updated,

@@ -1,11 +1,18 @@
 /** Tipos de la API de «Tableros Jira» y utilidades de su interfaz (specs/requisitos/jira.md). */
 
-/** JR-01 a JR-04: la conexión sin el token. */
+/** JR-01 a JR-04: la conexión sin el token, con el campo del cliente opcional (ADR-0033). */
 export interface ConfigView {
   siteUrl: string | null;
   email: string | null;
   tokenSet: boolean;
+  customerField: string | null;
   missing: string[];
+}
+
+/** JR-08: un campo personalizado de Jira. */
+export interface JiraField {
+  id: string;
+  name: string;
 }
 
 /** JR-02: los campos del formulario, en su orden. */
@@ -127,6 +134,8 @@ export interface Issue {
   status: string;
   statusColor: PaletteColor;
   assignee: string | null;
+  /** JR-20, JR-28: el texto del campo del cliente, o null. */
+  customer: string | null;
   /** JR-20: color null si el tablero no tiene esa prioridad. */
   priority: { id: string; name: string; color: PaletteColor | null } | null;
   /** JR-20: las fechas tal como las da Jira. */
@@ -436,6 +445,15 @@ export function formatSize(bytes: number): string {
 }
 
 /** JR-71: el día y la hora locales de una fecha de Jira. */
+/** JR-41: DD/MM/AAAA HH:MM en la hora local, o vacío si no es una fecha. */
+export function formatCardDate(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const two = (n: number) => String(n).padStart(2, '0');
+  return `${two(d.getDate())}/${two(d.getMonth() + 1)}/${d.getFullYear()} ${two(d.getHours())}:${two(d.getMinutes())}`;
+}
+
 export function formatDateTime(iso: string | null): string {
   if (!iso) return '';
   const d = new Date(iso);

@@ -24,8 +24,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * Jira Cloud simulado, para probar la mini app sin contactar con ningún servidor (ADR-0027). Entiende las cuatro
- * llamadas de {@link Jira} y evalúa el JQL que arma {@link IssueQuery}. Todos los datos son inventados (S-31).
+ * Jira Cloud simulado, para probar la mini app sin contactar con ningún servidor (ADR-0027). Entiende las llamadas de
+ * {@link Jira} y evalúa el JQL que arma {@link IssueQuery}. Todos los datos son inventados (S-31).
  */
 final class FakeJira implements Transport {
 
@@ -76,6 +76,10 @@ final class FakeJira implements Transport {
     final Map<String, String> priorities = new LinkedHashMap<>();
     /** JR-20: la prioridad de cada ticket, por su clave; el que no está no tiene prioridad. */
     final Map<String, String> issuePriority = new HashMap<>();
+    /** JR-08: lo que devuelve GET /field, tal cual. */
+    final ArrayNode fields = JSON.createArrayNode();
+    /** JR-28: el valor del campo del cliente de cada ticket, por su clave; el que no está no tiene valor. */
+    final Map<String, JsonNode> issueCustomer = new HashMap<>();
     /** JR-60: el ticket que devuelve GET /issue/{clave}, por su clave, con su key y sus fields. */
     final Map<String, ObjectNode> details = new HashMap<>();
     /** JR-62: los comentarios de cada ticket, del más antiguo al más reciente. */
@@ -120,6 +124,9 @@ final class FakeJira implements Transport {
         String tail = path.substring("/rest/api/3".length());
         if (method.equals("GET") && tail.equals("/myself")) {
             return ok(JSON.createObjectNode().put("displayName", "Persona Inventada"));
+        }
+        if (method.equals("GET") && tail.equals("/field")) {
+            return ok(fields);
         }
         if (method.equals("GET") && tail.equals("/project/search")) {
             return projectSearch(request.query());
@@ -247,6 +254,13 @@ final class FakeJira implements Transport {
                 f.putNull("priority");
             } else {
                 f.putObject("priority").put("id", priority).put("name", priorities.getOrDefault(priority, "?"));
+            }
+            // JR-21: los campos personalizados pedidos, con el valor del ticket o null, como Jira.
+            for (JsonNode requested : body.path("fields")) {
+                if (requested.asText().startsWith("customfield_")) {
+                    JsonNode value = issueCustomer.get(i.key());
+                    f.set(requested.asText(), value == null ? JSON.nullNode() : value);
+                }
             }
             // JR-20: creado diez días antes de su última actualización.
             f.put("created", i.updated().minus(Duration.ofDays(10)).toString());

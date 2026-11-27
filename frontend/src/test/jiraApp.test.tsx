@@ -20,6 +20,7 @@ import {
   type BoardIssues,
   type ConfigView,
   type Issue,
+  type JiraField,
   type JiraPriority,
   type JiraStatus,
   type PaletteColor,
@@ -33,8 +34,19 @@ import { InApp, testContext } from './miniApp';
 const BASE = '/api/apps/jira';
 const SITE = 'https://empresa-inventada.atlassian.net';
 
-const CONFIG: ConfigView = { siteUrl: SITE, email: 'persona@example.test', tokenSet: true, missing: [] };
-const EMPTY: ConfigView = { siteUrl: null, email: null, tokenSet: false, missing: ['siteUrl', 'email', 'token'] };
+const CONFIG: ConfigView = { siteUrl: SITE, email: 'persona@example.test', tokenSet: true, customerField: null, missing: [] };
+const EMPTY: ConfigView = {
+  siteUrl: null,
+  email: null,
+  tokenSet: false,
+  customerField: null,
+  missing: ['siteUrl', 'email', 'token'],
+};
+/** JR-08: campos personalizados inventados, en el orden en que los da el servidor. */
+const FIELDS: JiraField[] = [
+  { id: 'customfield_10011', name: 'Ambito' },
+  { id: 'customfield_10050', name: 'Cliente Portal' },
+];
 
 const STATUSES: Record<string, JiraStatus[]> = {
   PA: [
@@ -98,6 +110,7 @@ const issue = (key: string, status: string, summary: string, assignee: string | 
   status,
   statusColor: 'blue',
   assignee,
+  customer: null,
   priority: null,
   created: '2026-11-01T09:00:00Z',
   updated: '2026-11-23T09:00:00Z',
@@ -133,6 +146,8 @@ interface Backend {
   filters: SavedFilter[];
   /** JR-50: lo que responde /gestask/tickets. */
   gestaskTickets: string[];
+  /** JR-08: lo que responde /fields, o un error si es null. */
+  fields: JiraField[] | null;
   fail: { status: number; code: string; message: string; details?: unknown } | null;
 }
 
@@ -154,7 +169,7 @@ function route(call: Call): { status?: number; body?: unknown } | undefined {
   if (path === '/config' && call.method === 'PUT') {
     const body = call.body as Record<string, string | null>;
     const tokenSet = backend.config.tokenSet || typeof body.token === 'string';
-    const next: ConfigView = { siteUrl: body.siteUrl, email: body.email, tokenSet, missing: [] };
+    const next: ConfigView = { siteUrl: body.siteUrl, email: body.email, tokenSet, customerField: body.customerField ?? null, missing: [] };
     if (!next.siteUrl) next.missing.push('siteUrl');
     if (!next.email) next.missing.push('email');
     if (!tokenSet) next.missing.push('token');
@@ -162,6 +177,11 @@ function route(call: Call): { status?: number; body?: unknown } | undefined {
     return { body: next };
   }
   if (path === '/connection/test') return { body: { ok: true, user: 'Persona Inventada' } };
+  if (path === '/fields') {
+    return backend.fields
+      ? { body: { fields: backend.fields } }
+      : { status: 502, body: { code: 'jira_error', message: 'El email o el token no son válidos', details: null } };
+  }
   if (path.startsWith('/projects?')) {
     return { body: { projects: [{ key: 'PA', name: 'Proyecto A' }, { key: 'PB', name: 'Proyecto B' }] } };
   }
@@ -251,7 +271,7 @@ beforeEach(() => {
   resetShell();
   notices = [];
   opened = [];
-  backend = { config: CONFIG, boards: [EXAMPLE, SUPPORT], issues: { 1: ISSUES }, filters: [], gestaskTickets: [], fail: null };
+  backend = { config: CONFIG, boards: [EXAMPLE, SUPPORT], issues: { 1: ISSUES }, filters: [], gestaskTickets: [], fields: FIELDS, fail: null };
   server = installFakeServer({ appRoutes: route });
 });
 
@@ -286,7 +306,7 @@ describe('JR-30 JR-31 conexión', () => {
       fireEvent.click(button('Guardar'));
     });
     const [put] = server.callsTo('PUT', `${BASE}/config`);
-    expect(put.body).toEqual({ siteUrl: SITE, email: 'persona@example.test', token: 'token-inventado' });
+    expect(put.body).toEqual({ siteUrl: SITE, email: 'persona@example.test', customerField: null, token: 'token-inventado' });
     expect(field('Token').value).toBe('');
     expect(screen.getByText(/Hay un token guardado/)).toBeTruthy();
     expect(notices).toContain('Conexión guardada.');
@@ -296,7 +316,7 @@ describe('JR-30 JR-31 conexión', () => {
     await act(async () => {
       fireEvent.click(button('Guardar'));
     });
-    expect(server.callsTo('PUT', `${BASE}/config`)[1].body).toEqual({ siteUrl: SITE, email: 'otra@example.test' });
+    expect(server.callsTo('PUT', `${BASE}/config`)[1].body).toEqual({ siteUrl: SITE, email: 'otra@example.test', customerField: null });
 
     await act(async () => {
       fireEvent.click(button('Probar conexión'));
@@ -314,6 +334,119 @@ describe('JR-30 JR-31 conexión', () => {
     });
     expect(field('Sitio').getAttribute('aria-invalid')).toBe('true');
     expect(screen.getByRole('alert').textContent).toContain('«Sitio»');
+  });
+});
+
+describe('JR-08 JR-31 campo del cliente', () => {
+  const select = () => screen.getByLabelText('Campo del cliente') as HTMLSelectElement;
+  const options = () => [...select().options].map((o) => o.textContent);
+
+  it('JR-31: se elige entre «Ninguno» y los campos de Jira, y se guarda', async () => {
+    render(<Harness start="/connection" />);
+    await screen.findByRole('option', { name: 'Cliente Portal (customfield_10050)' });
+    expect(options()).toEqual(['Ninguno', 'Ambito (customfield_10011)', 'Cliente Portal (customfield_10050)']);
+    expect(select().value).toBe('');
+    expect(screen.getByText(/persona que pide el ticket desde el portal/)).toBeTruthy();
+    expect(server.callsTo('GET', `${BASE}/fields`)).toHaveLength(1);
+
+    fireEvent.change(select(), { target: { value: 'customfield_10050' } });
+    expect(screen.getByText('Hay cambios sin guardar.')).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(button('Guardar'));
+    });
+    expect(server.callsTo('PUT', `${BASE}/config`)[0].body).toEqual({
+      siteUrl: SITE,
+      email: 'persona@example.test',
+      customerField: 'customfield_10050',
+    });
+    expect(select().value).toBe('customfield_10050');
+    expect(screen.queryByText('Hay cambios sin guardar.')).toBeNull();
+
+    // «Ninguno» lo quita.
+    fireEvent.change(select(), { target: { value: '' } });
+    await act(async () => {
+      fireEvent.click(button('Guardar'));
+    });
+    expect(server.callsTo('PUT', `${BASE}/config`)[1].body).toMatchObject({ customerField: null });
+  });
+
+  it('JR-31: sin la conexión completa no pide la lista y lo dice', async () => {
+    backend.config = { ...EMPTY, customerField: 'customfield_10050' };
+    render(<Harness />);
+    await screen.findByRole('form', { name: 'Conexión' });
+    expect(screen.getByText('Guarda la conexión para elegirlo entre los campos de Jira.')).toBeTruthy();
+    expect(options()).toEqual(['Ninguno', 'customfield_10050']);
+    expect(server.callsTo('GET', `${BASE}/fields`)).toHaveLength(0);
+  });
+
+  it('JR-31: un valor guardado que Jira ya no tiene se sigue viendo', async () => {
+    backend.config = { ...CONFIG, customerField: 'customfield_99' };
+    render(<Harness start="/connection" />);
+    await screen.findByRole('option', { name: 'customfield_99 (no está en Jira)' });
+    expect(select().value).toBe('customfield_99');
+    expect(options()).toHaveLength(4);
+  });
+
+  it('JR-31: si la lista falla, se dice junto al selector', async () => {
+    backend.fields = null;
+    render(<Harness start="/connection" />);
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'No se pudieron cargar los campos de Jira: El email o el token no son válidos',
+    );
+    expect(options()).toEqual(['Ninguno']);
+  });
+
+  it('JR-31: un error de formato del campo se muestra junto a él', async () => {
+    render(<Harness start="/connection" />);
+    await screen.findByRole('option', { name: 'Ambito (customfield_10011)' });
+    backend.fail = {
+      status: 400,
+      code: 'invalid_config',
+      message: '«Campo del cliente» debe ser customfield_ seguido de cifras',
+      details: { field: 'customerField' },
+    };
+    fireEvent.change(select(), { target: { value: 'customfield_10011' } });
+    await act(async () => {
+      fireEvent.click(button('Guardar'));
+    });
+    expect(select().getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByRole('alert').textContent).toContain('«Campo del cliente»');
+  });
+});
+
+describe('JR-41 cliente y fechas en la tarjeta', () => {
+  const local = (y: number, m: number, d: number, h: number, min: number) => new Date(y, m - 1, d, h, min).toISOString();
+  const withTicket = (key: string, extra: Partial<Issue>): BoardIssues => ({
+    ...ISSUES,
+    columns: ISSUES.columns.map((c) => ({ ...c, issues: c.issues.map((i) => (i.key === key ? { ...i, ...extra } : i)) })),
+  });
+
+  it('JR-41: clave, resumen, cliente, creado, actualizado, prioridad y asignado, en este orden', async () => {
+    backend.issues = {
+      1: withTicket('PA-6', { customer: 'Persona Cliente', created: local(2026, 11, 1, 9, 5), updated: local(2026, 11, 23, 17, 2) }),
+    };
+    await openBoard();
+    const card = within(column('Testing')).getByRole('listitem', { name: 'PA-6' });
+    const lines = [...card.children].map((el) => el.textContent);
+    expect(lines[0]).toContain('PA-6');
+    expect(lines.slice(1)).toEqual([
+      'Validar importación',
+      'Persona Cliente',
+      'Creado 01/11/2026 09:05',
+      'Actualizado 23/11/2026 17:02',
+      'Importante',
+      'LuisLU',
+    ]);
+    expect(within(card).getByLabelText('Cliente Persona Cliente')).toBeTruthy();
+  });
+
+  it('JR-41: sin cliente o sin una fecha, esa línea no está', async () => {
+    backend.issues = { 1: withTicket('PB-3', { created: null, updated: 'no es una fecha' }) };
+    await openBoard();
+    const card = within(column('To do')).getByRole('listitem', { name: 'PB-3' });
+    expect(within(card).queryByLabelText(/^Cliente/)).toBeNull();
+    expect(card.textContent).not.toMatch(/Creado|Actualizado/);
+    expect([...card.children].map((el) => el.textContent).slice(1)).toEqual(['Informe mensual', 'Sin asignar?']);
   });
 });
 
@@ -656,8 +789,9 @@ describe('JR-18 JR-41 JR-45 colores de la tarjeta', () => {
     // JR-41: solo el nombre, sin icono.
     expect(priority.textContent).toBe('Importante');
     expect(priority.getAttribute('data-paint')).toBe('gold');
-    // La prioridad es la última línea.
-    expect(card.lastElementChild).toBe(priority);
+    // JR-41: la prioridad va justo antes del asignado, que es la última línea.
+    expect(card.lastElementChild).toBe(avatar.parentElement);
+    expect(priority.nextElementSibling).toBe(avatar.parentElement);
   });
 
   it('JR-41: una prioridad que el tablero no tiene se ve en gris, y sin prioridad no hay línea', async () => {

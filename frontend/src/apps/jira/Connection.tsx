@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ApiError, useMiniApp } from '../../platform';
 import styles from './jira.module.css';
-import { FIELDS, LABELS, errorMessage, type ConfigView, type Field } from './types';
+import { FIELDS, LABELS, errorMessage, type ConfigView, type Field, type JiraField } from './types';
 
 type Values = Record<Field, string>;
 
@@ -23,9 +23,13 @@ interface Props {
   onSaved: (config: ConfigView) => void;
 }
 
+/** JR-08, JR-31: los campos personalizados de Jira, mientras llegan (null) o el error al pedirlos. */
+type FieldList = { list: JiraField[] | null; error: string | null };
+
 /**
  * JR-31: la conexión con Jira Cloud. El token solo se envía si se escribe y no vuelve a mostrarse. «Probar conexión»
- * pide el usuario con lo guardado (JR-06).
+ * pide el usuario con lo guardado (JR-06). El campo del cliente se elige entre los campos personalizados de Jira, que
+ * se piden con la conexión guardada (JR-08, ADR-0033).
  */
 export function Connection({ config, onSaved }: Props) {
   const { api, notify } = useMiniApp();
@@ -33,14 +37,36 @@ export function Connection({ config, onSaved }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ field: string | null; text: string } | null>(null);
   const [tested, setTested] = useState<string | null>(null);
+  const [customerField, setCustomerField] = useState(config.customerField ?? '');
+  const [fields, setFields] = useState<FieldList>({ list: null, error: null });
+  const complete = config.missing.length === 0;
+
+  // JR-31: la lista se pide con la conexión guardada completa, y otra vez cada vez que se guarda.
+  useEffect(() => {
+    if (!complete) return;
+    let current = true;
+    setFields({ list: null, error: null });
+    api
+      .get<{ fields: JiraField[] }>('/fields')
+      .then((r) => current && setFields({ list: r.fields, error: null }))
+      .catch((e) => current && setFields({ list: null, error: errorMessage(e) }));
+    return () => {
+      current = false;
+    };
+  }, [api, complete, config]);
 
   const saved = useMemo(() => initial(config), [config]);
-  const dirty = values.token !== '' || values.siteUrl.trim() !== saved.siteUrl || values.email.trim() !== saved.email;
+  const dirty =
+    values.token !== '' ||
+    values.siteUrl.trim() !== saved.siteUrl ||
+    values.email.trim() !== saved.email ||
+    customerField !== (config.customerField ?? '');
 
   const save = async () => {
     const body: Record<string, unknown> = {
       siteUrl: values.siteUrl.trim() === '' ? null : values.siteUrl.trim(),
       email: values.email.trim() === '' ? null : values.email.trim(),
+      customerField: customerField === '' ? null : customerField,
     };
     // JR-03: sin escribirlo se conserva el guardado.
     if (values.token.trim() !== '') body.token = values.token.trim();
@@ -50,6 +76,7 @@ export function Connection({ config, onSaved }: Props) {
     try {
       const result = await api.put<ConfigView>('/config', body);
       setValues(initial(result));
+      setCustomerField(result.customerField ?? '');
       onSaved(result);
       notify('Conexión guardada.');
     } catch (e) {
@@ -110,6 +137,54 @@ export function Connection({ config, onSaved }: Props) {
     );
   };
 
+  /** JR-31: «Ninguno», los campos de Jira y el valor elegido aunque Jira ya no lo tenga. */
+  const customerSelect = () => {
+    const list = fields.list ?? [];
+    const known = customerField === '' || list.some((f) => f.id === customerField);
+    const hint = !complete
+      ? 'Guarda la conexión para elegirlo entre los campos de Jira.'
+      : fields.list === null && fields.error === null
+        ? 'Cargando los campos de Jira…'
+        : 'El campo personalizado de Jira con la persona que pide el ticket desde el portal, como «Cliente Portal». Se ve en las tarjetas.';
+    const invalid = error?.field === 'customerField';
+    return (
+      <div className={styles.field}>
+        <label className={styles.field}>
+          <span>Campo del cliente</span>
+          <select
+            value={customerField}
+            aria-invalid={invalid || undefined}
+            aria-describedby="jira-hint-customerField"
+            onChange={(e) => setCustomerField(e.target.value)}
+          >
+            <option value="">Ninguno</option>
+            {list.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name} ({f.id})
+              </option>
+            ))}
+            {!known && (
+              <option value={customerField}>{fields.list ? `${customerField} (no está en Jira)` : customerField}</option>
+            )}
+          </select>
+        </label>
+        <small id="jira-hint-customerField" className={styles.muted}>
+          {hint}
+        </small>
+        {fields.error && (
+          <small className={styles.error} role="alert">
+            No se pudieron cargar los campos de Jira: {fields.error}
+          </small>
+        )}
+        {invalid && (
+          <small className={styles.error} role="alert">
+            {error.text}
+          </small>
+        )}
+      </div>
+    );
+  };
+
   return (
     <form
       className={styles.connection}
@@ -128,6 +203,10 @@ export function Connection({ config, onSaved }: Props) {
       <fieldset>
         <legend>Jira Cloud</legend>
         {FIELDS.map(field)}
+      </fieldset>
+      <fieldset>
+        <legend>Tarjetas</legend>
+        {customerSelect()}
       </fieldset>
       <p className={styles.muted}>La mini app solo lee de Jira: nunca cambia tickets, estados ni proyectos.</p>
       <div className={styles.actions}>

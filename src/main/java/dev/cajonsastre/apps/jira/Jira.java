@@ -9,17 +9,20 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.text.Collator;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 /**
- * JR-05 a JR-11, JR-19, JR-21, JR-24, JR-60, JR-62: la API REST 3 de Jira Cloud. Solo estas llamadas, todas de
- * lectura: el usuario, los proyectos, los estados de un proyecto, las prioridades, la búsqueda de tickets y el detalle de
- * un ticket con sus comentarios.
+ * JR-05 a JR-11, JR-19, JR-21, JR-24, JR-28, JR-60, JR-62: la API REST 3 de Jira Cloud. Solo estas llamadas, todas de
+ * lectura: el usuario, los campos, los proyectos, los estados de un proyecto, las prioridades, la búsqueda de tickets y
+ * el detalle de un ticket con sus comentarios.
  */
 final class Jira {
 
@@ -52,9 +55,16 @@ final class Jira {
     record Priority(String id, String name) {
     }
 
-    /** JR-20: priorityId y priorityName son null si el ticket no tiene prioridad; created y updated, como los da Jira. */
+    /** JR-08 */
+    record Field(String id, String name) {
+    }
+
+    /**
+     * JR-20: customer es el texto del campo del cliente (JR-28) o null; priorityId y priorityName son null si el ticket
+     * no tiene prioridad; created y updated, como los da Jira.
+     */
     record Issue(String key, String summary, String project, String statusId, String status, String assignee,
-                 String priorityId, String priorityName, String created, String updated) {
+                 String customer, String priorityId, String priorityName, String created, String updated) {
     }
 
     /** JR-23: truncated si Jira tiene más de los devueltos. */
@@ -75,6 +85,21 @@ final class Jira {
     String myself(JiraConfig config) throws InterruptedException {
         JsonNode me = ok(call(config, "GET", uri(config, "/myself"), null));
         return me.path("displayName").asText(config.email());
+    }
+
+    /** JR-08: los campos personalizados con un identificador válido, por nombre y después por identificador. */
+    List<Field> fields(JiraConfig config) throws InterruptedException {
+        Collator byName = Collator.getInstance(Locale.forLanguageTag("es"));
+        byName.setStrength(Collator.PRIMARY);
+        List<Field> out = new ArrayList<>();
+        for (JsonNode f : ok(call(config, "GET", uri(config, "/field"), null))) {
+            String id = f.path("id").asText("");
+            if (f.path("custom").asBoolean(false) && JiraConfig.CUSTOM_FIELD.matcher(id).matches()) {
+                out.add(new Field(id, f.path("name").asText(id)));
+            }
+        }
+        out.sort(Comparator.comparing(Field::name, byName).thenComparing(Field::id));
+        return out;
     }
 
     /** JR-10: los proyectos que contienen query en la clave o el nombre, por clave, hasta 200. */
@@ -150,14 +175,19 @@ final class Jira {
         return out;
     }
 
-    /** JR-21, JR-23: los tickets del JQL siguiendo nextPageToken, hasta max. */
+    /** JR-21, JR-23: los tickets del JQL siguiendo nextPageToken, hasta max, con el campo del cliente si lo hay. */
     Search search(JiraConfig config, String jql, int max) throws InterruptedException {
+        String customerField = config.customerField();
+        List<String> fields = new ArrayList<>(FIELDS);
+        if (customerField != null) {
+            fields.add(customerField);
+        }
         List<Issue> out = new ArrayList<>();
         String token = null;
         while (true) {
             ObjectNode body = JSON.createObjectNode();
             body.put("jql", jql);
-            body.putPOJO("fields", FIELDS);
+            body.putPOJO("fields", fields);
             body.put("maxResults", ISSUE_PAGE);
             if (token != null) {
                 body.put("nextPageToken", token);
@@ -168,7 +198,7 @@ final class Jira {
                 if (out.size() == max) {
                     return new Search(out, true);
                 }
-                out.add(parse(i));
+                out.add(parse(i, customerField));
             }
             token = page.path("nextPageToken").asText(null);
             boolean last = page.path("isLast").asBoolean(token == null) || token == null || issues.isEmpty();
@@ -211,7 +241,7 @@ final class Jira {
         }
     }
 
-    private static Issue parse(JsonNode issue) {
+    private static Issue parse(JsonNode issue, String customerField) {
         JsonNode f = issue.path("fields");
         JsonNode assignee = f.get("assignee");
         JsonNode priority = f.get("priority");
@@ -219,9 +249,47 @@ final class Jira {
         return new Issue(issue.path("key").asText(), f.path("summary").asText(""), f.path("project").path("key").asText(""),
                 f.path("status").path("id").asText(""), f.path("status").path("name").asText(""),
                 assignee == null || assignee.isNull() ? null : assignee.path("displayName").asText(null),
+                customerField == null ? null : customer(f.get(customerField)),
                 hasPriority ? priority.path("id").asText() : null,
                 hasPriority ? priority.path("name").asText(priority.path("id").asText()) : null,
                 f.path("created").asText(null), f.path("updated").asText(null));
+    }
+
+    /** JR-28: el texto del valor del campo del cliente, según su tipo en Jira, o null. */
+    static String customer(JsonNode value) {
+        if (value != null && value.isArray()) {
+            List<String> parts = new ArrayList<>();
+            for (JsonNode element : value) {
+                String text = single(element);
+                if (text != null) {
+                    parts.add(text);
+                }
+            }
+            return parts.isEmpty() ? null : String.join(", ", parts);
+        }
+        return single(value);
+    }
+
+    /** JR-28: un texto o un número tal cual; de un objeto, displayName, value o name, el primero que sea un texto. */
+    private static String single(JsonNode value) {
+        String text = null;
+        if (value == null) {
+            return null;
+        } else if (value.isTextual() || value.isNumber()) {
+            text = value.asText();
+        } else if (value.isObject()) {
+            for (String key : List.of("displayName", "value", "name")) {
+                JsonNode n = value.get(key);
+                if (n != null && n.isTextual()) {
+                    text = n.asText();
+                    break;
+                }
+            }
+        }
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        return text.strip();
     }
 
     // --- Llamadas ---

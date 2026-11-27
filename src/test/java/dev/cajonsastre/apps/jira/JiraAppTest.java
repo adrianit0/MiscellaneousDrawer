@@ -32,7 +32,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * «Tableros Jira» por su API, con el servidor real y Jira simulado (JR-01 a JR-25): no contacta con ningún servidor.
+ * «Tableros Jira» por su API, con el servidor real y Jira simulado (JR-01 a JR-28): no contacta con ningún servidor.
  * Datos inventados (S-31).
  */
 class JiraAppTest {
@@ -262,6 +262,100 @@ class JiraAppTest {
         save(config().put("token", "otro-token"));
         assertThat(TestApi.json(api.post(BASE + "/connection/test", "")).get("message").asText())
                 .isEqualTo("El email o el token no son válidos");
+    }
+
+    // --- Campo del cliente (ADR-0033) ---
+
+    @Test
+    void jr02_jr03_jr04_the_customer_field_is_optional_and_validated() {
+        assertThat(save(config()).get("customerField").isNull()).isTrue();
+        assertInvalidConfig(config().put("customerField", "cf_10050"), "customerField");
+        assertInvalidConfig(config().put("customerField", "customfield_"), "customerField");
+        assertInvalidConfig(config().put("customerField", "customfield_1 OR 1"), "customerField");
+        assertInvalidConfig(config().put("customerField", "customfield_1234567890123456789"), "customerField");
+
+        JsonNode saved = save(config().put("customerField", " customfield_10050 "));
+        assertThat(saved.get("customerField").asText()).isEqualTo("customfield_10050");
+        assertThat(saved.get("missing")).isEmpty();
+        stop();
+        start();
+        assertThat(TestApi.json(api.get(BASE + "/config")).get("customerField").asText()).isEqualTo("customfield_10050");
+
+        // JR-04: no cuenta como pendiente. El token guardado se conserva (JR-03).
+        assertThat(save(JSON.createObjectNode().put("customerField", "customfield_1")).get("missing"))
+                .extracting(JsonNode::asText).containsExactly("siteUrl", "email");
+        // Guardar sin él lo deja vacío: el formulario lo manda siempre.
+        assertThat(save(config()).get("customerField").isNull()).isTrue();
+        assertThat(jira.requests).isEmpty();
+    }
+
+    @Test
+    void jr08_custom_fields_are_listed_by_name_then_by_id() {
+        assertError(api.get(BASE + "/fields"), 409, "not_configured");
+        assertThat(jira.requests).isEmpty();
+        save(config());
+        jira.fields.addObject().put("id", "summary").put("name", "Resumen").put("custom", false);
+        jira.fields.addObject().put("id", "customfield_10050").put("name", "Cliente Portal").put("custom", true);
+        jira.fields.addObject().put("id", "customfield_10010").put("name", "área").put("custom", true);
+        jira.fields.addObject().put("id", "customfield_10011").put("name", "Ambito").put("custom", true);
+        jira.fields.addObject().put("id", "customfield_10002").put("name", "cliente portal").put("custom", true);
+        jira.fields.addObject().put("id", "com.plugin:raro").put("name", "Raro").put("custom", true);
+        jira.fields.addObject().put("id", "customfield_10003").put("name", "Sin marca");
+
+        JsonNode fields = TestApi.json(api.get(BASE + "/fields")).get("fields");
+        assertThat(fields).extracting(f -> f.get("id").asText())
+                .containsExactly("customfield_10011", "customfield_10010", "customfield_10002", "customfield_10050");
+        assertThat(fields.get(0).get("name").asText()).isEqualTo("Ambito");
+        assertThat(jira.requests).hasSize(1);
+        assertThat(jira.requests.get(0).method()).isEqualTo("GET");
+        assertThat(jira.requests.get(0).uri().toString()).isEqualTo(FakeJira.SITE + "/rest/api/3/field");
+
+        jira.forced = new Transport.Reply(401, "");
+        assertError(api.get(BASE + "/fields"), 502, "jira_error");
+    }
+
+    @Test
+    void jr20_jr21_jr28_the_customer_comes_as_text_whatever_the_field_type() {
+        save(config().put("customerField", "customfield_10050"));
+        example();
+        Object[][] cases = {
+                {"PA-1", JSON.getNodeFactory().textNode("  Persona Cliente  "), "Persona Cliente"},
+                {"PA-2", JSON.createObjectNode().put("displayName", "Ana Cliente").put("accountId", "x1"), "Ana Cliente"},
+                {"PA-3", JSON.createObjectNode().put("value", "Empresa Inventada").put("id", "1"), "Empresa Inventada"},
+                {"PA-4", JSON.createObjectNode().put("name", "Por nombre"), "Por nombre"},
+                {"PA-5", JSON.createArrayNode().add(JSON.createObjectNode().put("displayName", "Ana"))
+                        .add("Luis").add(JSON.createObjectNode().put("otro", 1)).add(" "), "Ana, Luis"},
+                {"PA-6", JSON.getNodeFactory().numberNode(42), "42"},
+                {"PA-7", JSON.getNodeFactory().textNode("   "), null},
+                {"PA-8", null, null},
+                {"PA-9", JSON.createObjectNode().put("displayName", 123).put("value", "Opción"), "Opción"},
+                {"PA-10", JSON.createArrayNode(), null},
+                {"PA-11", JSON.getNodeFactory().booleanNode(true), null},
+        };
+        for (int i = 0; i < cases.length; i++) {
+            String key = (String) cases[i][0];
+            jira.issue(key, "PA", START.id(), "Ticket " + i, null, Duration.ofHours(i + 1));
+            if (cases[i][1] != null) {
+                jira.issueCustomer.put(key, (JsonNode) cases[i][1]);
+            }
+        }
+        long id = create(exampleBoard("Equipo"));
+
+        JsonNode todo = issues(id).get("columns").get(0).get("issues");
+        assertThat(FakeJira.keys(todo)).hasSize(cases.length);
+        for (int i = 0; i < cases.length; i++) {
+            JsonNode customer = todo.get(i).get("customer");
+            assertThat(customer.isNull() ? null : customer.asText()).as((String) cases[i][0]).isEqualTo(cases[i][2]);
+        }
+        assertThat(jira.searches().get(0).json().get("fields")).extracting(JsonNode::asText).containsExactly(
+                "summary", "status", "assignee", "project", "priority", "created", "updated", "customfield_10050");
+
+        // Sin campo del cliente configurado, no se pide y no hay cliente.
+        save(config());
+        JsonNode without = issues(id).get("columns").get(0).get("issues");
+        assertThat(without).allSatisfy(i -> assertThat(i.get("customer").isNull()).isTrue());
+        assertThat(jira.searches().get(1).json().get("fields")).extracting(JsonNode::asText)
+                .doesNotContain("customfield_10050");
     }
 
     // --- Proyectos y estados ---

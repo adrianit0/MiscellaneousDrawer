@@ -25,7 +25,7 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * «Tableros Jira» (JR-01 a JR-75, ADR-0027 a ADR-0031): tableros propios sobre varios proyectos de Jira Cloud, con las
+ * «Tableros Jira» (JR-01 a JR-75, ADR-0027 a ADR-0031 y ADR-0033): tableros propios sobre varios proyectos de Jira Cloud, con las
  * columnas y los estados que elige el usuario, y el detalle de cada ticket. Solo lee de Jira (JR-24). Sabe qué tickets
  * son ya tareas de «Gestask» por los mensajes que esta le envía (JR-50).
  */
@@ -84,6 +84,12 @@ public final class JiraApp implements MiniApp {
         routes.post("/connection/test", ctx -> {
             JiraConfig config = complete(configs);
             ctx.json(Map.of("ok", true, "user", jira.myself(config)));
+        });
+
+        // JR-08
+        routes.get("/fields", ctx -> {
+            JiraConfig config = complete(configs);
+            ctx.json(Map.of("fields", jira.fields(config)));
         });
 
         // JR-10, JR-11
@@ -200,7 +206,10 @@ public final class JiraApp implements MiniApp {
         return out;
     }
 
-    /** JR-20: el ticket con el color de su par en el tablero y su prioridad con el color del tablero, si la tiene. */
+    /**
+     * JR-20: el ticket con el color de su par en el tablero, su cliente (JR-28) y su prioridad con el color del
+     * tablero, si la tiene.
+     */
     private static Map<String, Object> view(Board board, Jira.Issue issue) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("key", issue.key());
@@ -211,6 +220,7 @@ public final class JiraApp implements MiniApp {
                 .filter(s -> s.project().equals(issue.project()) && s.id().equals(issue.statusId()))
                 .map(Board.StatusRef::color).findFirst().orElse(Board.DEFAULT_COLOR));
         out.put("assignee", issue.assignee());
+        out.put("customer", issue.customer());
         if (issue.priorityId() == null) {
             out.put("priority", null);
         } else {
