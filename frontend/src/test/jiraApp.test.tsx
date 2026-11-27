@@ -337,6 +337,8 @@ describe('JR-30 JR-31 conexión', () => {
   it('JR-31: un error de formato se muestra junto a su campo', async () => {
     render(<Harness start="/connection" />);
     await screen.findByRole('form', { name: 'Conexión' });
+    // El error lo recibe la siguiente petición: antes tienen que haber llegado los campos de Jira.
+    await screen.findByRole('option', { name: 'Ambito (customfield_10011)' });
     backend.fail = { status: 400, code: 'invalid_config', message: '«Sitio» debe ser https://<sitio>.atlassian.net', details: { field: 'siteUrl' } };
     fireEvent.change(field('Sitio'), { target: { value: 'https://evil.example.test' } });
     await act(async () => {
@@ -809,6 +811,8 @@ describe('JR-47 sección «Filtros»', () => {
     // Un valor guardado que ya no está entre las opciones se sigue viendo.
     expect(within(screen.getByRole('list', { name: 'Estados elegidos' })).getByText('estado-que-ya-no-esta')).toBeTruthy();
     expect(field('Antigüedad: Más de').value).toBe('90');
+    // El error lo recibe la siguiente petición: antes tienen que haber llegado las prioridades de Jira.
+    await waitFor(() => expect(screen.queryByText('Cargando las prioridades de Jira…')).toBeNull());
 
     backend.fail = { status: 400, code: 'invalid_filter', message: '«Más de» debe ser menor que «Menos de»', details: { field: 'created' } };
     fireEvent.change(field('Antigüedad: Menos de'), { target: { value: '10' } });
